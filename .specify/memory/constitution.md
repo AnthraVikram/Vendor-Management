@@ -14,9 +14,9 @@ Sync Impact Report
 - Removed sections: none (template placeholders replaced)
 - Follow-up TODOs:
   - The backlog path in Principle I is docs/prd.md. The current PRD file is
-    Vendor_Project_Management_PRD.md at the repository root.
-  - PRD section 12 recommends PostgreSQL 17+ and Drizzle. Principle II fixes
-    MySQL 8 and Prisma. Align the PRD before the first plan.
+    docs/prd.md at the repository root.
+  - PRD section 12 recommends PostgreSQL 17+ and Prisma. Principle II fixes
+    PostgreSQL 17 and Prisma. Align the PRD before the first plan.
 -->
 
 # Vendor & Project Management Constitution
@@ -40,7 +40,7 @@ people who own the product.
 ### II. Fixed Stack
 
 Application code is TypeScript. The runtime and tools are Node LTS, Express, React,
-MySQL 8, Prisma, Vitest, Supertest, ESLint, and Prettier.
+PostgreSQL 17, Prisma, Vitest, Supertest, ESLint, and Prettier.
 
 A new runtime dependency is added only with a one-line reason in `research.md`.
 
@@ -48,7 +48,7 @@ The system is one repository with `api/` and `web/`. One command starts both and
 seed data.
 
 Rationale: A single stack and a single start command keep the internal web app
-reproducible. This stack supersedes the PostgreSQL and Drizzle recommendation in the
+reproducible. This stack supersedes the PostgreSQL and Prisma recommendation in the
 current PRD draft.
 
 ### III. Data Rules
