@@ -14,7 +14,7 @@
 
 ### User Story 1 - Sign in and manage who has access (Priority: P1)
 
-An administrator creates a staff account, assigns one role, and the staff member signs in with email and password. When someone leaves the firm, the administrator revokes that account. A revoked person cannot continue using the system. The administrator can restore access if the person returns. People who are not administrators cannot create or revoke accounts.
+An administrator creates a staff account, assigns one role, and the staff member signs in with email and password. Active administrators, office team members, and accountants can all view and edit every vendor, project, and vendor-project link. When someone leaves the firm, the administrator revokes that account. A revoked person cannot continue using the system. The administrator can restore access if the person returns. People who are not administrators cannot create or revoke accounts. This feature does not assign people to particular projects.
 
 **Why this priority**: Vendor and project records are internal. Nothing else in this feature is safe to use until the firm can grant and remove access.
 
@@ -28,12 +28,14 @@ An administrator creates a staff account, assigns one role, and the staff member
 4. **Given** an office team member or an accountant, **When** they try to create, revoke, restore, or change another person's role or password, **Then** the system refuses the action.
 5. **Given** one active administrator remains, **When** someone tries to revoke that account or change its role, **Then** the system refuses and leaves the account active.
 6. **Given** a wrong password, an unknown email, or a revoked account, **When** a person tries to sign in, **Then** the system refuses and does not reveal which of those three cases occurred.
+7. **Given** an active office team member or accountant, **When** they create, edit, archive, or restore a vendor or a project, or create or remove a vendor-project link, **Then** the change is saved.
+8. **Given** an active office team member or accountant, **When** they try to create, revoke, restore, or change a staff account, **Then** the system refuses the action.
 
 ---
 
 ### User Story 2 - Keep a searchable vendor directory (Priority: P2)
 
-An authorized staff member adds a vendor once, with contact details, categories, locations served, services, materials, indicative rates, GST registration details, manpower, a rating, and notes. They can search and filter the directory, update the record over time, and archive a vendor the firm no longer uses. An archived vendor stays available to open later. The directory hides archived vendors unless the viewer asks to include them.
+An authorized staff member adds a vendor once, with contact details, categories, locations served, services, materials, indicative rates, GST registration details, approximate team size, an availability status, a manpower note, a rating, and notes. They can search and filter the directory, update the record over time, and archive a vendor the firm no longer uses. An archived vendor stays available to open later. The directory hides archived vendors unless the viewer asks to include them.
 
 **Why this priority**: The firm currently keeps vendors in spreadsheets and messages. One searchable record is the main value of this feature.
 
@@ -49,6 +51,7 @@ An authorized staff member adds a vendor once, with contact details, categories,
 6. **Given** a vendor is marked GST registered, **When** the person saves without a GSTIN, **Then** the system explains that the GSTIN is required and does not save that change.
 7. **Given** a GSTIN is already stored on a vendor, **When** a person tries to save the same GSTIN on a different vendor, **Then** the system refuses the duplicate.
 8. **Given** a phone number already belongs to a vendor, **When** a person enters that phone number on a different vendor, **Then** the system warns of the possible duplicate and saves only after the person confirms.
+9. **Given** a vendor has a team size, an availability status of Available, Limited, or Unavailable, and a manpower note, **When** a person filters the directory by that status, **Then** the vendor is included, and vendors with a different status are excluded.
 
 ---
 
@@ -71,7 +74,7 @@ An authorized staff member creates a project with a name and the identifying det
 
 ### User Story 4 - Link a vendor to projects without copying the vendor (Priority: P4)
 
-An authorized staff member links an existing vendor to an existing project. The same vendor can appear on many projects, and a project can have many vendors, without a second copy of the vendor. The link holds details that apply only to that project. A vendor or project that is archived cannot receive a new link. Existing links remain visible when someone opens the archived record.
+An authorized staff member links an existing vendor to an existing project. The same vendor can appear on many projects, and a project can have many vendors, without a second copy of the vendor. The link holds the vendor's role on that project, the scope of work, an agreed rate in Indian rupees, a planned start, a planned end, and a note. The agreed rate is context for that job. It is not a quotation, invoice, or payment. A vendor or project that is archived cannot receive a new link. Existing links remain visible when someone opens the archived record.
 
 **Why this priority**: The firm needs to see who is working on which job. The link is only useful after vendors and projects exist.
 
@@ -82,7 +85,9 @@ An authorized staff member links an existing vendor to an existing project. The 
 1. **Given** one active vendor and two active projects, **When** a person links that vendor to each project, **Then** both projects list that vendor and the directory still contains one vendor record.
 2. **Given** a vendor is already linked to a project, **When** a person tries to link that same pair again, **Then** the system refuses the duplicate link.
 3. **Given** a vendor or a project is archived, **When** a person tries to create a new link for it, **Then** the system refuses the new link and existing links stay visible on the archived record.
-4. **Given** a person removes a link, **When** they open the vendor and the project, **Then** the vendor record still exists and that project no longer shows the link.
+4. **Given** a person removes a link that has a role, a scope, an agreed rate, dates, and a note, **When** they open the vendor and the project, **Then** the vendor record still exists, and the project no longer shows that link or those details.
+5. **Given** a person saves a link with a role, a scope of work, an agreed rate, a planned start, a planned end, and a note, **When** they open that project, **Then** those details are shown on that link only, and the vendor's indicative rates are unchanged.
+6. **Given** a planned end is earlier than the planned start, or the agreed rate is negative or has more than two decimal places, **When** the person saves the link, **Then** the system explains the problem and does not save those details.
 
 ---
 
@@ -95,7 +100,10 @@ An authorized staff member links an existing vendor to an existing project. The 
 - A vendor is archived while linked to projects. The vendor leaves the default directory. Each linked project still shows the vendor and marks the vendor as archived.
 - A project is archived while vendors are linked. Those vendors remain in the directory. The archived project still lists them.
 - Search text matches nothing. The directory shows an empty result and the filters stay as the person set them.
-- A rate amount has more than two decimal places, or is negative. The system explains the problem and does not save that rate.
+- A rate amount, including an agreed rate on a link, has more than two decimal places or is negative. The system explains the problem and does not save that rate.
+- A team size is negative or is not a whole number. The system explains the problem and does not save that manpower update. Availability accepts only Available, Limited, or Unavailable.
+- A link has a planned end earlier than its planned start. The system explains the problem and does not save that link.
+- Removing a link removes its role, scope, agreed rate, dates, and note from the project. The vendor record remains.
 - A rating outside 1 to 5 is refused. A vendor may be saved with no rating.
 - A note with no text is refused.
 - A category name that already exists is reused rather than creating a second category with the same name.
@@ -117,7 +125,7 @@ An authorized staff member links an existing vendor to an existing project. The 
 - **FR-007**: The system MUST refuse any change that would leave the firm with no active administrator.
 - **FR-008**: A person who is not an administrator MUST be refused when they create, revoke, restore, or change a staff account. Hiding the control is not sufficient; the action itself MUST be refused.
 - **FR-009**: A signed-in person MUST be able to change their own password. They MUST NOT be able to change their own role.
-- **FR-010**: Office team and accountant access to vendors and projects MUST follow [NEEDS CLARIFICATION: does every active office team member and accountant work with all vendors and projects, or only records an administrator assigns to them?].
+- **FR-010**: Every active administrator, office team member, and accountant MUST be able to view, create, edit, archive, and restore every vendor and every project, and MUST be able to create, edit, and remove every vendor-project link. This feature has no assignment of people to projects. Only an administrator can manage staff accounts.
 - **FR-011**: A person allowed to edit vendors MUST be able to create, view, edit, search, filter, archive, and restore vendor records.
 - **FR-012**: A vendor MUST be stored once and MUST be able to hold contact details, one or more categories, locations served, services, materials, indicative rates in Indian rupees, GST registration details, manpower, one current rating, and notes.
 - **FR-013**: Saving a vendor MUST require a name, one phone number, and at least one category. The system MUST explain any missing or invalid field and MUST NOT save until those are corrected.
@@ -126,7 +134,7 @@ An authorized staff member links an existing vendor to an existing project. The 
 - **FR-016**: Categories MUST come from one shared list. Choosing an existing category name MUST reuse that category. A vendor MUST be able to have more than one category.
 - **FR-017**: A vendor rating MUST be a whole number from 1 to 5, or empty when the vendor has not been rated. Each change MUST keep the previous score, comment, date, and author readable.
 - **FR-018**: Notes MUST be one of past work, reliability, coordination, or general. Each note MUST keep its text, date, and the staff member who wrote it.
-- **FR-019**: Vendor manpower MUST record [NEEDS CLARIFICATION: daily availability by date, or approximate team size plus a simple availability status and a note?].
+- **FR-019**: Vendor manpower MUST record an approximate team size, an availability status, and a short note. Team size, when provided, MUST be a whole number of zero or greater. Availability, when provided, MUST be Available, Limited, or Unavailable. The manpower filter MUST match that status. A vendor MAY be saved with manpower left empty. This feature has no daily availability calendar.
 - **FR-020**: An indicative rate MUST be a label, an amount in Indian rupees with at most two decimal places, zero or greater, and a unit. A negative amount or a third decimal place MUST be refused.
 - **FR-021**: A GST-registered vendor MUST have a GSTIN. A vendor who is not GST registered MUST be saved without a GSTIN. The same GSTIN MUST NOT be stored on two vendors.
 - **FR-022**: When a phone number already belongs to another vendor, the system MUST warn the person and MUST save the new vendor only after they confirm.
@@ -134,18 +142,18 @@ An authorized staff member links an existing vendor to an existing project. The 
 - **FR-024**: An archived project MUST leave the default project list, MUST remain openable with its vendor links, and MUST be restorable.
 - **FR-025**: A person allowed to edit links MUST be able to associate an existing vendor with an existing project without creating a second vendor record. One vendor MUST be able to link to many projects, and one project MUST be able to link to many vendors.
 - **FR-026**: The system MUST refuse a second link for the same vendor and project, and MUST refuse a new link when the vendor or the project is archived.
-- **FR-027**: Each vendor-project link MUST store [NEEDS CLARIFICATION: which details belong on the link rather than on the vendor — for example role on the project, scope of work, agreed rate, start and end, a note, or another set?].
+- **FR-027**: Each vendor-project link MUST be able to store a role on the project, a scope of work, an agreed rate in Indian rupees, a planned start date, a planned end date, and a note. Any of those details MAY be left empty. The agreed rate, when provided, MUST follow the same amount rules as an indicative rate. A planned end earlier than the planned start MUST be refused. The agreed rate is context for that job and is not a quotation, invoice, or payment.
 - **FR-028**: Removing a link MUST leave the vendor record in place and MUST remove that association from the project.
 
 ### Key Entities
 
 - **Staff account**: A person at the firm. Name, unique email, optional phone, one role, password, and whether access is active or revoked.
-- **Vendor**: One business the firm can hire. Name, contact person, phone, alternate phone, email, address, categories, locations served, services, materials, indicative rates, GST registration flag, GSTIN, GST legal name, manpower, current rating, rating history, notes, and an archive flag.
+- **Vendor**: One business the firm can hire. Name, contact person, phone, alternate phone, email, address, categories, locations served, services, materials, indicative rates, GST registration flag, GSTIN, GST legal name, approximate team size, availability status, manpower note, current rating, rating history, notes, and an archive flag.
 - **Category**: A shared label such as a trade. Many vendors can use one category, and one vendor can use many categories.
 - **Indicative rate**: A directory price for a vendor, with a label, an amount in Indian rupees, and a unit. It is not a quotation or an order.
 - **Vendor note**: Past work, reliability, coordination, or a general note, with text, date, and author.
 - **Project**: A job. Name, optional client name as text, optional site location, optional description, status, and an archive flag. This feature does not include a separate client directory.
-- **Vendor-project link**: The association between one vendor and one project, plus the per-project details in FR-027. Removing the link does not remove the vendor.
+- **Vendor-project link**: The association between one vendor and one project. It stores the role on the project, scope of work, agreed rate in Indian rupees, planned start, planned end, and a note. Removing the link removes those details from the project and does not remove the vendor.
 
 ## Success Criteria *(mandatory)*
 
@@ -164,9 +172,9 @@ An authorized staff member links an existing vendor to an existing project. The 
 - The three roles are the Owner / Administrator, Office Team / Architects, and Accountant described in `docs/prd.md`. This specification uses the names Administrator, Office Team, and Accountant.
 - Staff do not register themselves. There is no password reset by email in this feature. A forgotten password is replaced by an administrator. A person may change their own password after signing in.
 - Passwords are at least 8 characters. The system stores them so they cannot be read back.
-- How widely office team members and accountants can see or edit vendors and projects is FR-010 and is not assumed here.
-- Whether manpower is a daily calendar or a team size plus a simple availability status is FR-019 and is not assumed here.
-- Which fields sit on a vendor-project link is FR-027 and is not assumed here.
+- Resolved with the product owner on 2026-10-23: active office team members and accountants can view and edit every vendor, project, and link. Only administrators manage staff accounts. People are not assigned to projects in this feature.
+- Resolved with the product owner on 2026-10-23: manpower is an approximate team size, a status of Available, Limited, or Unavailable, and a short note. The directory filters on that status. There is no daily calendar.
+- Resolved with the product owner on 2026-10-23: a vendor-project link stores role, scope of work, agreed rate in Indian rupees, planned start, planned end, and a note. Those details may be left blank. The agreed rate is job context, not a financial record. Removing the link removes it from view.
 - A project stores the client as a name on the project. A separate client directory, timelines, milestones, delays, documents, spreadsheet import, client advances, dashboards, reminders, quotations, orders, invoices, and payments are out of scope. Those remain in later backlog items (FR-05 through FR-13, FR-15, and FR-16).
 - GST details in this feature are whether the vendor is registered, the GSTIN when registered, and the legal name on the registration. GST deadlines, GST documents, and verification flags stay out of scope.
 - Categories, locations served, services, and materials are shared or repeatable labels so filters stay consistent. They are not a price book or a materials catalog.

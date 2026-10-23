@@ -13,28 +13,28 @@
 
 ## Requirement Completeness
 
-- [ ] No [NEEDS CLARIFICATION] markers remain
-- [ ] Requirements are testable and unambiguous
+- [x] No [NEEDS CLARIFICATION] markers remain
+- [x] Requirements are testable and unambiguous
 - [x] Success criteria are measurable
 - [x] Success criteria are technology-agnostic (no implementation details)
-- [ ] All acceptance scenarios are defined
+- [x] All acceptance scenarios are defined
 - [x] Edge cases are identified
 - [x] Scope is clearly bounded
 - [x] Dependencies and assumptions identified
 
 ## Feature Readiness
 
-- [ ] All functional requirements have clear acceptance criteria
+- [x] All functional requirements have clear acceptance criteria
 - [x] User scenarios cover primary flows
 - [x] Feature meets measurable outcomes defined in Success Criteria
 - [x] No implementation details leak into specification
 
 ## Notes
 
-- Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`.
-- Validation iteration 1, 2026-10-23. Three markers remain, which is the maximum allowed. No other product question was given a silent default; the remaining choices are written as assumptions.
-- **FR-010** (User Story 1): office team and accountant access is either firm-wide or limited to records an administrator assigns. Acceptance scenarios for create, edit, and archive of vendors and projects cannot be finished until this is chosen.
-- **FR-019** (User Story 2): manpower is either a daily calendar or approximate team size plus a simple availability status and a note. Filter-by-availability scenarios depend on this.
-- **FR-027** (User Story 4): the per-project fields on a vendor-project link are not listed. The link story can prove a single vendor record across two projects, and cannot yet prove which details are saved on the link.
-- Content-quality items pass. The specification names no language, framework, database, or API. Setup, sample data, one-command start, and merge checks are confined to Assumptions as plan work for this feature.
-- Success criteria SC-001 through SC-007 are user-facing and measurable.
+- Validation iteration 1, 2026-10-23: failed on three open markers, FR-010, FR-019, and FR-027.
+- Validation iteration 2, 2026-10-23: passed. Product choices were recorded as follows.
+  - Q1 A: every active administrator, office team member, and accountant can view and edit every vendor, project, and link. Only administrators manage staff accounts. No project assignment.
+  - Q2 B: a link stores role, scope of work, agreed rate in Indian rupees, planned start, planned end, and a note. The agreed rate is job context. Removing the link removes those details from view.
+  - Q3 A: manpower is approximate team size, a status of Available, Limited, or Unavailable, and a short note. The directory filters on that status. There is no daily calendar.
+- Acceptance scenarios for those choices are in User Stories 1, 2, and 4. Edge cases cover invalid team size, invalid agreed rate, and a planned end before the planned start.
+- The specification names no language, framework, database, or API. Setup, sample data, one-command start, and merge checks stay in Assumptions as plan work for this feature.
