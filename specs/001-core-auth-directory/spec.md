@@ -8,7 +8,7 @@
 
 **Input**: User description: "001 core: auth and directory. Login, roles, admin creates and revokes users. Vendor directory with the full vendor model, categories, search, filter, archive, ratings and notes. Projects with archive. Vendor-to-project links with per-project fields. Covers FR-01, 02, 03, 04, 14. Project scaffolding, stack setup, seed data, one-command run and CI go into this spec’s plan rather than a separate spec."
 
-**Backlog coverage**: FR-01, FR-02, FR-03, FR-04, FR-14 from `docs/prd.md`.
+**Backlog coverage**: FR-01, FR-02, FR-03, FR-04, FR-14 from `docs/prd.md`. Work scheduling and per-job pricing were added by the product owner on 2026-10-23. They do not yet have requirement ids in `docs/prd.md`. Quotation comparison, purchase orders, invoices, and payments stay out of this specification.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -74,7 +74,7 @@ An authorized staff member creates a project with a name and the identifying det
 
 ### User Story 4 - Link a vendor to projects without copying the vendor (Priority: P4)
 
-An authorized staff member links an existing vendor to an existing project. The same vendor can appear on many projects, and a project can have many vendors, without a second copy of the vendor. The link holds the vendor's role on that project, the scope of work, an agreed rate in Indian rupees, a planned start, a planned end, and a note. The agreed rate is context for that job. It is not a quotation, invoice, or payment. A vendor or project that is archived cannot receive a new link. Existing links remain visible when someone opens the archived record.
+An authorized staff member links an existing vendor to an existing project. The same vendor can appear on many projects, and a project can have many vendors, without a second copy of the vendor. The link stores only that vendor's role on the project, the scope of work, and a note. Contact details, categories, rates, manpower, and other vendor information stay on the vendor record. A vendor or project that is archived cannot receive a new link. Existing links remain visible when someone opens the archived record.
 
 **Why this priority**: The firm needs to see who is working on which job. The link is only useful after vendors and projects exist.
 
@@ -85,9 +85,47 @@ An authorized staff member links an existing vendor to an existing project. The 
 1. **Given** one active vendor and two active projects, **When** a person links that vendor to each project, **Then** both projects list that vendor and the directory still contains one vendor record.
 2. **Given** a vendor is already linked to a project, **When** a person tries to link that same pair again, **Then** the system refuses the duplicate link.
 3. **Given** a vendor or a project is archived, **When** a person tries to create a new link for it, **Then** the system refuses the new link and existing links stay visible on the archived record.
-4. **Given** a person removes a link that has a role, a scope, an agreed rate, dates, and a note, **When** they open the vendor and the project, **Then** the vendor record still exists, and the project no longer shows that link or those details.
-5. **Given** a person saves a link with a role, a scope of work, an agreed rate, a planned start, a planned end, and a note, **When** they open that project, **Then** those details are shown on that link only, and the vendor's indicative rates are unchanged.
-6. **Given** a planned end is earlier than the planned start, or the agreed rate is negative or has more than two decimal places, **When** the person saves the link, **Then** the system explains the problem and does not save those details.
+4. **Given** a person removes a link that has a role, a scope, and a note, **When** they open the vendor and the project, **Then** the vendor record still exists unchanged, and the project no longer shows that link.
+5. **Given** a person saves a link with a role, a scope of work, and a note, **When** they open the vendor and the project, **Then** the project shows those three details on the link, and the vendor's contact details, rates, and manpower are unchanged.
+
+---
+
+### User Story 5 - Schedule vendor work on a project (Priority: P5)
+
+A staff member schedules work for a vendor who is already linked to a project. They enter the task, the date, the start time, the end time, and the required team size. The schedule does not copy the vendor record onto the project. If that same vendor already has work whose times overlap, on this project or another, the system flags the conflict and still saves the schedule. The vendor's Available, Limited, or Unavailable status does not reserve a time and does not block the booking.
+
+**Why this priority**: The firm needs to see when a vendor is booked. Scheduling is useful only after the vendor is linked to the project.
+
+**Independent Test**: Link one vendor to a project, schedule a task with a date and times, then schedule a second task for that vendor in the same time range and confirm the conflict is visible while both schedules remain saved.
+
+**Acceptance Scenarios**:
+
+1. **Given** an active vendor linked to an active project, **When** a staff member saves a schedule with a task, a date, a start time, an end time, and a required team size, **Then** the project shows that schedule and the vendor record is unchanged.
+2. **Given** that vendor already has a schedule on the same date with overlapping times, on any project, **When** a staff member saves another schedule in that overlap, **Then** the system names the conflicting schedule and still saves the new one.
+3. **Given** two schedules overlap in time and belong to different vendors, **When** both are saved, **Then** the system does not flag them as a conflict with each other.
+4. **Given** a vendor's status is Available or Unavailable, **When** a staff member schedules that vendor, **Then** the system saves the schedule and does not treat the status as proof that the vendor is free or busy for that time.
+5. **Given** the task or date is missing, the end time is not later than the start time, or the required team size is missing, zero, negative, or not a whole number, **When** the staff member saves, **Then** the system explains the problem and does not save the schedule.
+6. **Given** the vendor is not linked to the project, or the vendor or the project is archived, **When** a staff member tries to add a schedule, **Then** the system refuses.
+
+---
+
+### User Story 6 - Price a job without changing the vendor (Priority: P5)
+
+Each scheduled task is a job. That task can carry a fixed agreed price or one attached costing sheet, which is a spreadsheet or PDF file. A project can hold many priced tasks for the same vendor, and each task keeps its own price. The price is not written onto the vendor profile. Staff can still keep indicative rates on the vendor for the directory. Comparing quotations, purchase orders, invoices, and payments are outside this feature.
+
+**Why this priority**: The firm needs a price for a specific booking. That price has to stay distinct from the vendor's general rates, and from later purchasing and payment records.
+
+**Independent Test**: Add two schedules for one vendor on one project, put a different fixed price on each, attach a spreadsheet to a third unpriced schedule, and confirm the vendor profile still shows only its own indicative rates.
+
+**Acceptance Scenarios**:
+
+1. **Given** a scheduled task has a fixed agreed price, **When** a staff member opens the vendor who is doing the work, **Then** the vendor's indicative rates are unchanged and the task price does not appear as a vendor rate.
+2. **Given** one vendor has two scheduled tasks on the same project, **When** a staff member sets a different fixed price on each task, **Then** each task shows its own price.
+3. **Given** a scheduled task has no fixed price, **When** a staff member attaches a spreadsheet or PDF costing sheet, **Then** a signed-in staff member can open that file from the task.
+4. **Given** a person is signed out, **When** they try to open a costing sheet, **Then** the system refuses.
+5. **Given** a scheduled task already has a fixed agreed price, **When** a staff member also attaches a costing sheet, **Then** the system refuses to keep both and explains that the task uses one pricing method.
+6. **Given** a fixed agreed price is negative or has more than two decimal places, or the file is not a spreadsheet or PDF, **When** a staff member saves it, **Then** the system explains the problem and does not save that price or file.
+7. **Given** a staff member changes a fixed agreed price or replaces a costing sheet, **When** they open the task later, **Then** the new price or file is shown and the previous price or file remains readable with the date and the staff member who changed it.
 
 ---
 
@@ -100,17 +138,23 @@ An authorized staff member links an existing vendor to an existing project. The 
 - A vendor is archived while linked to projects. The vendor leaves the default directory. Each linked project still shows the vendor and marks the vendor as archived.
 - A project is archived while vendors are linked. Those vendors remain in the directory. The archived project still lists them.
 - Search text matches nothing. The directory shows an empty result and the filters stay as the person set them.
-- A rate amount, including an agreed rate on a link, has more than two decimal places or is negative. The system explains the problem and does not save that rate.
-- A team size is negative or is not a whole number. The system explains the problem and does not save that manpower update. Availability accepts only Available, Limited, or Unavailable.
-- A link has a planned end earlier than its planned start. The system explains the problem and does not save that link.
-- Removing a link removes its role, scope, agreed rate, dates, and note from the project. The vendor record remains.
+- An indicative rate or a fixed agreed price has more than two decimal places or is negative. The system explains the problem and does not save that amount.
+- A team size on the vendor, or a required team size on a schedule, is negative or is not a whole number. The system explains the problem and does not save that update. Vendor availability accepts only Available, Limited, or Unavailable.
+- A schedule end time is not later than its start time, or the schedule has no task or date. The system does not save it.
+- The same vendor has two schedules on the same date whose times overlap, including schedules on different projects. Both remain saved, and both show a conflict.
+- Overlapping schedules for different vendors are not flagged.
+- A vendor marked Available is still flagged when a new schedule overlaps an existing one. A vendor marked Unavailable can still be scheduled.
+- Removing a link removes its role, scope, and note from the project. The vendor record remains. Schedules for that vendor on that project leave the working project view, and any price or costing sheet already recorded on those schedules stays readable.
+- A costing sheet can be opened by a signed-in staff member from the scheduled task. A signed-out person cannot open it. Replacing the file keeps the previous file readable.
+- A file that is not a spreadsheet or PDF is refused. A task cannot show both a current fixed price and a current costing sheet.
+- Restoring an archived vendor or project returns it to the default list and keeps its links and existing schedules.
 - A rating outside 1 to 5 is refused. A vendor may be saved with no rating.
 - A note with no text is refused.
 - A category name that already exists is reused rather than creating a second category with the same name.
 - Filters combine. A vendor must match the search text and every selected filter. Including archived vendors is off unless the person turns it on.
 - A person confirms a possible duplicate phone number, then the vendor is saved. If they do not confirm, the vendor is not saved.
 - A GST-unregistered vendor is saved with no GSTIN. Adding a GSTIN later requires marking the vendor as registered.
-- Restoring an archived vendor or project returns it to the default list and keeps its links.
+- A schedule that crosses midnight is out of scope. Start and end are times on the single date of that schedule.
 
 ## Requirements *(mandatory)*
 
@@ -125,7 +169,7 @@ An authorized staff member links an existing vendor to an existing project. The 
 - **FR-007**: The system MUST refuse any change that would leave the firm with no active administrator.
 - **FR-008**: A person who is not an administrator MUST be refused when they create, revoke, restore, or change a staff account. Hiding the control is not sufficient; the action itself MUST be refused.
 - **FR-009**: A signed-in person MUST be able to change their own password. They MUST NOT be able to change their own role.
-- **FR-010**: Every active administrator, office team member, and accountant MUST be able to view, create, edit, archive, and restore every vendor and every project, and MUST be able to create, edit, and remove every vendor-project link. This feature has no assignment of people to projects. Only an administrator can manage staff accounts.
+- **FR-010**: Every active administrator, office team member, and accountant MUST be able to view, create, edit, archive, and restore every vendor and every project, MUST be able to create, edit, and remove every vendor-project link, and MUST be able to create, edit, and remove every work schedule. This feature has no assignment of people to projects. Only an administrator can manage staff accounts.
 - **FR-011**: A person allowed to edit vendors MUST be able to create, view, edit, search, filter, archive, and restore vendor records.
 - **FR-012**: A vendor MUST be stored once and MUST be able to hold contact details, one or more categories, locations served, services, materials, indicative rates in Indian rupees, GST registration details, manpower, one current rating, and notes.
 - **FR-013**: Saving a vendor MUST require a name, one phone number, and at least one category. The system MUST explain any missing or invalid field and MUST NOT save until those are corrected.
@@ -134,7 +178,7 @@ An authorized staff member links an existing vendor to an existing project. The 
 - **FR-016**: Categories MUST come from one shared list. Choosing an existing category name MUST reuse that category. A vendor MUST be able to have more than one category.
 - **FR-017**: A vendor rating MUST be a whole number from 1 to 5, or empty when the vendor has not been rated. Each change MUST keep the previous score, comment, date, and author readable.
 - **FR-018**: Notes MUST be one of past work, reliability, coordination, or general. Each note MUST keep its text, date, and the staff member who wrote it.
-- **FR-019**: Vendor manpower MUST record an approximate team size, an availability status, and a short note. Team size, when provided, MUST be a whole number of zero or greater. Availability, when provided, MUST be Available, Limited, or Unavailable. The manpower filter MUST match that status. A vendor MAY be saved with manpower left empty. This feature has no daily availability calendar.
+- **FR-019**: Vendor manpower MUST record an approximate team size, an availability status, and an optional short note. Team size, when provided, MUST be a whole number of zero or greater. Availability, when provided, MUST be Available, Limited, or Unavailable. The manpower filter MUST match that status. A vendor MAY be saved with manpower left empty. This feature has no daily availability calendar. The availability status MUST NOT be treated as a guarantee that the vendor is free for a particular job or time, and it MUST NOT block scheduling.
 - **FR-020**: An indicative rate MUST be a label, an amount in Indian rupees with at most two decimal places, zero or greater, and a unit. A negative amount or a third decimal place MUST be refused.
 - **FR-021**: A GST-registered vendor MUST have a GSTIN. A vendor who is not GST registered MUST be saved without a GSTIN. The same GSTIN MUST NOT be stored on two vendors.
 - **FR-022**: When a phone number already belongs to another vendor, the system MUST warn the person and MUST save the new vendor only after they confirm.
@@ -142,8 +186,15 @@ An authorized staff member links an existing vendor to an existing project. The 
 - **FR-024**: An archived project MUST leave the default project list, MUST remain openable with its vendor links, and MUST be restorable.
 - **FR-025**: A person allowed to edit links MUST be able to associate an existing vendor with an existing project without creating a second vendor record. One vendor MUST be able to link to many projects, and one project MUST be able to link to many vendors.
 - **FR-026**: The system MUST refuse a second link for the same vendor and project, and MUST refuse a new link when the vendor or the project is archived.
-- **FR-027**: Each vendor-project link MUST be able to store a role on the project, a scope of work, an agreed rate in Indian rupees, a planned start date, a planned end date, and a note. Any of those details MAY be left empty. The agreed rate, when provided, MUST follow the same amount rules as an indicative rate. A planned end earlier than the planned start MUST be refused. The agreed rate is context for that job and is not a quotation, invoice, or payment.
+- **FR-027**: Each vendor-project link MUST store only the vendor's role on the project, the scope of work, and a note. Any of those three MAY be left empty. Vendor contact details, categories, indicative rates, manpower, ratings, and notes MUST remain on the vendor record and MUST NOT be copied onto the link.
 - **FR-028**: Removing a link MUST leave the vendor record in place and MUST remove that association from the project.
+- **FR-029**: A staff member MUST be able to schedule work for a vendor on a project by entering a task, a date, a start time, an end time, and a required team size. The vendor MUST already be linked to that project. The vendor and the project MUST be active. The schedule MUST NOT copy vendor details onto the project.
+- **FR-030**: The system MUST flag a schedule when the same vendor has another schedule on the same date whose start and end times overlap, including a schedule on a different project. The system MUST still save the schedule. Overlapping schedules for different vendors MUST NOT be flagged as conflicts with each other.
+- **FR-031**: A schedule MUST be refused when the task or date is missing, the end time is not later than the start time, or the required team size is missing, zero, negative, or not a whole number. A schedule covers one date. Start and end are times on that date.
+- **FR-032**: Pricing MUST belong to each scheduled task. Two tasks for the same vendor on the same project MUST be able to carry different prices. A price MUST NOT be copied onto the vendor profile or onto the vendor-project link.
+- **FR-033**: A scheduled task MAY have no price. When it is priced, it MUST use either one fixed agreed price or one attached costing sheet, not both. A fixed agreed price MUST be an amount in Indian rupees with at most two decimal places and zero or greater. A costing sheet MUST be one spreadsheet or PDF file. A signed-in staff member MUST be able to open that file from the task. A person who is signed out MUST be refused. Replacing the file MUST keep the previous file readable with the date and the staff member who replaced it.
+- **FR-034**: Changing a fixed agreed price MUST keep the previous amount, the date, and the staff member who changed it readable on that job.
+- **FR-035**: This feature MUST NOT include quotation comparison, purchase orders, invoices, vendor payments, or client advances.
 
 ### Key Entities
 
@@ -152,8 +203,10 @@ An authorized staff member links an existing vendor to an existing project. The 
 - **Category**: A shared label such as a trade. Many vendors can use one category, and one vendor can use many categories.
 - **Indicative rate**: A directory price for a vendor, with a label, an amount in Indian rupees, and a unit. It is not a quotation or an order.
 - **Vendor note**: Past work, reliability, coordination, or a general note, with text, date, and author.
-- **Project**: A job. Name, optional client name as text, optional site location, optional description, status, and an archive flag. This feature does not include a separate client directory.
-- **Vendor-project link**: The association between one vendor and one project. It stores the role on the project, scope of work, agreed rate in Indian rupees, planned start, planned end, and a note. Removing the link removes those details from the project and does not remove the vendor.
+- **Project**: One of the firm's jobs as a whole. Name, optional client name as text, optional site location, optional description, status, and an archive flag. This feature does not include a separate client directory.
+- **Vendor-project link**: The association between one vendor and one project. It stores the role on the project, the scope of work, and a note. It does not copy the vendor record. Removing the link does not remove the vendor.
+- **Work schedule**: One booked task for one linked vendor on one project. Task, date, start time, end time, required team size, and any conflict with that vendor's other schedules.
+- **Job price**: The fixed agreed price or the spreadsheet or PDF costing sheet on one scheduled task. Each task has its own price. It is not an indicative rate on the vendor, and it is not a quotation, order, invoice, or payment.
 
 ## Success Criteria *(mandatory)*
 
@@ -165,7 +218,11 @@ An authorized staff member links an existing vendor to an existing project. The 
 - **SC-004**: A vendor linked to two projects appears on both projects while the directory still contains a single record for that vendor.
 - **SC-005**: After a vendor or a project is archived, a staff member can still open it and see its details and existing links.
 - **SC-006**: In every attempt, a person who is not an administrator is refused when creating, revoking, or changing a staff account.
-- **SC-007**: A staff member can sign in, find a vendor, and open a project on a phone screen and on a computer.
+- **SC-007**: A staff member can sign in, find a vendor, schedule work, and open a project on a phone screen and on a computer.
+- **SC-008**: A staff member can add a vendor schedule, with task, date, times, and required team size, in under 2 minutes.
+- **SC-009**: When a second schedule overlaps the same vendor's existing time, the conflict is visible on the schedule and both schedules remain saved.
+- **SC-010**: After a fixed agreed price is saved on a scheduled task, the vendor profile still shows only that vendor's own indicative rates.
+- **SC-011**: Two scheduled tasks for the same vendor on one project can show two different prices, and a signed-in staff member can open a costing sheet attached to a task. A signed-out person cannot open that file.
 
 ## Assumptions
 
@@ -173,12 +230,14 @@ An authorized staff member links an existing vendor to an existing project. The 
 - Staff do not register themselves. There is no password reset by email in this feature. A forgotten password is replaced by an administrator. A person may change their own password after signing in.
 - Passwords are at least 8 characters. The system stores them so they cannot be read back.
 - Resolved with the product owner on 2026-10-23: active office team members and accountants can view and edit every vendor, project, and link. Only administrators manage staff accounts. People are not assigned to projects in this feature.
-- Resolved with the product owner on 2026-10-23: manpower is an approximate team size, a status of Available, Limited, or Unavailable, and a short note. The directory filters on that status. There is no daily calendar.
-- Resolved with the product owner on 2026-10-23: a vendor-project link stores role, scope of work, agreed rate in Indian rupees, planned start, planned end, and a note. Those details may be left blank. The agreed rate is job context, not a financial record. Removing the link removes it from view.
-- A project stores the client as a name on the project. A separate client directory, timelines, milestones, delays, documents, spreadsheet import, client advances, dashboards, reminders, quotations, orders, invoices, and payments are out of scope. Those remain in later backlog items (FR-05 through FR-13, FR-15, and FR-16).
+- Revised with the product owner on 2026-10-23: manpower is an approximate team size, a status of Available, Limited, or Unavailable, and an optional note. The directory filters on that status. There is no daily calendar. The status does not mean the vendor is free or busy for a particular job or time.
+- Revised with the product owner on 2026-10-23: a vendor-project link stores role, scope of work, and a note. It does not store a price or schedule dates. Vendor details stay on the vendor record.
+- A project stores the client as a name on the project. Milestones, delay tracking, the general document library, spreadsheet import, client advances, dashboards, reminders, quotation comparison, purchase orders, invoices, and payments are out of scope. Those remain in later backlog items (FR-05 through FR-13, FR-15, and FR-16). Work scheduling is in this specification. Each scheduled task may carry a fixed price or one spreadsheet or PDF costing sheet. `docs/prd.md` does not yet number scheduling or this task price.
+- Resolved with the product owner on 2026-10-23: the priced job is each scheduled task. The costing sheet is a file, a spreadsheet or PDF, opened only by a signed-in staff member. A task does not use a fixed price and a costing sheet at the same time.
 - GST details in this feature are whether the vendor is registered, the GSTIN when registered, and the legal name on the registration. GST deadlines, GST documents, and verification flags stay out of scope.
 - Categories, locations served, services, and materials are shared or repeatable labels so filters stay consistent. They are not a price book or a materials catalog.
-- Indicative rates are directory information. They are not quotations, purchase orders, or payment records.
+- Indicative rates stay on the vendor as directory information. They are not the agreed price of a job, and they are not quotations, purchase orders, or payment records.
+- A conflict is the same vendor booked for overlapping times on the same date. The schedule is still saved. Schedules for other vendors are not part of that conflict.
 - The current rating is optional. History of ratings and notes stays on the vendor after archive.
 - The same phone number may be saved on two vendors only after the person confirms the warning. The same GSTIN may not.
 - A link may be removed. Vendors, projects, and their notes are archived rather than deleted.

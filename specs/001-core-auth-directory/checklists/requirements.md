@@ -31,10 +31,11 @@
 
 ## Notes
 
-- Validation iteration 1, 2026-10-23: failed on three open markers, FR-010, FR-019, and FR-027.
-- Validation iteration 2, 2026-10-23: passed. Product choices were recorded as follows.
-  - Q1 A: every active administrator, office team member, and accountant can view and edit every vendor, project, and link. Only administrators manage staff accounts. No project assignment.
-  - Q2 B: a link stores role, scope of work, agreed rate in Indian rupees, planned start, planned end, and a note. The agreed rate is job context. Removing the link removes those details from view.
-  - Q3 A: manpower is approximate team size, a status of Available, Limited, or Unavailable, and a short note. The directory filters on that status. There is no daily calendar.
-- Acceptance scenarios for those choices are in User Stories 1, 2, and 4. Edge cases cover invalid team size, invalid agreed rate, and a planned end before the planned start.
-- The specification names no language, framework, database, or API. Setup, sample data, one-command start, and merge checks stay in Assumptions as plan work for this feature.
+- Validation iteration 1 failed on FR-010, FR-019, and FR-027. Iteration 2 passed after Q1 A, Q2 B, and Q3 A.
+- Iteration 3, 2026-10-23, added scheduling and job pricing and left FR-032 and FR-033 open.
+- Iteration 4, 2026-10-23, passed. Product choices were recorded as follows.
+  - Q1 C: each scheduled task carries its own price. Two tasks for the same vendor on one project can have different prices. The price stays off the vendor profile and off the vendor-project link.
+  - Q2 B: a costing sheet is a spreadsheet or PDF file. A signed-in staff member can open it from the task. A signed-out person cannot. Replacing the file keeps the previous file readable.
+- A task uses a fixed agreed price or one costing sheet, not both. Quotation comparison, purchase orders, invoices, and payments stay out of this specification.
+- Work scheduling and per-task pricing are not yet numbered in `docs/prd.md`.
+- The specification names no language, framework, database, or API.
