@@ -1,9 +1,9 @@
-# Product Requirements Document (PRD)
+﻿# Product Requirements Document (PRD)
 
 ## Vendor & Project Management System
 
 **Version:** 0.2
-**Status:** Updated Draft — Pending Client Confirmation
+**Status:** Updated Draft â€” Pending Client Confirmation
 **Product Type:** Internal Web Application
 **Target Users:** Architecture and Interior Design Firm
 
@@ -69,7 +69,7 @@ Access must be revocable when a staff member leaves the firm.
 
 ## 5. Project Scope
 
-### 5.1 Phase 1 — Vendors, Projects, Timelines and Client Advances
+### 5.1 Phase 1 â€” Vendors, Projects, Timelines and Client Advances
 
 **Priority: Build this first.**
 
@@ -91,7 +91,7 @@ The first version will include:
 
 **Phase 1 outcome:** The firm can manage its vendors, project timelines, coordination, and basic client advance records in one place.
 
-### 5.2 Phase 2 — Quotations, Procurement and Work Tracking
+### 5.2 Phase 2 â€” Quotations, Procurement and Work Tracking
 
 Planned features:
 
@@ -108,7 +108,7 @@ Planned features:
 
 **Phase 2 outcome:** The firm can track procurement and coordinate agency work more systematically.
 
-### 5.3 Phase 3 — Vendor Accounts and Reporting
+### 5.3 Phase 3 â€” Vendor Accounts and Reporting
 
 Planned features:
 
@@ -143,7 +143,7 @@ These features can be reconsidered later if needed.
 
 ## 6. Core Workflows
 
-### Workflow A — Manage a Vendor
+### Workflow A â€” Manage a Vendor
 
 1. An authorized user adds a vendor.
 2. The user enters contact details, category, location, services, manpower information, and relevant GST details.
@@ -151,7 +151,7 @@ These features can be reconsidered later if needed.
 4. The vendor becomes searchable and can be linked to projects.
 5. The firm can update the vendor's history, ratings, and notes over time.
 
-### Workflow B — Manage Project Timelines
+### Workflow B â€” Manage Project Timelines
 
 1. A user creates a project and records its milestones.
 2. The user assigns each activity to the responsible agency or vendor.
@@ -160,7 +160,7 @@ These features can be reconsidered later if needed.
 5. The system highlights upcoming deadlines and delayed work.
 6. The team can review dependencies and identify activities affected by delays.
 
-### Workflow C — Import Vendor Records
+### Workflow C â€” Import Vendor Records
 
 1. An authorized user uploads a supported spreadsheet.
 2. The system previews the data.
@@ -168,7 +168,7 @@ These features can be reconsidered later if needed.
 4. The user reviews the import.
 5. The system imports approved records and provides a summary of successful, skipped, and rejected rows.
 
-### Workflow D — Record a Client Advance
+### Workflow D â€” Record a Client Advance
 
 1. An authorized user selects a project.
 2. The user records the amount received and the date.
@@ -176,7 +176,7 @@ These features can be reconsidered later if needed.
 4. The system displays recorded advances in the project's financial summary.
 5. Changes remain traceable.
 
-### Workflow E — Manage Procurement and Vendor Payments
+### Workflow E â€” Manage Procurement and Vendor Payments
 
 This workflow will be implemented across later phases.
 
@@ -188,37 +188,37 @@ This workflow will be implemented across later phases.
 
 ## 7. Functional Requirements
 
-**FR-01 — Vendor Management:** Users shall be able to create, view, edit, search, filter, and archive vendor records.
+**FR-01 â€” Vendor Management:** Users shall be able to create, view, edit, search, filter, and archive vendor records.
 
-**FR-02 — Vendor Information:** Vendor records shall support contact details, categories, locations served, services, materials, rates, manpower information, GST details, ratings, and notes.
+**FR-02 â€” Vendor Information:** Vendor records shall support contact details, categories, locations served, services, materials, rates, manpower information, GST details, ratings, and notes.
 
-**FR-03 — Project Management:** Users shall be able to create, update, view, and archive project records.
+**FR-03 â€” Project Management:** Users shall be able to create, update, view, and archive project records.
 
-**FR-04 — Vendor-Project Relationships:** A vendor shall be associable with multiple projects without duplicating the vendor record.
+**FR-04 â€” Vendor-Project Relationships:** A vendor shall be associable with multiple projects without duplicating the vendor record.
 
-**FR-05 — Timeline Management:** Users shall be able to record project milestones, responsible agencies, planned dates, deadlines, and progress.
+**FR-05 â€” Timeline Management:** Users shall be able to record project milestones, responsible agencies, planned dates, deadlines, and progress.
 
-**FR-06 — Delay Tracking:** The system shall identify overdue activities and allow users to record delays and coordination issues.
+**FR-06 â€” Delay Tracking:** The system shall identify overdue activities and allow users to record delays and coordination issues.
 
-**FR-07 — Data Import:** The system shall import supported spreadsheet formats and report invalid rows and potential duplicates.
+**FR-07 â€” Data Import:** The system shall import supported spreadsheet formats and report invalid rows and potential duplicates.
 
-**FR-08 — Document Management:** Documents shall be associated with relevant vendors and projects, with support for additional document types in later phases.
+**FR-08 â€” Document Management:** Documents shall be associated with relevant vendors and projects, with support for additional document types in later phases.
 
-**FR-09 — Client Advances:** Authorized users shall be able to record client advances against projects and view recorded amounts.
+**FR-09 â€” Client Advances:** Authorized users shall be able to record client advances against projects and view recorded amounts.
 
-**FR-10 — Procurement:** The system shall support quotations, quotation comparisons, purchase/work orders, deliveries, and work progress in Phase 2.
+**FR-10 â€” Procurement:** The system shall support quotations, quotation comparisons, purchase/work orders, deliveries, and work progress in Phase 2.
 
-**FR-11 — Vendor Accounts:** The system shall support invoices, advances paid, payment allocations, partial payments, and outstanding balances in Phase 3.
+**FR-11 â€” Vendor Accounts:** The system shall support invoices, advances paid, payment allocations, partial payments, and outstanding balances in Phase 3.
 
-**FR-12 — Reminders:** The system shall support relevant project deadline, delivery, and payment reminders as each feature becomes available.
+**FR-12 â€” Reminders:** The system shall support relevant project deadline, delivery, and payment reminders as each feature becomes available.
 
-**FR-13 — Reporting:** The system shall provide project-wise and vendor-wise summaries, with Excel and PDF exports as planned.
+**FR-13 â€” Reporting:** The system shall provide project-wise and vendor-wise summaries, with Excel and PDF exports as planned.
 
-**FR-14 — Access Control:** The system shall enforce permissions on the backend and allow authorized administrators to revoke user access.
+**FR-14 â€” Access Control:** The system shall enforce permissions on the backend and allow authorized administrators to revoke user access.
 
-**FR-15 — Audit History:** Important record changes, particularly financial changes, shall be traceable to the user and time of change.
+**FR-15 â€” Audit History:** Important record changes, particularly financial changes, shall be traceable to the user and time of change.
 
-**FR-16 — Document Retention:** The system shall support a seven-year document retention policy, subject to applicable legal requirements and the firm's policy.
+**FR-16 â€” Document Retention:** The system shall support a seven-year document retention policy, subject to applicable legal requirements and the firm's policy.
 
 ## 8. Non-Functional Requirements
 
@@ -315,7 +315,7 @@ The first priority is a usable foundation for vendors, projects, timelines, and 
 | UI styling | Tailwind CSS | Consistent, maintainable interface |
 | Backend | Node.js + Express.js + TypeScript | Business logic and REST APIs |
 | Database | PostgreSQL 17+ | Vendors, projects, quotations, orders, invoices and payments |
-| ORM & migrations | Drizzle ORM + Drizzle Kit | Type-safe database queries and schema migrations |
+| ORM & migrations | Prisma ORM + Prisma Migrate | Type-safe database queries and schema migrations |
 | Authentication | Phone/email login + JWT access and refresh tokens | Secure user sessions |
 | Authorization | Role-based access control (RBAC) | Separate permissions for owner, architects and accountant |
 | File storage | Local storage initially, with an upgrade path to object storage | Quotations, invoices, purchase orders and supporting documents |
@@ -328,3 +328,5 @@ The first priority is a usable foundation for vendors, projects, timelines, and 
 | Testing | Vitest + Supertest | Unit and API integration tests |
 | SDD tooling | GitHub Spec Kit | Requirements, plans, tasks and implementation verification |
 | Monitoring | OpenTelemetry + Grafana; error tracking as needed | Diagnose errors and monitor application health |
+
+
