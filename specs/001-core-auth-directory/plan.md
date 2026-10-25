@@ -1,6 +1,6 @@
 # Implementation Plan: Core Auth and Directory
 
-**Branch**: `001-core-auth-directory` | **Date**: 2026-10-23 | **Spec**: [spec.md](./spec.md)
+**Branch**: `001-core-auth-directory` | **Date**: 2026-10-25 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `/specs/001-core-auth-directory/spec.md`
 
@@ -203,7 +203,7 @@ The order is for `/speckit-tasks`. This command does not write application code.
 
 These do not change the approved product behavior. They are recorded so implementation does not invent a second rule.
 
-- **PRD wording.** Section 12 still recommends Drizzle. Principle II's rationale sentence disagrees with its own technology list. This plan follows the list: PostgreSQL 17 and Prisma.
+- **Constitution wording.** Principle II's rationale sentence still says the stack supersedes PostgreSQL and Prisma. The binding list, this plan, and `docs/prd.md` section 12 all use PostgreSQL 17 and Prisma. The PRD still recommends JWT and Tailwind. This plan keeps server sessions and plain CSS, as recorded in research.
 - **PRD ids.** Scheduling and per-task pricing have no FR numbers in `docs/prd.md`. The spec already includes them and excludes procurement. A PRD edit should number them. It should not add quotations, orders, invoices, or payments.
 - **Upload size.** Files over 10 MB are refused. The spec does not set a size. Research records this as an operational guard.
 - **Touching times.** A schedule that starts when another ends is not a conflict. Research records the half-open interval.

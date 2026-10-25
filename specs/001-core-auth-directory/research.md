@@ -4,9 +4,9 @@
 
 **Rationale**: Constitution Principle II names PostgreSQL 17 and Prisma. Schema changes go through committed Prisma migrations. Foreign keys are enforced in the database.
 
-**Alternatives considered**: `docs/prd.md` section 12 recommends Drizzle. The constitution supersedes that recommendation. No Drizzle package is added.
+**Alternatives considered**: `docs/prd.md` section 12 names the same database and ORM: PostgreSQL 17 and Prisma. No second ORM is added.
 
-**Documentation follow-up**: Principle II's rationale sentence still says this stack supersedes a PostgreSQL and Prisma recommendation. The binding list is PostgreSQL 17 and Prisma. The PRD still names Drizzle. Those two sentences should be aligned in a docs change. They do not change this plan.
+**Documentation follow-up**: Principle II's rationale sentence still says this stack supersedes a PostgreSQL and Prisma recommendation. The binding list is PostgreSQL 17 and Prisma, which matches the PRD. That rationale sentence should be corrected in a docs change. It does not change this plan. The PRD also recommends JWT and Tailwind. Those stay out of this feature for the reasons below.
 
 ## Decision: Node.js 24 Active LTS, Express, React, Vitest, Supertest, ESLint, Prettier
 
@@ -92,4 +92,4 @@ Acceptance scenarios are Supertest tests against the Express app and a PostgreSQ
 
 ## Dependencies not added
 
-Quotation comparison, purchase orders, invoices, vendor payments, client advances, milestones, spreadsheet import, a general document library, email password reset, project assignment, JWT, Drizzle, Tailwind, object storage, PWA, and offline support.
+Quotation comparison, purchase orders, invoices, vendor payments, client advances, milestones, spreadsheet import, a general document library, email password reset, project assignment, JWT, Tailwind, object storage, PWA, and offline support.
