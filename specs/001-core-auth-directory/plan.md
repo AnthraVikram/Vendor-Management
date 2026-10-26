@@ -24,7 +24,7 @@ The implementation is a TypeScript monorepo: an Express API in `api/` and a Reac
 
 **Project Type**: Internal web application, `api/` and `web/` in one repository
 
-**Performance Goals**: From 200 vendors, a category and location filter returns in under a second on the local database. Directory sizes beyond a single firm are out of scope
+**Performance Goals**: From 200 vendors, a category and location filter returns in under 30 seconds, matching SC-003. Directory sizes beyond a single firm are out of scope
 
 **Constraints**: Money is `DECIMAL(15,2)` INR. No public document URL. No offline mode, PWA, or native client. Server-side validation and role checks on every business route. Archive instead of hard delete for vendors, projects, documents, and task prices
 
@@ -157,7 +157,7 @@ Audit columns are set in one Prisma helper used by every write. The helper sets 
 
 Indicative rates are directory data and may be updated in place. A task's agreed price is corrected only by inserting a reversal and a new charge. Amounts are Prisma `Decimal` values mapped to `DECIMAL(15,2)`. The money helper rejects a negative charge and more than two decimal places before insert.
 
-Deleting a link archives schedules for that vendor and project in the same transaction, then deletes the link row. Vendors and projects are archived, not deleted.
+Deleting a link archives schedules for that vendor and project in the same transaction, then deletes the link row. Schedules have no foreign key to the link. Price entries and costing-sheet files restrict deletion of their schedule. Vendors and projects are archived, not deleted.
 
 ## Testing strategy
 
@@ -203,7 +203,7 @@ The order is for `/speckit-tasks`. This command does not write application code.
 
 These do not change the approved product behavior. They are recorded so implementation does not invent a second rule.
 
-- **Constitution wording.** Principle II's rationale sentence still says the stack supersedes PostgreSQL and Prisma. The binding list, this plan, and `docs/prd.md` section 12 all use PostgreSQL 17 and Prisma. The PRD still recommends JWT and Tailwind. This plan keeps server sessions and plain CSS, as recorded in research.
+- **Stack notes.** Principle II, this plan, and `docs/prd.md` section 12 use PostgreSQL 17 and Prisma. The PRD still recommends JWT and Tailwind. This plan keeps server sessions and plain CSS, as recorded in research.
 - **PRD ids.** Scheduling and per-task pricing have no FR numbers in `docs/prd.md`. The spec already includes them and excludes procurement. A PRD edit should number them. It should not add quotations, orders, invoices, or payments.
 - **Upload size.** Files over 10 MB are refused. The spec does not set a size. Research records this as an operational guard.
 - **Touching times.** A schedule that starts when another ends is not a conflict. Research records the half-open interval.

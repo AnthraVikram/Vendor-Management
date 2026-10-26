@@ -6,7 +6,7 @@
 
 **Alternatives considered**: `docs/prd.md` section 12 names the same database and ORM: PostgreSQL 17 and Prisma. No second ORM is added.
 
-**Documentation follow-up**: Principle II's rationale sentence still says this stack supersedes a PostgreSQL and Prisma recommendation. The binding list is PostgreSQL 17 and Prisma, which matches the PRD. That rationale sentence should be corrected in a docs change. It does not change this plan. The PRD also recommends JWT and Tailwind. Those stay out of this feature for the reasons below.
+**Documentation follow-up**: Principle II requires PostgreSQL 17 and Prisma, and the rationale now says that. The PRD also recommends JWT and Tailwind. Those stay out of this feature for the reasons below.
 
 ## Decision: Node.js 24 Active LTS, Express, React, Vitest, Supertest, ESLint, Prettier
 

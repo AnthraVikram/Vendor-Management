@@ -46,7 +46,7 @@ description: "Task list for core auth and directory"
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T011 Define the Prisma schema in `api/prisma/schema.prisma` with UUID `id`, `created_at`, `created_by`, `updated_at`, and `updated_by` on every table. Money columns are `DECIMAL(15,2)`. `staff_users.email` is unique and stored lowercase. `staff_users.role` is `ADMINISTRATOR`, `OFFICE_TEAM`, or `ACCOUNTANT`. `staff_users.revoked_at` null means active. `vendors.name` and `vendors.phone` are required. `vendors.gstin` is required when `gst_registered` is true, otherwise null, unique among non-null values, and a 15-character GSTIN. `vendors.team_size` is an optional whole number of zero or greater. `vendors.availability` is optional `AVAILABLE`, `LIMITED`, or `UNAVAILABLE`. `projects.status` is `PLANNED`, `ACTIVE`, `ON_HOLD`, or `COMPLETED` and is independent of `archived`. `vendor_project_links` has unique `(vendor_id, project_id)` and no price or schedule dates. `work_schedules.required_team_size` is a whole number of 1 or greater, `end_time` is later than `start_time`, and `pricing_mode` is `NONE`, `FIXED`, or `FILE`. `task_price_entries.kind` is `CHARGE` or `REVERSAL`. `costing_sheet_files.byte_size` is greater than 0 and at most 10 MB, with at most one `archived = false` row per schedule.
+- [ ] T011 Define the Prisma schema in `api/prisma/schema.prisma` with UUID `id`, `created_at`, `created_by`, `updated_at`, and `updated_by` on every table. Money columns are `DECIMAL(15,2)`. `staff_users.email` is unique and stored lowercase. `staff_users.role` is `ADMINISTRATOR`, `OFFICE_TEAM`, or `ACCOUNTANT`. `staff_users.revoked_at` null means active. `vendors.name` and `vendors.phone` are required. `vendors.gstin` is required when `gst_registered` is true, otherwise null, unique among non-null values, and a 15-character GSTIN. `vendors.team_size` is an optional whole number of zero or greater. `vendors.availability` is optional `AVAILABLE`, `LIMITED`, or `UNAVAILABLE`. `projects.status` is `PLANNED`, `ACTIVE`, `ON_HOLD`, or `COMPLETED` and is independent of `archived`. `categories.name` is unique case-insensitively and is not rewritten when a matching name is submitted. `vendor_project_links` has unique `(vendor_id, project_id)` and no price or schedule dates. `work_schedules` stores `vendor_id` and `project_id` and has no foreign key to `vendor_project_links`. `task_price_entries.schedule_id` and `costing_sheet_files.schedule_id` use `ON DELETE RESTRICT`. `work_schedules.required_team_size` is a whole number of 1 or greater, `end_time` is later than `start_time`, and `pricing_mode` is `NONE`, `FIXED`, or `FILE`. `task_price_entries.kind` is `CHARGE` or `REVERSAL`. `costing_sheet_files.byte_size` is greater than 0 and at most 10 MB, with at most one `archived = false` row per schedule.
 - [ ] T012 Create the initial Prisma migration from `api/prisma/schema.prisma` under `api/prisma/migrations/`
 - [ ] T013 [P] Load environment variables in `api/src/config.ts`
 - [ ] T014 [P] Map Zod failures to HTTP 400 `{ message, fields }`, domain conflicts to HTTP 409, and unknown errors to HTTP 500 without logging passwords or storage keys in `api/src/middleware/error.ts`
@@ -73,7 +73,7 @@ description: "Task list for core auth and directory"
 
 - [ ] T021 [P] [US1] Write a failing unit test that refuses a change leaving zero active administrators in `api/tests/unit/last-admin.test.ts`
 - [ ] T022 [P] [US1] Write a failing unit test that uses the message `Email or password is not valid.` for an unknown email, a wrong password, and a revoked account in `api/tests/unit/sign-in-message.test.ts`
-- [ ] T023 [P] [US1] Write failing Supertest coverage for spec User Story 1 scenarios 1–8 against `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth/password`, and `/api/staff` in `api/tests/api/auth.test.ts`
+- [ ] T023 [P] [US1] Write failing Supertest coverage for spec User Story 1 scenarios 1–7 against `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth/password`, and `/api/staff` in `api/tests/api/auth.test.ts`
 - [ ] T024 [P] [US1] Write a failing sign-in form test in `web/tests/sign-in.test.tsx`
 
 ### Implementation for User Story 1
@@ -98,15 +98,15 @@ description: "Task list for core auth and directory"
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T032 [P] [US2] Write failing unit tests for GSTIN required when registered, duplicate GSTIN, duplicate-phone warning, rating 1–5, and archived vendors omitted unless `include_archived=true` in `api/tests/unit/vendor-rules.test.ts`
-- [ ] T033 [P] [US2] Write failing Supertest coverage for spec User Story 2 scenarios 1–9 in `api/tests/api/vendors.test.ts`
+- [ ] T032 [P] [US2] Write failing unit tests for GSTIN required when registered, duplicate GSTIN, duplicate-phone warning, rating 1–5, archived vendors omitted unless `include_archived=true`, and case-insensitive category reuse that keeps the stored name in `api/tests/unit/vendor-rules.test.ts`
+- [ ] T033 [P] [US2] Write failing Supertest coverage for spec User Story 2 scenarios 1–9, including `POST /api/categories` returning the existing row without renaming it, in `api/tests/api/vendors.test.ts`
+- [ ] T037 [P] [US2] Write the failing vendor filter form test in `web/tests/vendor-filters.test.tsx` before the vendor screens exist
 
 ### Implementation for User Story 2
 
-- [ ] T034 [US2] Implement vendor create, patch, get, search, archive, restore, notes, and ratings in `api/src/modules/vendors/routes.ts`. Require `name`, `phone`, and at least one category. `q` matches name, phone, alternate phone, contact person, services, and materials. Filters for `category_id`, `location`, `availability`, and `project_id` all apply together. A repeated phone returns 409 `PHONE_IN_USE` until `confirm_duplicate_phone` is true. Notes are append-only with `note_type` `PAST_WORK`, `RELIABILITY`, `COORDINATION`, or `GENERAL` and a non-empty `body`. A rating `score` is a whole number 1 through 5. Indicative `rates.amount` is `DECIMAL(15,2)`, zero or greater, with at most two decimal places.
+- [ ] T034 [US2] Implement vendor create, patch, get, search, archive, restore, notes, ratings, and category reuse in `api/src/modules/vendors/routes.ts`. Require `name`, `phone`, and at least one category. `q` matches name, phone, alternate phone, contact person, services, and materials. Filters for `category_id`, `location`, `availability`, and `project_id` all apply together. A repeated phone returns 409 `PHONE_IN_USE` until `confirm_duplicate_phone` is true. Notes are append-only with `note_type` `PAST_WORK`, `RELIABILITY`, `COORDINATION`, or `GENERAL` and a non-empty `body`. A rating `score` is a whole number 1 through 5. Indicative `rates.amount` is `DECIMAL(15,2)`, zero or greater, with at most two decimal places. Match a category name without regard to letter case, reuse that row, and do not change its stored name.
 - [ ] T035 [US2] Mount vendor and category routes for any active role in `api/src/app.ts`
 - [ ] T036 [P] [US2] Build the vendor list and vendor detail screens in `web/src/pages/vendors.tsx` and `web/src/pages/vendor-detail.tsx`
-- [ ] T037 [P] [US2] Write the vendor filter form test in `web/tests/vendor-filters.test.tsx`
 
 **Checkpoint**: User Stories 1 and 2 work. Vendor GET does not include task prices.
 
@@ -140,11 +140,11 @@ description: "Task list for core auth and directory"
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T042 [P] [US4] Write failing Supertest coverage for spec User Story 4 scenarios 1–5 in `api/tests/api/links.test.ts`
+- [ ] T042 [P] [US4] Write failing Supertest coverage for spec User Story 4 scenarios 1–5 in `api/tests/api/links.test.ts`. Include link removal that archives the pair’s schedules and still returns their price history and costing-sheet files to an authorized caller, with those rows still present.
 
 ### Implementation for User Story 4
 
-- [ ] T043 [US4] Implement create, patch, and delete of links in `api/src/modules/links/routes.ts`. Accept only `vendor_id`, `role_on_project`, `scope_of_work`, and `note`. Return 409 when the pair exists or either side is archived. Delete the link row only. Do not delete the vendor or copy contact details, rates, or manpower onto the link.
+- [ ] T043 [US4] Implement create, patch, and delete of links in `api/src/modules/links/routes.ts`. Accept only `vendor_id`, `role_on_project`, `scope_of_work`, and `note`. Return 409 when the pair exists or either side is archived. On delete, archive working schedules for that vendor and project in the same transaction, then delete only the link row. Do not delete the vendor, the schedules, `task_price_entries`, or `costing_sheet_files`, and do not copy contact details, rates, or manpower onto the link. Rely on the schema from T011 so the database cannot cascade the link delete onto those rows.
 - [ ] T044 [US4] Mount link routes for any active role in `api/src/app.ts`
 - [ ] T045 [US4] Show and edit links on the project screen in `web/src/pages/project-detail.tsx`
 
@@ -204,6 +204,9 @@ description: "Task list for core auth and directory"
 - [ ] T059 Start compose, migrate, seed, and both dev servers from the root `dev` script in `package.json` using concurrently
 - [ ] T060 Make sign-in, vendor search, project open, and schedule entry usable at 375px and 1280px in `web/src/styles.css`
 - [ ] T061 Run the API and web scenarios in `specs/001-core-auth-directory/quickstart.md` and fix only defects those scenarios expose
+- [ ] T062 [P] Verify SC-003 in `api/tests/api/vendor-lookup-timing.test.ts`. Conditions: PostgreSQL 17 from `docker-compose.yml`, one API process, 200 vendors each with one category and one location, then `GET /api/vendors` filtered by that category and location. The call must return the matching vendor in under 30 seconds. Do not change the 30-second limit in `specs/001-core-auth-directory/spec.md`.
+- [ ] T063 [P] Add a Supertest check in `api/tests/api/excluded-routes.test.ts` that Feature 001 does not expose quotation, purchase-order, invoice, or payment routes. Assert those paths are absent. Do not implement that functionality.
+- [ ] T064 Run `/speckit-converge` for `specs/001-core-auth-directory`. The feature is not ready for a pull request unless the command reports the converged outcome and the status text Converged. Any other outcome, including appended tasks, blocks the pull request. Do not invent a different command.
 
 ---
 
@@ -238,8 +241,10 @@ description: "Task list for core auth and directory"
 - T013 and T014 can run together after T012
 - Tests inside one story that touch different files can run together
 - T030 and T031 can run together after T029
-- T036 and T037 can run together after T035
+- T032, T033, and T037 can run together before T034
+- T036 starts after T037
 - User Story 3 can proceed beside User Story 2 once User Story 1 is done
+- T062 and T063 can run together after the routes they call exist. T064 runs last and depends on the implementation and tests that `/speckit-converge` checks
 
 ---
 

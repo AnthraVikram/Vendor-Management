@@ -1,22 +1,11 @@
 <!--
 Sync Impact Report
-- Version change: unratified template → 1.0.0
+- Version change: 1.0.0 → 1.0.1
 - Modified principles:
-  - [PRINCIPLE_1_NAME] → I. Spec Before Code
-  - [PRINCIPLE_2_NAME] → II. Fixed Stack
-  - [PRINCIPLE_3_NAME] → III. Data Rules
-  - [PRINCIPLE_4_NAME] → IV. Security
-  - [PRINCIPLE_5_NAME] → V. Tests and Done
-- Added sections:
-  - VI. Simplicity
-  - Product Boundaries
-  - Delivery Gates
-- Removed sections: none (template placeholders replaced)
-- Follow-up TODOs:
-  - The backlog path in Principle I is docs/prd.md. The current PRD file is
-    docs/prd.md at the repository root.
-  - PRD section 12 recommends PostgreSQL 17+ and Prisma. Principle II fixes
-    PostgreSQL 17 and Prisma. Align the PRD before the first plan.
+  - II. Fixed Stack rationale corrected. The binding stack was already PostgreSQL 17 and Prisma. The old sentence said that stack superseded PostgreSQL and Prisma.
+- Added sections: none
+- Removed sections: none
+- Follow-up TODOs: none for this patch
 -->
 
 # Vendor & Project Management Constitution
@@ -48,8 +37,7 @@ The system is one repository with `api/` and `web/`. One command starts both and
 seed data.
 
 Rationale: A single stack and a single start command keep the internal web app
-reproducible. This stack supersedes the PostgreSQL and Prisma recommendation in the
-current PRD draft.
+reproducible. PostgreSQL 17 and Prisma are the approved database and migration tools.
 
 ### III. Data Rules
 
@@ -163,4 +151,4 @@ The original adoption date is **Ratified**. Compliance is checked when a spec, p
 or pull request is reviewed. Product scope is read from `docs/prd.md`. Feature work
 follows that backlog through spec, plan, tasks, and converge.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-23 | **Last Amended**: 2026-10-23
+**Version**: 1.0.1 | **Ratified**: 2026-10-23 | **Last Amended**: 2026-10-26

@@ -35,7 +35,7 @@ A request with a missing, expired, or revoked session is unauthenticated. A sess
 | --- | --- |
 | name | Required, unique case-insensitively |
 
-Reusing a name returns the existing row. Vendors use a category through `vendor_categories`.
+A matching name, ignoring letter case, returns the existing row and does not rewrite `name`. Vendors use a category through `vendor_categories`.
 
 ## vendors
 
@@ -123,7 +123,7 @@ The default project list includes every status and excludes archived projects.
 | scope_of_work | Optional |
 | note | Optional |
 
-Unique `(vendor_id, project_id)`. Insert refused when either side is archived or the pair already exists. Delete of this row is allowed. It does not delete the vendor or the project. Schedules for that pair are archived in the same action.
+Unique `(vendor_id, project_id)`. Insert refused when either side is archived or the pair already exists. Delete of this row is allowed. It does not delete the vendor or the project. In the same action, working schedules for that vendor and project are archived. The delete does not delete those schedules, their `task_price_entries`, or their `costing_sheet_files`.
 
 This table has no price and no schedule dates.
 
@@ -196,7 +196,7 @@ work_schedules 1──* task_price_entries
 work_schedules 1──* costing_sheet_files
 ```
 
-A schedule stores `vendor_id` and `project_id` so it remains readable after the link row is deleted. It does not store a copy of vendor contact details, rates, categories, or manpower.
+A schedule stores `vendor_id` and `project_id` so it remains readable after the link row is deleted. `work_schedules` has no foreign key to `vendor_project_links`, so deleting a link cannot cascade to a schedule. `task_price_entries.schedule_id` and `costing_sheet_files.schedule_id` use `ON DELETE RESTRICT`. A schedule does not store a copy of vendor contact details, rates, categories, or manpower.
 
 ## State
 

@@ -79,7 +79,7 @@ Administrator only.
 
 `GET /api/categories`
 
-`POST /api/categories` with `{ "name" }`. Returns the existing category when the name already exists, case-insensitively.
+`POST /api/categories` with `{ "name" }`. Match `name` without regard to letter case. When a category already matches, return that row and leave its stored name unchanged.
 
 ## Vendors
 
@@ -121,7 +121,7 @@ The default list includes Planned, Active, On hold, and Completed, and excludes 
 
 `PATCH /api/links/:id` updates only role, scope, and note.
 
-`DELETE /api/links/:id` deletes the link, archives working schedules for that vendor and project, and leaves vendors, price entries, and files in place.
+`DELETE /api/links/:id` deletes the link row and archives working schedules for that vendor and project. The response still includes those schedule ids. The call does not delete the vendor, the project, the schedules, `task_price_entries`, or `costing_sheet_files`. The database has no cascade from the link to those rows. An authorized caller can still `GET` an archived schedule and its price history and files.
 
 409 when the pair exists or either side is archived.
 

@@ -29,7 +29,6 @@ An administrator creates a staff account, assigns one role, and the staff member
 5. **Given** one active administrator remains, **When** someone tries to revoke that account or change its role, **Then** the system refuses and leaves the account active.
 6. **Given** a wrong password, an unknown email, or a revoked account, **When** a person tries to sign in, **Then** the system refuses and does not reveal which of those three cases occurred.
 7. **Given** an active office team member or accountant, **When** they create, edit, archive, or restore a vendor or a project, or create or remove a vendor-project link, **Then** the change is saved.
-8. **Given** an active office team member or accountant, **When** they try to create, revoke, restore, or change a staff account, **Then** the system refuses the action.
 
 ---
 
@@ -144,13 +143,13 @@ Each scheduled task is a job. That task can carry a fixed agreed price or one at
 - The same vendor has two schedules on the same date whose times overlap, including schedules on different projects. Both remain saved, and both show a conflict.
 - Overlapping schedules for different vendors are not flagged.
 - A vendor marked Available is still flagged when a new schedule overlaps an existing one. A vendor marked Unavailable can still be scheduled.
-- Removing a link removes its role, scope, and note from the project. The vendor record remains. Schedules for that vendor on that project leave the working project view, and any price or costing sheet already recorded on those schedules stays readable.
+- Removing a link removes its role, scope, and note from the project. The vendor record remains. Schedules for that vendor on that project leave the working project view. Those schedules, their price entries, their price history, and their costing-sheet files are not deleted, and an authorized staff member can still read them.
 - A costing sheet can be opened by a signed-in staff member from the scheduled task. A signed-out person cannot open it. Replacing the file keeps the previous file readable.
 - A file that is not a spreadsheet or PDF is refused. A task cannot show both a current fixed price and a current costing sheet.
 - Restoring an archived vendor or project returns it to the default list and keeps its links and existing schedules.
 - A rating outside 1 to 5 is refused. A vendor may be saved with no rating.
 - A note with no text is refused.
-- A category name that already exists is reused rather than creating a second category with the same name.
+- A category name that already exists, ignoring letter case, is reused rather than creating a second category. The stored name stays as it was first saved.
 - Filters combine. A vendor must match the search text and every selected filter. Including archived vendors is off unless the person turns it on.
 - A person confirms a possible duplicate phone number, then the vendor is saved. If they do not confirm, the vendor is not saved.
 - A GST-unregistered vendor is saved with no GSTIN. Adding a GSTIN later requires marking the vendor as registered.
@@ -175,7 +174,7 @@ Each scheduled task is a job. That task can carry a fixed agreed price or one at
 - **FR-013**: Saving a vendor MUST require a name, one phone number, and at least one category. The system MUST explain any missing or invalid field and MUST NOT save until those are corrected.
 - **FR-014**: Vendor search MUST match name, phone number, contact person, services, and materials. Filters MUST include category, location served, manpower availability, linked project, and whether archived vendors are included. Archived vendors MUST stay out of the default directory.
 - **FR-015**: An archived vendor MUST remain openable, MUST keep its notes, rating history, and project links, and MUST be restorable to the default directory.
-- **FR-016**: Categories MUST come from one shared list. Choosing an existing category name MUST reuse that category. A vendor MUST be able to have more than one category.
+- **FR-016**: Categories MUST come from one shared list. A category name MUST be matched without regard to letter case. When the name matches an existing category, that category MUST be reused and its stored name MUST stay unchanged. A vendor MUST be able to have more than one category.
 - **FR-017**: A vendor rating MUST be a whole number from 1 to 5, or empty when the vendor has not been rated. Each change MUST keep the previous score, comment, date, and author readable.
 - **FR-018**: Notes MUST be one of past work, reliability, coordination, or general. Each note MUST keep its text, date, and the staff member who wrote it.
 - **FR-019**: Vendor manpower MUST record an approximate team size, an availability status, and an optional short note. Team size, when provided, MUST be a whole number of zero or greater. Availability, when provided, MUST be Available, Limited, or Unavailable. The manpower filter MUST match that status. A vendor MAY be saved with manpower left empty. This feature has no daily availability calendar. The availability status MUST NOT be treated as a guarantee that the vendor is free for a particular job or time, and it MUST NOT block scheduling.
@@ -187,7 +186,7 @@ Each scheduled task is a job. That task can carry a fixed agreed price or one at
 - **FR-025**: A person allowed to edit links MUST be able to associate an existing vendor with an existing project without creating a second vendor record. One vendor MUST be able to link to many projects, and one project MUST be able to link to many vendors.
 - **FR-026**: The system MUST refuse a second link for the same vendor and project, and MUST refuse a new link when the vendor or the project is archived.
 - **FR-027**: Each vendor-project link MUST store only the vendor's role on the project, the scope of work, and a note. Any of those three MAY be left empty. Vendor contact details, categories, indicative rates, manpower, ratings, and notes MUST remain on the vendor record and MUST NOT be copied onto the link.
-- **FR-028**: Removing a link MUST leave the vendor record in place and MUST remove that association from the project.
+- **FR-028**: Removing a link MUST leave the vendor record in place and MUST remove that association from the project. It MUST archive working schedules for that vendor and project. It MUST NOT delete those schedules, their task prices, their price history, or their costing-sheet files. An authorized staff member MUST still be able to read that history.
 - **FR-029**: A staff member MUST be able to schedule work for a vendor on a project by entering a task, a date, a start time, an end time, and a required team size. The vendor MUST already be linked to that project. The vendor and the project MUST be active. The schedule MUST NOT copy vendor details onto the project.
 - **FR-030**: The system MUST flag a schedule when the same vendor has another schedule on the same date whose start and end times overlap, including a schedule on a different project. The system MUST still save the schedule. Overlapping schedules for different vendors MUST NOT be flagged as conflicts with each other.
 - **FR-031**: A schedule MUST be refused when the task or date is missing, the end time is not later than the start time, or the required team size is missing, zero, negative, or not a whole number. A schedule covers one date. Start and end are times on that date.
@@ -200,7 +199,7 @@ Each scheduled task is a job. That task can carry a fixed agreed price or one at
 
 - **Staff account**: A person at the firm. Name, unique email, optional phone, one role, password, and whether access is active or revoked.
 - **Vendor**: One business the firm can hire. Name, contact person, phone, alternate phone, email, address, categories, locations served, services, materials, indicative rates, GST registration flag, GSTIN, GST legal name, approximate team size, availability status, manpower note, current rating, rating history, notes, and an archive flag.
-- **Category**: A shared label such as a trade. Many vendors can use one category, and one vendor can use many categories.
+- **Category**: A shared label such as a trade. Names match without regard to letter case. Reuse keeps the stored name. Many vendors can use one category, and one vendor can use many categories.
 - **Indicative rate**: A directory price for a vendor, with a label, an amount in Indian rupees, and a unit. It is not a quotation or an order.
 - **Vendor note**: Past work, reliability, coordination, or a general note, with text, date, and author.
 - **Project**: One of the firm's jobs as a whole. Name, optional client name as text, optional site location, optional description, status, and an archive flag. This feature does not include a separate client directory.
