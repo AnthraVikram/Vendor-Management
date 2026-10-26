@@ -1,0 +1,1 @@
+export { requireRole } from './session';

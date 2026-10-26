@@ -27,16 +27,16 @@ description: "Task list for core auth and directory"
 
 **Purpose**: Workspace, tooling, database container, and CI
 
-- [ ] T001 Create npm workspaces, root `package.json` with `engines.node` 24, and scripts `dev`, `lint`, `typecheck`, and `test` in `package.json`
-- [ ] T002 [P] Add Express, Prisma, Zod, bcrypt, multer, cors, TypeScript, Vitest, and Supertest dependencies in `api/package.json`
-- [ ] T003 [P] Add React, Vite, TypeScript, Vitest, and React Testing Library dependencies in `web/package.json`
-- [ ] T004 [P] Configure TypeScript projects in `api/tsconfig.json` and `web/tsconfig.json`
-- [ ] T005 [P] Configure ESLint and Prettier for both workspaces in `eslint.config.js` and `.prettierrc`
-- [ ] T006 [P] Add local placeholders for `DATABASE_URL`, `SESSION_SECRET`, `FILE_STORAGE_DIR`, `WEB_ORIGIN`, `API_PORT`, `WEB_PORT`, and the three seed passwords in `.env.example`
-- [ ] T007 [P] Ignore `.env` and `FILE_STORAGE_DIR` contents in `.gitignore`
-- [ ] T008 [P] Run PostgreSQL 17 only from `docker-compose.yml`
-- [ ] T009 [P] Run lint, typecheck, Prisma generate, migrate, and tests on pull requests in `.github/workflows/ci.yml`
-- [ ] T010 [P] Configure Vitest for the API in `api/vitest.config.ts` and for the web app in `web/vitest.config.ts`
+- [X] T001 Create npm workspaces, root `package.json` with `engines.node` 24, and scripts `dev`, `lint`, `typecheck`, and `test` in `package.json`
+- [X] T002 [P] Add Express, Prisma, Zod, bcrypt, multer, cors, TypeScript, Vitest, and Supertest dependencies in `api/package.json`
+- [X] T003 [P] Add React, Vite, TypeScript, Vitest, and React Testing Library dependencies in `web/package.json`
+- [X] T004 [P] Configure TypeScript projects in `api/tsconfig.json` and `web/tsconfig.json`
+- [X] T005 [P] Configure ESLint and Prettier for both workspaces in `eslint.config.js` and `.prettierrc`
+- [X] T006 [P] Add local placeholders for `DATABASE_URL`, `SESSION_SECRET`, `FILE_STORAGE_DIR`, `WEB_ORIGIN`, `API_PORT`, `WEB_PORT`, and the three seed passwords in `.env.example`
+- [X] T007 [P] Ignore `.env` and `FILE_STORAGE_DIR` contents in `.gitignore`
+- [X] T008 [P] Run PostgreSQL 17 only from `docker-compose.yml`
+- [X] T009 [P] Run lint, typecheck, Prisma generate, migrate, and tests on pull requests in `.github/workflows/ci.yml`
+- [X] T010 [P] Configure Vitest for the API in `api/vitest.config.ts` and for the web app in `web/vitest.config.ts`
 
 ---
 
@@ -46,16 +46,16 @@ description: "Task list for core auth and directory"
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T011 Define the Prisma schema in `api/prisma/schema.prisma` with UUID `id`, `created_at`, `created_by`, `updated_at`, and `updated_by` on every table. Money columns are `DECIMAL(15,2)`. `staff_users.email` is unique and stored lowercase. `staff_users.role` is `ADMINISTRATOR`, `OFFICE_TEAM`, or `ACCOUNTANT`. `staff_users.revoked_at` null means active. `vendors.name` and `vendors.phone` are required. `vendors.gstin` is required when `gst_registered` is true, otherwise null, unique among non-null values, and a 15-character GSTIN. `vendors.team_size` is an optional whole number of zero or greater. `vendors.availability` is optional `AVAILABLE`, `LIMITED`, or `UNAVAILABLE`. `projects.status` is `PLANNED`, `ACTIVE`, `ON_HOLD`, or `COMPLETED` and is independent of `archived`. `categories.name` is unique case-insensitively and is not rewritten when a matching name is submitted. `vendor_project_links` has unique `(vendor_id, project_id)` and no price or schedule dates. `work_schedules` stores `vendor_id` and `project_id` and has no foreign key to `vendor_project_links`. `task_price_entries.schedule_id` and `costing_sheet_files.schedule_id` use `ON DELETE RESTRICT`. `work_schedules.required_team_size` is a whole number of 1 or greater, `end_time` is later than `start_time`, and `pricing_mode` is `NONE`, `FIXED`, or `FILE`. `task_price_entries.kind` is `CHARGE` or `REVERSAL`. `costing_sheet_files.byte_size` is greater than 0 and at most 10 MB, with at most one `archived = false` row per schedule.
-- [ ] T012 Create the initial Prisma migration from `api/prisma/schema.prisma` under `api/prisma/migrations/`
-- [ ] T013 [P] Load environment variables in `api/src/config.ts`
-- [ ] T014 [P] Map Zod failures to HTTP 400 `{ message, fields }`, domain conflicts to HTTP 409, and unknown errors to HTTP 500 without logging passwords or storage keys in `api/src/middleware/error.ts`
-- [ ] T015 Set `created_by` and `updated_by` from the session on every write in `api/src/lib/audit.ts`
-- [ ] T016 Serve `GET /api/health` as public `200 { "status": "ok" }` and mount the error middleware in `api/src/app.ts`
-- [ ] T017 Reject missing, expired, revoked, and revoked-user sessions with HTTP 401 before any other business route in `api/src/middleware/session.ts`
-- [ ] T018 Allow any active role, and require `ADMINISTRATOR` only where a route asks, in `api/src/middleware/require-role.ts`
-- [ ] T019 Start the HTTP server from `api/src/server.ts`
-- [ ] T020 Seed one administrator whose `created_by` is its own id, using the admin password from `.env`, in `api/prisma/seed.ts`
+- [X] T011 Define the Prisma schema in `api/prisma/schema.prisma` with UUID `id`, `created_at`, `created_by`, `updated_at`, and `updated_by` on every table. Money columns are `DECIMAL(15,2)`. `staff_users.email` is unique and stored lowercase. `staff_users.role` is `ADMINISTRATOR`, `OFFICE_TEAM`, or `ACCOUNTANT`. `staff_users.revoked_at` null means active. `vendors.name` and `vendors.phone` are required. `vendors.gstin` is required when `gst_registered` is true, otherwise null, unique among non-null values, and a 15-character GSTIN. `vendors.team_size` is an optional whole number of zero or greater. `vendors.availability` is optional `AVAILABLE`, `LIMITED`, or `UNAVAILABLE`. `projects.status` is `PLANNED`, `ACTIVE`, `ON_HOLD`, or `COMPLETED` and is independent of `archived`. `categories.name` is unique case-insensitively and is not rewritten when a matching name is submitted. `vendor_project_links` has unique `(vendor_id, project_id)` and no price or schedule dates. `work_schedules` stores `vendor_id` and `project_id` and has no foreign key to `vendor_project_links`. `task_price_entries.schedule_id` and `costing_sheet_files.schedule_id` use `ON DELETE RESTRICT`. `work_schedules.required_team_size` is a whole number of 1 or greater, `end_time` is later than `start_time`, and `pricing_mode` is `NONE`, `FIXED`, or `FILE`. `task_price_entries.kind` is `CHARGE` or `REVERSAL`. `costing_sheet_files.byte_size` is greater than 0 and at most 10 MB, with at most one `archived = false` row per schedule.
+- [X] T012 Create the initial Prisma migration from `api/prisma/schema.prisma` under `api/prisma/migrations/`
+- [X] T013 [P] Load environment variables in `api/src/config.ts`
+- [X] T014 [P] Map Zod failures to HTTP 400 `{ message, fields }`, domain conflicts to HTTP 409, and unknown errors to HTTP 500 without logging passwords or storage keys in `api/src/middleware/error.ts`
+- [X] T015 Set `created_by` and `updated_by` from the session on every write in `api/src/lib/audit.ts`
+- [X] T016 Serve `GET /api/health` as public `200 { "status": "ok" }` and mount the error middleware in `api/src/app.ts`
+- [X] T017 Reject missing, expired, revoked, and revoked-user sessions with HTTP 401 before any other business route in `api/src/middleware/session.ts`
+- [X] T018 Allow any active role, and require `ADMINISTRATOR` only where a route asks, in `api/src/middleware/require-role.ts`
+- [X] T019 Start the HTTP server from `api/src/server.ts`
+- [X] T020 Seed one administrator whose `created_by` is its own id, using the admin password from `.env`, in `api/prisma/seed.ts`
 
 **Checkpoint**: Foundation ready. User story implementation can now begin.
 
@@ -71,20 +71,20 @@ description: "Task list for core auth and directory"
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T021 [P] [US1] Write a failing unit test that refuses a change leaving zero active administrators in `api/tests/unit/last-admin.test.ts`
-- [ ] T022 [P] [US1] Write a failing unit test that uses the message `Email or password is not valid.` for an unknown email, a wrong password, and a revoked account in `api/tests/unit/sign-in-message.test.ts`
-- [ ] T023 [P] [US1] Write failing Supertest coverage for spec User Story 1 scenarios 1–7 against `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth/password`, and `/api/staff` in `api/tests/api/auth.test.ts`
-- [ ] T024 [P] [US1] Write a failing sign-in form test in `web/tests/sign-in.test.tsx`
+- [X] T021 [P] [US1] Write a failing unit test that refuses a change leaving zero active administrators in `api/tests/unit/last-admin.test.ts`
+- [X] T022 [P] [US1] Write a failing unit test that uses the message `Email or password is not valid.` for an unknown email, a wrong password, and a revoked account in `api/tests/unit/sign-in-message.test.ts`
+- [X] T023 [P] [US1] Write failing Supertest coverage for spec User Story 1 scenarios 1–7 against `POST /api/auth/login`, `POST /api/auth/logout`, `POST /api/auth/password`, and `/api/staff` in `api/tests/api/auth.test.ts`
+- [X] T024 [P] [US1] Write a failing sign-in form test in `web/tests/sign-in.test.tsx`
 
 ### Implementation for User Story 1
 
-- [ ] T025 [US1] Hash passwords with bcrypt and reject passwords shorter than 8 characters in `api/src/lib/passwords.ts`
-- [ ] T026 [US1] Implement login, logout, `GET /api/auth/me`, and own-password change in `api/src/modules/auth/routes.ts`. The caller cannot change their own role.
-- [ ] T027 [US1] Implement administrator-only create, list, and patch of staff, including revoke, restore, role change, and password set, in `api/src/modules/staff/routes.ts`. Email uniqueness includes revoked accounts. The last active administrator cannot be revoked or moved to another role, returning 409 `The firm must keep one active administrator.`
-- [ ] T028 [US1] Mount auth routes as public only for `POST /api/auth/login`, and staff routes behind `require-role(ADMINISTRATOR)`, in `api/src/app.ts`
-- [ ] T029 [US1] Send the session cookie from the browser client in `web/src/api/client.ts`
-- [ ] T030 [P] [US1] Build the sign-in screen in `web/src/pages/sign-in.tsx`
-- [ ] T031 [P] [US1] Build the staff screen that hides nothing the API must still refuse in `web/src/pages/staff.tsx`
+- [X] T025 [US1] Hash passwords with bcrypt and reject passwords shorter than 8 characters in `api/src/lib/passwords.ts`
+- [X] T026 [US1] Implement login, logout, `GET /api/auth/me`, and own-password change in `api/src/modules/auth/routes.ts`. The caller cannot change their own role.
+- [X] T027 [US1] Implement administrator-only create, list, and patch of staff, including revoke, restore, role change, and password set, in `api/src/modules/staff/routes.ts`. Email uniqueness includes revoked accounts. The last active administrator cannot be revoked or moved to another role, returning 409 `The firm must keep one active administrator.`
+- [X] T028 [US1] Mount auth routes as public only for `POST /api/auth/login`, and staff routes behind `require-role(ADMINISTRATOR)`, in `api/src/app.ts`
+- [X] T029 [US1] Send the session cookie from the browser client in `web/src/api/client.ts`
+- [X] T030 [P] [US1] Build the sign-in screen in `web/src/pages/sign-in.tsx`
+- [X] T031 [P] [US1] Build the staff screen that hides nothing the API must still refuse in `web/src/pages/staff.tsx`
 
 **Checkpoint**: User Story 1 works alone. Office and accountant callers receive 403 on `/api/staff`.
 
@@ -98,15 +98,15 @@ description: "Task list for core auth and directory"
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T032 [P] [US2] Write failing unit tests for GSTIN required when registered, duplicate GSTIN, duplicate-phone warning, rating 1–5, archived vendors omitted unless `include_archived=true`, and case-insensitive category reuse that keeps the stored name in `api/tests/unit/vendor-rules.test.ts`
-- [ ] T033 [P] [US2] Write failing Supertest coverage for spec User Story 2 scenarios 1–9, including `POST /api/categories` returning the existing row without renaming it, in `api/tests/api/vendors.test.ts`
-- [ ] T037 [P] [US2] Write the failing vendor filter form test in `web/tests/vendor-filters.test.tsx` before the vendor screens exist
+- [X] T032 [P] [US2] Write failing unit tests for GSTIN required when registered, duplicate GSTIN, duplicate-phone warning, rating 1–5, archived vendors omitted unless `include_archived=true`, and case-insensitive category reuse that keeps the stored name in `api/tests/unit/vendor-rules.test.ts`
+- [X] T033 [P] [US2] Write failing Supertest coverage for spec User Story 2 scenarios 1–9, including `POST /api/categories` returning the existing row without renaming it, in `api/tests/api/vendors.test.ts`
+- [X] T037 [P] [US2] Write the failing vendor filter form test in `web/tests/vendor-filters.test.tsx` before the vendor screens exist
 
 ### Implementation for User Story 2
 
-- [ ] T034 [US2] Implement vendor create, patch, get, search, archive, restore, notes, ratings, and category reuse in `api/src/modules/vendors/routes.ts`. Require `name`, `phone`, and at least one category. `q` matches name, phone, alternate phone, contact person, services, and materials. Filters for `category_id`, `location`, `availability`, and `project_id` all apply together. A repeated phone returns 409 `PHONE_IN_USE` until `confirm_duplicate_phone` is true. Notes are append-only with `note_type` `PAST_WORK`, `RELIABILITY`, `COORDINATION`, or `GENERAL` and a non-empty `body`. A rating `score` is a whole number 1 through 5. Indicative `rates.amount` is `DECIMAL(15,2)`, zero or greater, with at most two decimal places. Match a category name without regard to letter case, reuse that row, and do not change its stored name.
-- [ ] T035 [US2] Mount vendor and category routes for any active role in `api/src/app.ts`
-- [ ] T036 [P] [US2] Build the vendor list and vendor detail screens in `web/src/pages/vendors.tsx` and `web/src/pages/vendor-detail.tsx`
+- [X] T034 [US2] Implement vendor create, patch, get, search, archive, restore, notes, ratings, and category reuse in `api/src/modules/vendors/routes.ts`. Require `name`, `phone`, and at least one category. `q` matches name, phone, alternate phone, contact person, services, and materials. Filters for `category_id`, `location`, `availability`, and `project_id` all apply together. A repeated phone returns 409 `PHONE_IN_USE` until `confirm_duplicate_phone` is true. Notes are append-only with `note_type` `PAST_WORK`, `RELIABILITY`, `COORDINATION`, or `GENERAL` and a non-empty `body`. A rating `score` is a whole number 1 through 5. Indicative `rates.amount` is `DECIMAL(15,2)`, zero or greater, with at most two decimal places. Match a category name without regard to letter case, reuse that row, and do not change its stored name.
+- [X] T035 [US2] Mount vendor and category routes for any active role in `api/src/app.ts`
+- [X] T036 [P] [US2] Build the vendor list and vendor detail screens in `web/src/pages/vendors.tsx` and `web/src/pages/vendor-detail.tsx`
 
 **Checkpoint**: User Stories 1 and 2 work. Vendor GET does not include task prices.
 
@@ -120,13 +120,13 @@ description: "Task list for core auth and directory"
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T038 [P] [US3] Write failing Supertest coverage for spec User Story 3 scenarios 1–4 in `api/tests/api/projects.test.ts`
+- [X] T038 [P] [US3] Write failing Supertest coverage for spec User Story 3 scenarios 1–4 in `api/tests/api/projects.test.ts`
 
 ### Implementation for User Story 3
 
-- [ ] T039 [US3] Implement project create, patch, list, get, archive, and restore in `api/src/modules/projects/routes.ts`. `name` is required. Default `GET /api/projects` includes every status and excludes `archived = true`.
-- [ ] T040 [US3] Mount project routes for any active role in `api/src/app.ts`
-- [ ] T041 [P] [US3] Build the project list screen in `web/src/pages/projects.tsx`
+- [X] T039 [US3] Implement project create, patch, list, get, archive, and restore in `api/src/modules/projects/routes.ts`. `name` is required. Default `GET /api/projects` includes every status and excludes `archived = true`.
+- [X] T040 [US3] Mount project routes for any active role in `api/src/app.ts`
+- [X] T041 [P] [US3] Build the project list screen in `web/src/pages/projects.tsx`
 
 **Checkpoint**: Projects can be managed without vendor links.
 
@@ -140,13 +140,13 @@ description: "Task list for core auth and directory"
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T042 [P] [US4] Write failing Supertest coverage for spec User Story 4 scenarios 1–5 in `api/tests/api/links.test.ts`. Include link removal that archives the pair’s schedules and still returns their price history and costing-sheet files to an authorized caller, with those rows still present.
+- [X] T042 [P] [US4] Write failing Supertest coverage for spec User Story 4 scenarios 1–5 in `api/tests/api/links.test.ts`. Include link removal that archives the pair’s schedules and still returns their price history and costing-sheet files to an authorized caller, with those rows still present.
 
 ### Implementation for User Story 4
 
-- [ ] T043 [US4] Implement create, patch, and delete of links in `api/src/modules/links/routes.ts`. Accept only `vendor_id`, `role_on_project`, `scope_of_work`, and `note`. Return 409 when the pair exists or either side is archived. On delete, archive working schedules for that vendor and project in the same transaction, then delete only the link row. Do not delete the vendor, the schedules, `task_price_entries`, or `costing_sheet_files`, and do not copy contact details, rates, or manpower onto the link. Rely on the schema from T011 so the database cannot cascade the link delete onto those rows.
-- [ ] T044 [US4] Mount link routes for any active role in `api/src/app.ts`
-- [ ] T045 [US4] Show and edit links on the project screen in `web/src/pages/project-detail.tsx`
+- [X] T043 [US4] Implement create, patch, and delete of links in `api/src/modules/links/routes.ts`. Accept only `vendor_id`, `role_on_project`, `scope_of_work`, and `note`. Return 409 when the pair exists or either side is archived. On delete, archive working schedules for that vendor and project in the same transaction, then delete only the link row. Do not delete the vendor, the schedules, `task_price_entries`, or `costing_sheet_files`, and do not copy contact details, rates, or manpower onto the link. Rely on the schema from T011 so the database cannot cascade the link delete onto those rows.
+- [X] T044 [US4] Mount link routes for any active role in `api/src/app.ts`
+- [X] T045 [US4] Show and edit links on the project screen in `web/src/pages/project-detail.tsx`
 
 **Checkpoint**: Linking does not duplicate vendors. Schedules are not required yet.
 
@@ -160,15 +160,15 @@ description: "Task list for core auth and directory"
 
 ### Tests for User Story 5 ⚠️
 
-- [ ] T046 [P] [US5] Write failing unit tests for half-open overlap `[start, end)`, cross-project overlap, different vendors in the same window, and availability ignored in `api/tests/unit/overlap.test.ts`
-- [ ] T047 [P] [US5] Write failing Supertest coverage for spec User Story 5 scenarios 1–6 in `api/tests/api/schedules.test.ts`
+- [X] T046 [P] [US5] Write failing unit tests for half-open overlap `[start, end)`, cross-project overlap, different vendors in the same window, and availability ignored in `api/tests/unit/overlap.test.ts`
+- [X] T047 [P] [US5] Write failing Supertest coverage for spec User Story 5 scenarios 1–6 in `api/tests/api/schedules.test.ts`
 
 ### Implementation for User Story 5
 
-- [ ] T048 [US5] Implement half-open overlap for the same `vendor_id` and `work_date` among `archived = false` rows in `api/src/lib/overlap.ts`
-- [ ] T049 [US5] Implement schedule create, get, patch, and archive in `api/src/modules/schedules/routes.ts`. Require an existing link and both records `archived = false`. Require `task`, `work_date`, `start_time`, `end_time` later than `start_time`, and `required_team_size` as a whole number of 1 or greater. Return `conflicts` on 201 without turning overlap into 409. Do not copy vendor fields onto the schedule. Exclude archived schedules from the working project view.
-- [ ] T050 [US5] Mount schedule routes for any active role in `api/src/app.ts`
-- [ ] T051 [P] [US5] Add the schedule form to `web/src/pages/project-detail.tsx` and cover it in `web/tests/schedule-form.test.tsx`
+- [X] T048 [US5] Implement half-open overlap for the same `vendor_id` and `work_date` among `archived = false` rows in `api/src/lib/overlap.ts`
+- [X] T049 [US5] Implement schedule create, get, patch, and archive in `api/src/modules/schedules/routes.ts`. Require an existing link and both records `archived = false`. Require `task`, `work_date`, `start_time`, `end_time` later than `start_time`, and `required_team_size` as a whole number of 1 or greater. Return `conflicts` on 201 without turning overlap into 409. Do not copy vendor fields onto the schedule. Exclude archived schedules from the working project view.
+- [X] T050 [US5] Mount schedule routes for any active role in `api/src/app.ts`
+- [X] T051 [P] [US5] Add the schedule form to `web/src/pages/project-detail.tsx` and cover it in `web/tests/schedule-form.test.tsx`
 
 **Checkpoint**: Schedules save with conflicts visible. Pricing mode stays `NONE`.
 
@@ -182,15 +182,15 @@ description: "Task list for core auth and directory"
 
 ### Tests for User Story 6 ⚠️
 
-- [ ] T052 [P] [US6] Write failing unit tests for price-or-file exclusivity, a reversal plus a new charge, and rejection of a negative amount or a third decimal place in `api/tests/unit/price.test.ts`
-- [ ] T053 [P] [US6] Write failing Supertest coverage for spec User Story 6 scenarios 1–7, including unauthenticated download 401, in `api/tests/api/pricing.test.ts`
+- [X] T052 [P] [US6] Write failing unit tests for price-or-file exclusivity, a reversal plus a new charge, and rejection of a negative amount or a third decimal place in `api/tests/unit/price.test.ts`
+- [X] T053 [P] [US6] Write failing Supertest coverage for spec User Story 6 scenarios 1–7, including unauthenticated download 401, in `api/tests/api/pricing.test.ts`
 
 ### Implementation for User Story 6
 
-- [ ] T054 [US6] Insert a `REVERSAL` of the current charge and a new `CHARGE` when a fixed price changes, and refuse a charge while `pricing_mode` is `FILE`, in `api/src/lib/price.ts`. Amounts are `DECIMAL(15,2)`, zero or greater, with at most two decimal places.
-- [ ] T055 [US6] Store costing sheets under `FILE_STORAGE_DIR` and stream them only from `GET /api/schedules/:scheduleId/costing-sheets/:fileId` in `api/src/modules/files/routes.ts`. Accept `.xls`, `.xlsx`, `.csv`, and `.pdf` up to 10 MB. Refuse a file while `pricing_mode` is `FIXED`. Replacing a file sets the previous row `archived = true` and keeps the bytes. There is no static file URL.
-- [ ] T056 [US6] Mount `PUT /api/schedules/:id/price` and the costing-sheet routes for any active role in `api/src/app.ts`
-- [ ] T057 [US6] Add per-task price and file controls on `web/src/pages/project-detail.tsx` without writing the task price onto the vendor screen in `web/src/pages/vendor-detail.tsx`
+- [X] T054 [US6] Insert a `REVERSAL` of the current charge and a new `CHARGE` when a fixed price changes, and refuse a charge while `pricing_mode` is `FILE`, in `api/src/lib/price.ts`. Amounts are `DECIMAL(15,2)`, zero or greater, with at most two decimal places.
+- [X] T055 [US6] Store costing sheets under `FILE_STORAGE_DIR` and stream them only from `GET /api/schedules/:scheduleId/costing-sheets/:fileId` in `api/src/modules/files/routes.ts`. Accept `.xls`, `.xlsx`, `.csv`, and `.pdf` up to 10 MB. Refuse a file while `pricing_mode` is `FIXED`. Replacing a file sets the previous row `archived = true` and keeps the bytes. There is no static file URL.
+- [X] T056 [US6] Mount `PUT /api/schedules/:id/price` and the costing-sheet routes for any active role in `api/src/app.ts`
+- [X] T057 [US6] Add per-task price and file controls on `web/src/pages/project-detail.tsx` without writing the task price onto the vendor screen in `web/src/pages/vendor-detail.tsx`
 
 **Checkpoint**: Two tasks for one vendor can show two prices. A signed-out download is refused.
 
@@ -200,12 +200,12 @@ description: "Task list for core auth and directory"
 
 **Purpose**: Seed data, one-command startup, and the quickstart demonstration
 
-- [ ] T058 Extend `api/prisma/seed.ts` so it is idempotent and also loads categories, vendors, two projects, one vendor linked to both, two schedules with different fixed prices, and one schedule with a sample PDF
-- [ ] T059 Start compose, migrate, seed, and both dev servers from the root `dev` script in `package.json` using concurrently
-- [ ] T060 Make sign-in, vendor search, project open, and schedule entry usable at 375px and 1280px in `web/src/styles.css`
+- [X] T058 Extend `api/prisma/seed.ts` so it is idempotent and also loads categories, vendors, two projects, one vendor linked to both, two schedules with different fixed prices, and one schedule with a sample PDF
+- [X] T059 Start compose, migrate, seed, and both dev servers from the root `dev` script in `package.json` using concurrently
+- [X] T060 Make sign-in, vendor search, project open, and schedule entry usable at 375px and 1280px in `web/src/styles.css`
 - [ ] T061 Run the API and web scenarios in `specs/001-core-auth-directory/quickstart.md` and fix only defects those scenarios expose
-- [ ] T062 [P] Verify SC-003 in `api/tests/api/vendor-lookup-timing.test.ts`. Conditions: PostgreSQL 17 from `docker-compose.yml`, one API process, 200 vendors each with one category and one location, then `GET /api/vendors` filtered by that category and location. The call must return the matching vendor in under 30 seconds. Do not change the 30-second limit in `specs/001-core-auth-directory/spec.md`.
-- [ ] T063 [P] Add a Supertest check in `api/tests/api/excluded-routes.test.ts` that Feature 001 does not expose quotation, purchase-order, invoice, or payment routes. Assert those paths are absent. Do not implement that functionality.
+- [X] T062 [P] Verify SC-003 in `api/tests/api/vendor-lookup-timing.test.ts`. Conditions: PostgreSQL 17 from `docker-compose.yml`, one API process, 200 vendors each with one category and one location, then `GET /api/vendors` filtered by that category and location. The call must return the matching vendor in under 30 seconds. Do not change the 30-second limit in `specs/001-core-auth-directory/spec.md`.
+- [X] T063 [P] Add a Supertest check in `api/tests/api/excluded-routes.test.ts` that Feature 001 does not expose quotation, purchase-order, invoice, or payment routes. Assert those paths are absent. Do not implement that functionality.
 - [ ] T064 Run `/speckit-converge` for `specs/001-core-auth-directory`. The feature is not ready for a pull request unless the command reports the converged outcome and the status text Converged. Any other outcome, including appended tasks, blocks the pull request. Do not invent a different command.
 
 ---

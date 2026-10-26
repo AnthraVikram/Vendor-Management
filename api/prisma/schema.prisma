@@ -1,0 +1,394 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum StaffRole {
+  ADMINISTRATOR
+  OFFICE_TEAM
+  ACCOUNTANT
+}
+
+enum Availability {
+  AVAILABLE
+  LIMITED
+  UNAVAILABLE
+}
+
+enum ProjectStatus {
+  PLANNED
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+}
+
+enum NoteType {
+  PAST_WORK
+  RELIABILITY
+  COORDINATION
+  GENERAL
+}
+
+enum PricingMode {
+  NONE
+  FIXED
+  FILE
+}
+
+enum PriceKind {
+  CHARGE
+  REVERSAL
+}
+
+model StaffUser {
+  id           String    @id @default(uuid()) @db.Uuid
+  name         String
+  email        String    @unique
+  phone        String?
+  role         StaffRole
+  passwordHash String    @map("password_hash")
+  revokedAt    DateTime? @map("revoked_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  createdById  String    @map("created_by") @db.Uuid
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  updatedById  String    @map("updated_by") @db.Uuid
+
+  createdBy StaffUser @relation("StaffCreatedBy", fields: [createdById], references: [id])
+  updatedBy StaffUser @relation("StaffUpdatedBy", fields: [updatedById], references: [id])
+  staffCreated StaffUser[] @relation("StaffCreatedBy")
+  staffUpdated StaffUser[] @relation("StaffUpdatedBy")
+
+  sessions Session[] @relation("SessionOwner")
+  sessionsCreated Session[] @relation("SessionCreatedBy")
+  sessionsUpdated Session[] @relation("SessionUpdatedBy")
+  categoriesCreated Category[] @relation("CategoryCreatedBy")
+  categoriesUpdated Category[] @relation("CategoryUpdatedBy")
+  vendorsCreated Vendor[] @relation("VendorCreatedBy")
+  vendorsUpdated Vendor[] @relation("VendorUpdatedBy")
+  vendorCategoriesCreated VendorCategory[] @relation("VendorCategoryCreatedBy")
+  vendorCategoriesUpdated VendorCategory[] @relation("VendorCategoryUpdatedBy")
+  locationsCreated VendorLocation[] @relation("VendorLocationCreatedBy")
+  locationsUpdated VendorLocation[] @relation("VendorLocationUpdatedBy")
+  servicesCreated VendorService[] @relation("VendorServiceCreatedBy")
+  servicesUpdated VendorService[] @relation("VendorServiceUpdatedBy")
+  materialsCreated VendorMaterial[] @relation("VendorMaterialCreatedBy")
+  materialsUpdated VendorMaterial[] @relation("VendorMaterialUpdatedBy")
+  ratesCreated VendorRate[] @relation("VendorRateCreatedBy")
+  ratesUpdated VendorRate[] @relation("VendorRateUpdatedBy")
+  notesCreated VendorNote[] @relation("VendorNoteCreatedBy")
+  notesUpdated VendorNote[] @relation("VendorNoteUpdatedBy")
+  ratingsCreated VendorRating[] @relation("VendorRatingCreatedBy")
+  ratingsUpdated VendorRating[] @relation("VendorRatingUpdatedBy")
+  projectsCreated Project[] @relation("ProjectCreatedBy")
+  projectsUpdated Project[] @relation("ProjectUpdatedBy")
+  linksCreated VendorProjectLink[] @relation("LinkCreatedBy")
+  linksUpdated VendorProjectLink[] @relation("LinkUpdatedBy")
+  schedulesCreated WorkSchedule[] @relation("ScheduleCreatedBy")
+  schedulesUpdated WorkSchedule[] @relation("ScheduleUpdatedBy")
+  pricesCreated TaskPriceEntry[] @relation("PriceCreatedBy")
+  pricesUpdated TaskPriceEntry[] @relation("PriceUpdatedBy")
+  filesCreated CostingSheetFile[] @relation("FileCreatedBy")
+  filesUpdated CostingSheetFile[] @relation("FileUpdatedBy")
+
+  @@map("staff_users")
+}
+
+model Session {
+  id          String    @id @default(uuid()) @db.Uuid
+  staffUserId String    @map("staff_user_id") @db.Uuid
+  expiresAt   DateTime  @map("expires_at")
+  revokedAt   DateTime? @map("revoked_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  createdById String    @map("created_by") @db.Uuid
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  updatedById String    @map("updated_by") @db.Uuid
+
+  staffUser StaffUser @relation("SessionOwner", fields: [staffUserId], references: [id])
+  createdBy StaffUser @relation("SessionCreatedBy", fields: [createdById], references: [id])
+  updatedBy StaffUser @relation("SessionUpdatedBy", fields: [updatedById], references: [id])
+
+  @@map("sessions")
+}
+
+model Category {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+
+  createdBy StaffUser @relation("CategoryCreatedBy", fields: [createdById], references: [id])
+  updatedBy StaffUser @relation("CategoryUpdatedBy", fields: [updatedById], references: [id])
+  vendors   VendorCategory[]
+
+  @@map("categories")
+}
+
+model Vendor {
+  id             String        @id @default(uuid()) @db.Uuid
+  name           String
+  contactPerson  String?       @map("contact_person")
+  phone          String
+  alternatePhone String?       @map("alternate_phone")
+  email          String?
+  address        String?
+  gstRegistered  Boolean       @map("gst_registered")
+  gstin          String?       @unique
+  gstLegalName   String?       @map("gst_legal_name")
+  teamSize       Int?          @map("team_size")
+  availability   Availability?
+  manpowerNote   String?       @map("manpower_note")
+  archived       Boolean       @default(false)
+  createdAt      DateTime      @default(now()) @map("created_at")
+  createdById    String        @map("created_by") @db.Uuid
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  updatedById    String        @map("updated_by") @db.Uuid
+
+  createdBy  StaffUser @relation("VendorCreatedBy", fields: [createdById], references: [id])
+  updatedBy  StaffUser @relation("VendorUpdatedBy", fields: [updatedById], references: [id])
+  categories VendorCategory[]
+  locations  VendorLocation[]
+  services   VendorService[]
+  materials  VendorMaterial[]
+  rates      VendorRate[]
+  notes      VendorNote[]
+  ratings    VendorRating[]
+  links      VendorProjectLink[]
+  schedules  WorkSchedule[]
+
+  @@map("vendors")
+}
+
+model VendorCategory {
+  id          String   @id @default(uuid()) @db.Uuid
+  vendorId    String   @map("vendor_id") @db.Uuid
+  categoryId  String   @map("category_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+
+  vendor    Vendor   @relation(fields: [vendorId], references: [id])
+  category  Category @relation(fields: [categoryId], references: [id])
+  createdBy StaffUser @relation("VendorCategoryCreatedBy", fields: [createdById], references: [id])
+  updatedBy StaffUser @relation("VendorCategoryUpdatedBy", fields: [updatedById], references: [id])
+
+  @@unique([vendorId, categoryId])
+  @@map("vendor_categories")
+}
+
+model VendorLocation {
+  id          String   @id @default(uuid()) @db.Uuid
+  vendorId    String   @map("vendor_id") @db.Uuid
+  label       String
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+
+  vendor    Vendor @relation(fields: [vendorId], references: [id])
+  createdBy StaffUser @relation("VendorLocationCreatedBy", fields: [createdById], references: [id])
+  updatedBy StaffUser @relation("VendorLocationUpdatedBy", fields: [updatedById], references: [id])
+
+  @@unique([vendorId, label])
+  @@map("vendor_locations")
+}
+
+model VendorService {
+  id          String   @id @default(uuid()) @db.Uuid
+  vendorId    String   @map("vendor_id") @db.Uuid
+  label       String
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+
+  vendor    Vendor @relation(fields: [vendorId], references: [id])
+  createdBy StaffUser @relation("VendorServiceCreatedBy", fields: [createdById], references: [id])
+  updatedBy StaffUser @relation("VendorServiceUpdatedBy", fields: [updatedById], references: [id])
+
+  @@unique([vendorId, label])
+  @@map("vendor_services")
+}
+
+model VendorMaterial {
+  id          String   @id @default(uuid()) @db.Uuid
+  vendorId    String   @map("vendor_id") @db.Uuid
+  label       String
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+
+  vendor    Vendor @relation(fields: [vendorId], references: [id])
+  createdBy StaffUser @relation("VendorMaterialCreatedBy", fields: [createdById], references: [id])
+  updatedBy StaffUser @relation("VendorMaterialUpdatedBy", fields: [updatedById], references: [id])
+
+  @@unique([vendorId, label])
+  @@map("vendor_materials")
+}
+
+model VendorRate {
+  id          String   @id @default(uuid()) @db.Uuid
+  vendorId    String   @map("vendor_id") @db.Uuid
+  label       String
+  amount      Decimal  @db.Decimal(15, 2)
+  unit        String
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+
+  vendor    Vendor @relation(fields: [vendorId], references: [id])
+  createdBy StaffUser @relation("VendorRateCreatedBy", fields: [createdById], references: [id])
+  updatedBy StaffUser @relation("VendorRateUpdatedBy", fields: [updatedById], references: [id])
+
+  @@map("vendor_rates")
+}
+
+model VendorNote {
+  id          String   @id @default(uuid()) @db.Uuid
+  vendorId    String   @map("vendor_id") @db.Uuid
+  noteType    NoteType @map("note_type")
+  body        String
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+
+  vendor    Vendor @relation(fields: [vendorId], references: [id])
+  createdBy StaffUser @relation("VendorNoteCreatedBy", fields: [createdById], references: [id])
+  updatedBy StaffUser @relation("VendorNoteUpdatedBy", fields: [updatedById], references: [id])
+
+  @@map("vendor_notes")
+}
+
+model VendorRating {
+  id          String   @id @default(uuid()) @db.Uuid
+  vendorId    String   @map("vendor_id") @db.Uuid
+  score       Int
+  comment     String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+
+  vendor    Vendor @relation(fields: [vendorId], references: [id])
+  createdBy StaffUser @relation("VendorRatingCreatedBy", fields: [createdById], references: [id])
+  updatedBy StaffUser @relation("VendorRatingUpdatedBy", fields: [updatedById], references: [id])
+
+  @@map("vendor_ratings")
+}
+
+model Project {
+  id           String        @id @default(uuid()) @db.Uuid
+  name         String
+  clientName   String?       @map("client_name")
+  siteLocation String?       @map("site_location")
+  description  String?
+  status       ProjectStatus
+  archived     Boolean       @default(false)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  createdById  String        @map("created_by") @db.Uuid
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+  updatedById  String        @map("updated_by") @db.Uuid
+
+  createdBy StaffUser @relation("ProjectCreatedBy", fields: [createdById], references: [id])
+  updatedBy StaffUser @relation("ProjectUpdatedBy", fields: [updatedById], references: [id])
+  links     VendorProjectLink[]
+  schedules WorkSchedule[]
+
+  @@map("projects")
+}
+
+model VendorProjectLink {
+  id            String   @id @default(uuid()) @db.Uuid
+  vendorId      String   @map("vendor_id") @db.Uuid
+  projectId     String   @map("project_id") @db.Uuid
+  roleOnProject String?  @map("role_on_project")
+  scopeOfWork   String?  @map("scope_of_work")
+  note          String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  createdById   String   @map("created_by") @db.Uuid
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  updatedById   String   @map("updated_by") @db.Uuid
+
+  vendor    Vendor  @relation(fields: [vendorId], references: [id])
+  project   Project @relation(fields: [projectId], references: [id])
+  createdBy StaffUser @relation("LinkCreatedBy", fields: [createdById], references: [id])
+  updatedBy StaffUser @relation("LinkUpdatedBy", fields: [updatedById], references: [id])
+
+  @@unique([vendorId, projectId])
+  @@map("vendor_project_links")
+}
+
+model WorkSchedule {
+  id               String      @id @default(uuid()) @db.Uuid
+  vendorId         String      @map("vendor_id") @db.Uuid
+  projectId        String      @map("project_id") @db.Uuid
+  task             String
+  workDate         DateTime    @map("work_date") @db.Date
+  startTime        String      @map("start_time")
+  endTime          String      @map("end_time")
+  requiredTeamSize Int         @map("required_team_size")
+  pricingMode      PricingMode @default(NONE) @map("pricing_mode")
+  archived         Boolean     @default(false)
+  createdAt        DateTime    @default(now()) @map("created_at")
+  createdById      String      @map("created_by") @db.Uuid
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+  updatedById      String      @map("updated_by") @db.Uuid
+
+  vendor    Vendor  @relation(fields: [vendorId], references: [id])
+  project   Project @relation(fields: [projectId], references: [id])
+  createdBy StaffUser @relation("ScheduleCreatedBy", fields: [createdById], references: [id])
+  updatedBy StaffUser @relation("ScheduleUpdatedBy", fields: [updatedById], references: [id])
+  prices    TaskPriceEntry[]
+  files     CostingSheetFile[]
+
+  @@map("work_schedules")
+}
+
+model TaskPriceEntry {
+  id              String    @id @default(uuid()) @db.Uuid
+  scheduleId      String    @map("schedule_id") @db.Uuid
+  amount          Decimal   @db.Decimal(15, 2)
+  kind            PriceKind
+  reversesEntryId String?   @unique @map("reverses_entry_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at")
+  createdById     String    @map("created_by") @db.Uuid
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  updatedById     String    @map("updated_by") @db.Uuid
+
+  schedule      WorkSchedule    @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  reversesEntry TaskPriceEntry? @relation("PriceReversal", fields: [reversesEntryId], references: [id])
+  reversedBy    TaskPriceEntry? @relation("PriceReversal")
+  createdBy     StaffUser       @relation("PriceCreatedBy", fields: [createdById], references: [id])
+  updatedBy     StaffUser       @relation("PriceUpdatedBy", fields: [updatedById], references: [id])
+
+  @@map("task_price_entries")
+}
+
+model CostingSheetFile {
+  id               String   @id @default(uuid()) @db.Uuid
+  scheduleId       String   @map("schedule_id") @db.Uuid
+  storageKey       String   @map("storage_key")
+  originalFilename String   @map("original_filename")
+  mediaType        String   @map("media_type")
+  byteSize         Int      @map("byte_size")
+  archived         Boolean  @default(false)
+  createdAt        DateTime @default(now()) @map("created_at")
+  createdById      String   @map("created_by") @db.Uuid
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  updatedById      String   @map("updated_by") @db.Uuid
+
+  schedule  WorkSchedule @relation(fields: [scheduleId], references: [id], onDelete: Restrict)
+  createdBy StaffUser    @relation("FileCreatedBy", fields: [createdById], references: [id])
+  updatedBy StaffUser    @relation("FileUpdatedBy", fields: [updatedById], references: [id])
+
+  @@map("costing_sheet_files")
+}
