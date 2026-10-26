@@ -60,8 +60,10 @@ Use the cookie from `POST /api/auth/login`. Expected bodies are in the contract.
 13. Attach a file to a schedule that already has a fixed price. The response is 409.
 14. Sign in as the accountant and `POST /api/staff`. The response is 403. Sign in as the administrator, create a user, revoke that user, and call `GET /api/vendors` with the revoked user's cookie. The response is 401. The same email and password cannot sign in. Restore the user and sign in again.
 15. Revoke is refused for the only remaining active administrator.
+16. Create a category, then submit the same name in a different letter case. The existing category is returned and its stored name is unchanged.
+17. Delete a vendor-project link that has a schedule, a fixed price, and a costing sheet. The vendor remains. The schedule is archived. An authorized caller can still read the price history and the file.
 
-Business-rule unit tests cover overlap boundaries, money scale, the last administrator, and the uniform sign-in message before the routes are considered done. The Supertest suite maps each spec acceptance scenario to a case.
+Business-rule unit tests cover overlap boundaries, money scale, the last administrator, category reuse, and the uniform sign-in message before the routes are considered done. The Supertest suite maps each spec acceptance scenario to a case. A separate case loads 200 vendors and checks the category and location filter finishes in under 30 seconds. Another case confirms quotation, purchase-order, invoice, and payment routes are absent.
 
 ## Web scenarios
 

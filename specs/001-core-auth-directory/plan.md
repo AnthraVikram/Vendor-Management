@@ -1,6 +1,6 @@
 # Implementation Plan: Core Auth and Directory
 
-**Branch**: `001-core-auth-directory` | **Date**: 2026-10-25 | **Spec**: [spec.md](./spec.md)
+**Branch**: `001-core-auth-directory` | **Date**: 2026-10-26 | **Spec**: [spec.md](./spec.md)
 
 **Input**: Feature specification from `/specs/001-core-auth-directory/spec.md`
 
@@ -39,9 +39,9 @@ The implementation is a TypeScript monorepo: an Express API in `api/` and a Reac
 | Spec exists and lists FR-01, FR-02, FR-03, FR-04, and FR-14. No `NEEDS CLARIFICATION` remains in the spec | Pass | Pass |
 | Stack is TypeScript, Node LTS, Express, React, PostgreSQL 17, Prisma, Vitest, Supertest, ESLint, Prettier | Pass | Pass. Research records each added runtime package |
 | Repository shape is `api/` and `web/`, with one command that migrates and seeds | Pass | Pass. Root `npm run dev` |
-| Tables carry audit columns. Money is `DECIMAL(15,2)`. Protected rows are archived. Foreign keys and Prisma migrations are required | Pass | Pass. See [data-model.md](./data-model.md) |
+| Tables carry audit columns. Money is `DECIMAL(15,2)`. Protected rows are archived. Foreign keys and Prisma migrations are required. Deleting a link does not cascade to schedules, prices, or costing sheets | Pass | Pass. See [data-model.md](./data-model.md) |
 | Every business route checks the session and the role. Passwords use bcrypt. Secrets stay in `.env`. Files have no public URL. Zod validates input | Pass | Pass. See [contracts/http-api.md](./contracts/http-api.md) |
-| Each acceptance scenario gets an automated test. Business rules are tested first. CI runs lint, typecheck, and tests | Pass | Pass. See [quickstart.md](./quickstart.md) |
+| Each acceptance scenario gets an automated test. Business rules are tested first. CI runs lint, typecheck, and tests. `/speckit-converge` must report Converged before a pull request | Pass | Pass. Tests are in the task list. T064 runs `/speckit-converge` |
 | No quotation, purchase-order, invoice, payment, or client-advance behavior | Pass | Pass. Those tables and routes are absent |
 | Responsive web only | Pass | Pass. Plain CSS, no PWA |
 
@@ -171,8 +171,12 @@ Write the unit tests in `api/tests/unit` first, and leave them failing until the
 - Last administrator
 - Identical sign-in failure for unknown, wrong, and revoked
 - Default vendor query excludes archived rows
+- Category reuse keeps the stored name
+- Link removal archives schedules and leaves prices and costing sheets in place
+- A directory of 200 vendors answers a category and location filter in under 30 seconds
+- Quotation, purchase-order, invoice, and payment routes are absent
 
-Then add Supertest cases for the acceptance scenarios in spec User Stories 1 through 6, using the routes in [contracts/http-api.md](./contracts/http-api.md). Web tests cover the sign-in form, the vendor filters, and the schedule form. Layout on a phone width and a desktop width is the quickstart demonstration.
+Then add Supertest cases for the acceptance scenarios in spec User Stories 1 through 6, using the routes in [contracts/http-api.md](./contracts/http-api.md). Web tests cover the sign-in form, the vendor filters, and the schedule form. The vendor filter test is written before that screen. Layout on a phone width and a desktop width is the quickstart demonstration. `/speckit-converge` is the last check before a pull request.
 
 ## Delivery
 
