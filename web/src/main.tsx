@@ -19,6 +19,9 @@ function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [ready, setReady] = useState(false);
   const [path, setPath] = useState(pathOf());
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordMessage, setPasswordMessage] = useState('');
 
   useEffect(() => {
     api<Me>('/api/auth/me').then(setMe).catch(() => setMe(null)).finally(() => setReady(true));
@@ -29,10 +32,6 @@ function App() {
 
   if (!ready) return <p className="shell">Loading</p>;
   if (!me) return <SignIn onSignedIn={() => api<Me>('/api/auth/me').then(setMe)} />;
-
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [passwordMessage, setPasswordMessage] = useState('');
 
   async function changePassword(event: FormEvent) {
     event.preventDefault();
@@ -75,7 +74,7 @@ function App() {
       {path === '/vendors' ? <Vendors openVendor={(id) => { window.location.hash = `/vendors/${id}`; }} /> : null}
       {path.startsWith('/projects/') && projectId ? <ProjectDetail id={projectId} /> : null}
       {path === '/projects' ? <Projects openProject={(id) => { window.location.hash = `/projects/${id}`; }} /> : null}
-      {path === '/staff' ? <StaffPage /> : null}
+      {path === '/staff' ? <StaffPage currentUserId={me.id} /> : null}
     </div>
   );
 }

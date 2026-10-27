@@ -1,11 +1,11 @@
 <!--
 Sync Impact Report
-- Version change: 1.0.0 → 1.0.1
+- Version change: 1.0.1 → 1.1.0
 - Modified principles:
-  - II. Fixed Stack rationale corrected. The binding stack was already PostgreSQL 17 and Prisma. The old sentence said that stack superseded PostgreSQL and Prisma.
+  - V. Tests and Done: adds when a documentation-only task is done (stated documentation criteria met, verified against the named files, reviewed, and approved, with the record kept on the task or pull request). Tasks that change application code, configuration, or tests, and tasks that run checks or demonstrations, keep the tests-and-demonstration rule unchanged. The Rationale gains one sentence for documentation-only tasks.
 - Added sections: none
 - Removed sections: none
-- Follow-up TODOs: none for this patch
+- Follow-up TODOs: specs/001-core-auth-directory/tasks.md checkbox rule to cite this definition; T091 needs its review and approval recorded before it counts as done; T004, T005, T007, T009, T063, T090, and T064 (no acceptance scenario, not documentation-only) remain unresolved.
 -->
 
 # Vendor & Project Management Constitution
@@ -80,12 +80,22 @@ test is written first.
 A task is done when its tests pass and its acceptance scenario is demonstrated.
 Compilation alone does not complete a task.
 
+A task whose only deliverable is a change to documentation — specifications, plans,
+task lists, contracts, the PRD, or other project records — and that changes no
+application code, configuration, or tests, is done when its stated documentation
+criteria are met and verified against the files they name, and the change has been
+reviewed and approved. The verification and the approval are recorded in the task or
+in the pull request. A task that runs checks or demonstrations is not
+documentation-only, even when it also records results. Every other task is done only
+as stated above. This distinction waives no other requirement of this constitution.
+
 CI runs lint, typecheck, and tests on every pull request. A red CI result blocks merge.
 
 `converge` reports Converged before a pull request is opened.
 
 Rationale: Done means the specified behavior is proven, and a failing check stops the
-merge.
+merge. For a documentation-only task, done means the stated records are correct,
+verified, and approved.
 
 ### VI. Simplicity
 
@@ -151,4 +161,4 @@ The original adoption date is **Ratified**. Compliance is checked when a spec, p
 or pull request is reviewed. Product scope is read from `docs/prd.md`. Feature work
 follows that backlog through spec, plan, tasks, and converge.
 
-**Version**: 1.0.1 | **Ratified**: 2026-10-23 | **Last Amended**: 2026-10-26
+**Version**: 1.1.0 | **Ratified**: 2026-10-23 | **Last Amended**: 2026-10-27

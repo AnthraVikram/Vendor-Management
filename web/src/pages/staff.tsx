@@ -9,7 +9,13 @@ interface Staff {
   revoked: boolean;
 }
 
-export function StaffPage() {
+const ROLE_LABELS: Record<string, string> = {
+  ADMINISTRATOR: 'Administrator',
+  OFFICE_TEAM: 'Office Team',
+  ACCOUNTANT: 'Accountant',
+};
+
+export function StaffPage({ currentUserId }: { currentUserId: string }) {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -39,12 +45,15 @@ export function StaffPage() {
     }
   }
 
-  async function revoke(id: string) {
+  async function update(id: string, body: Record<string, unknown>, failure: string): Promise<boolean> {
+    setError('');
     try {
-      await api(`/api/staff/${id}`, { method: 'PATCH', body: JSON.stringify({ revoked: true }) });
+      await api(`/api/staff/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
       load();
+      return true;
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : 'Could not revoke the account');
+      setError(caught instanceof Error ? caught.message : failure);
+      return false;
     }
   }
 
@@ -68,11 +77,92 @@ export function StaffPage() {
       </form>
       {error ? <p className="error">{error}</p> : null}
       {staff.map((person) => (
-        <article className="card" key={person.id}>
-          <p>{person.name} · {person.email} · {person.role} {person.revoked ? '(revoked)' : ''}</p>
-          {!person.revoked ? <button type="button" className="secondary" onClick={() => revoke(person.id)}>Revoke</button> : null}
-        </article>
+        <StaffRow key={person.id} person={person} own={person.id === currentUserId} update={update} />
       ))}
     </section>
+  );
+}
+
+function StaffRow({
+  person,
+  own,
+  update,
+}: {
+  person: Staff;
+  own: boolean;
+  update: (id: string, body: Record<string, unknown>, failure: string) => Promise<boolean>;
+}) {
+  const [role, setRole] = useState(person.role);
+  const [newPassword, setNewPassword] = useState('');
+  const [restorePassword, setRestorePassword] = useState('');
+
+  async function saveRole(event: FormEvent) {
+    event.preventDefault();
+    await update(person.id, { role }, 'Could not change the role');
+  }
+
+  async function setPassword(event: FormEvent) {
+    event.preventDefault();
+    if (await update(person.id, { password: newPassword }, 'Could not set the password')) setNewPassword('');
+  }
+
+  async function restore(event: FormEvent) {
+    event.preventDefault();
+    const body = restorePassword ? { revoked: false, password: restorePassword } : { revoked: false };
+    if (await update(person.id, body, 'Could not restore the account')) setRestorePassword('');
+  }
+
+  return (
+    <article className="card">
+      <p>
+        <strong>{person.name}</strong> · {person.email} · <span>Role: {ROLE_LABELS[person.role] ?? person.role}</span> ·{' '}
+        <span>{person.revoked ? 'Revoked' : 'Active'}</span>
+      </p>
+      {!person.revoked ? (
+        <button type="button" className="secondary" onClick={() => update(person.id, { revoked: true }, 'Could not revoke the account')}>
+          Revoke
+        </button>
+      ) : (
+        <form className="row" onSubmit={restore}>
+          <label>
+            New password (optional)
+            <input
+              type="password"
+              aria-label={`Password on restore for ${person.name}`}
+              value={restorePassword}
+              onChange={(event) => setRestorePassword(event.target.value)}
+            />
+          </label>
+          <button type="submit">Restore</button>
+        </form>
+      )}
+      {!own ? (
+        <form className="row" onSubmit={saveRole}>
+          <label>
+            Role
+            <select aria-label={`Role for ${person.name}`} value={role} onChange={(event) => setRole(event.target.value)}>
+              <option value="ADMINISTRATOR">Administrator</option>
+              <option value="OFFICE_TEAM">Office Team</option>
+              <option value="ACCOUNTANT">Accountant</option>
+            </select>
+          </label>
+          <button type="submit">Save role</button>
+        </form>
+      ) : null}
+      {!own && !person.revoked ? (
+        <form className="row" onSubmit={setPassword}>
+          <label>
+            New password
+            <input
+              type="password"
+              aria-label={`New password for ${person.name}`}
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+            />
+          </label>
+          <button type="submit">Set password</button>
+        </form>
+      ) : null}
+    </article>
   );
 }

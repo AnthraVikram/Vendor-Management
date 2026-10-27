@@ -5,6 +5,7 @@ import { prisma } from '../../db';
 import { HttpError } from '../../lib/http';
 import { hashPassword } from '../../lib/passwords';
 import { leavesNoActiveAdministrator } from '../../lib/last-admin';
+import { changesOwnRole } from '../../lib/own-role';
 import { asyncRoute } from '../async-route';
 
 const createSchema = z.object({
@@ -85,8 +86,13 @@ staffRouter.patch(
     const body = patchSchema.parse(req.body);
     const actor = req.staff!.id;
     const updated = await prisma.$transaction(async (tx) => {
+      // Lock the target and every active administrator so concurrent revokes and demotions run one at a time.
+      await tx.$queryRaw`SELECT id FROM staff_users WHERE id = ${req.params.id}::uuid OR (role = 'ADMINISTRATOR' AND revoked_at IS NULL) ORDER BY id FOR UPDATE`;
       const target = await tx.staffUser.findUnique({ where: { id: req.params.id } });
       if (!target) throw new HttpError(404, 'Staff account not found.');
+      if (changesOwnRole({ callerId: actor, targetId: target.id, currentRole: target.role, nextRole: body.role })) {
+        throw new HttpError(403, 'You cannot change your own role.', { code: 'OWN_ROLE' });
+      }
       if (body.revoked === true && target.revokedAt) {
         throw new HttpError(409, 'The account is already revoked.', { code: 'ALREADY_REVOKED' });
       }
@@ -117,11 +123,12 @@ staffRouter.patch(
       if (body.name) data.name = body.name;
       if (body.phone !== undefined) data.phone = body.phone;
       if (body.role) data.role = body.role;
-      if (body.password) data.passwordHash = await hashPassword(body.password);
+      if (body.password !== undefined) data.passwordHash = await hashPassword(body.password);
       if (body.revoked === true) data.revokedAt = new Date();
       if (body.revoked === false) data.revokedAt = null;
       const saved = await tx.staffUser.update({ where: { id: target.id }, data });
-      if (body.revoked === true) {
+      // Setting the caller's own password through this route stays as it was until T092 is answered.
+      if (body.revoked === true || (body.password !== undefined && target.id !== actor)) {
         await tx.session.updateMany({
           where: { staffUserId: target.id, revokedAt: null },
           data: { revokedAt: new Date(), updatedById: actor },

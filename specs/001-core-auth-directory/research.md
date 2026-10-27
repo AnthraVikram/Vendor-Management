@@ -50,23 +50,39 @@
 
 **Rationale**: The spec refuses a file that is not a spreadsheet or PDF. The API checks the extension and the leading bytes. CSV is included because it is a spreadsheet the firm can attach without a new product type. Other types, including images and Word documents, are refused.
 
-**Operational limit**: Files larger than 10 MB are refused. The spec does not set a size. This is an operational guard so one upload cannot fill the disk. It is recorded here so it can be changed without a product change.
+**Size limit**: Files larger than 10 MB are refused. The product owner set this limit in the 2026-10-27 clarification (FR-033). Multer's `limits.fileSize` enforces it before the file is held in memory, and the database checks `byte_size` as well.
 
 ## Decision: Overlap uses half-open times on one date
 
 **Rationale**: A conflict is the same vendor, the same date, and two active schedules whose times overlap, on any project. Intervals are `[start, end)`. A task that ends at 10:00 and another that starts at 10:00 do not conflict. Different vendors never conflict with each other. Archived schedules are excluded from the check. The vendor availability status is not an input to the check. The API still saves the schedule and returns the conflicting rows.
 
-**Alternatives considered**: Treating a shared endpoint as overlap. Rejected. The spec asks for overlapping times, and a booking that starts when another ends is sequential work.
+**Alternatives considered**: Treating a shared endpoint as overlap. Rejected. The 2026-10-27 clarification (FR-030) states that back-to-back bookings are not a conflict.
 
 ## Decision: Task prices use reversing entries; indicative rates do not
 
 **Rationale**: Principle III says money is `DECIMAL(15,2)` in INR, never float, and a financial correction is a new reversing entry. A task's agreed price is money on that task. Changing it inserts a reversal of the previous amount and a new charge. The screen shows the latest charge and the earlier amounts with date and author. Indicative vendor rates are directory labels, not task prices, quotations, or payments. Editing an indicative rate updates that directory row.
 
-A task is either unpriced, fixed-price, or file-priced. Setting a fixed price while a current costing sheet exists is refused, and attaching a file while a current fixed price exists is refused. This feature does not switch a task from one method to the other.
+A task is either unpriced, fixed-price, or file-priced. Setting a fixed price while a current costing sheet exists is refused, and attaching a file while a current fixed price exists is refused.
+
+Switching methods goes through unpriced, as the 2026-10-27 clarification (FR-033) requires. Clearing a fixed price inserts a `REVERSAL` of the open charge, so the history shows who cleared it and when. Clearing a costing sheet archives the current file row and keeps its bytes; the row's `updated_by` and `updated_at` record who cleared it and when. Both set `pricing_mode` to `NONE`. The clear actions are `POST …/price/clear` and `POST …/costing-sheet/clear`, matching the existing `POST …/archive` style.
+
+**Alternatives considered**: A direct switch in one request (`FIXED` → `FILE`). Rejected. The clarification asks for clearing first, and two separate steps keep each history entry simple. `DELETE` routes for clearing. Rejected. Nothing is deleted, and Principle III forbids hard deletes of financial records and documents.
 
 ## Decision: Removing a link or a schedule hides working rows and keeps prices and files
 
 **Rationale**: Principle III forbids hard deletes of vendors, projects, documents, and financial records. A vendor-project link is none of those, so the link row may be deleted. Schedules on that pair leave the working project view by setting `archived` true. Their price entries and costing-sheet files stay readable. Removing a schedule uses the same archive flag. Vendor and project archive flags are separate from project status.
+
+## Decision: Own-role refusal and session ending on an administrator password reset
+
+**Rationale**: The 2026-10-27 clarifications say no one changes their own role (FR-009) and an administrator setting another person's password ends that person's sessions (FR-005). The staff route compares the target with the caller and refuses a role change with 403 `OWN_ROLE`, because it is an action the caller may not perform rather than a data conflict. Session ending reuses the revoke path: set `revoked_at` on that person's open sessions in the same transaction as the new hash.
+
+**Alternatives considered**: 409 for an own-role change. Rejected. 409 is for data conflicts; the role table in the contract uses 403 for actions a signed-in caller may not perform. Ending sessions on the caller's own password change. Not adopted. The spec does not ask for it.
+
+## Decision: Row locks for staff and pricing changes
+
+**Rationale**: The spec requires that the firm never loses its last administrator (FR-007) and that a second revoke reports "already revoked". It also requires that a task never has both pricing methods current (FR-033). Read-then-write checks under PostgreSQL's default isolation can each pass when two requests arrive together. The transactions therefore take `SELECT … FOR UPDATE` row locks through Prisma `$queryRaw`: the staff transaction locks the target row and the active administrator rows; the price and costing-sheet transactions lock the schedule row. The second request waits, then sees the first request's result. The staff lock takes its rows `ORDER BY id`, so two transactions that lock the same administrators always lock them in the same order and cannot deadlock each other, as when two administrators revoke each other at once (tasks.md T069). Before the lock existed, that case left zero active administrators.
+
+**Alternatives considered**: `SERIALIZABLE` isolation with retry. Rejected. It adds retry handling to every caller for a one-firm workload. A database trigger for the last administrator. Rejected. It moves a business rule out of the tested helper.
 
 ## Decision: First administrator comes from seed
 
@@ -89,6 +105,8 @@ Business rules are Vitest units with no HTTP: overlap, half-open boundaries, pri
 Acceptance scenarios are Supertest tests against the Express app and a PostgreSQL database. The web app has Vitest tests for the sign-in form, the vendor filter form, and the schedule form submitting the fields the API expects. Phone and desktop layout are checked in `quickstart.md`, not by a browser farm.
 
 **Dev dependency**: `@testing-library/react` — Render the sign-in, vendor filter, and schedule forms in Vitest.
+
+**Dev dependency**: `embedded-postgres` — Start a local PostgreSQL 17 for `npm test` when `DATABASE_URL` is not set. CI sets `DATABASE_URL` to its PostgreSQL 17 service and does not use it.
 
 ## Dependencies not added
 

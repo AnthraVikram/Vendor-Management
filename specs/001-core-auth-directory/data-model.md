@@ -17,7 +17,7 @@ A staff account. One role. Revoke sets `revoked_at`. Restore clears it.
 | password_hash | Required, bcrypt, never returned |
 | revoked_at | Null while active |
 
-The seed administrator's `created_by` is its own `id`. An update that would leave zero rows with `role = ADMINISTRATOR` and `revoked_at` null is refused. Email uniqueness includes revoked accounts.
+The seed administrator's `created_by` is its own `id`. An update that would leave zero rows with `role = ADMINISTRATOR` and `revoked_at` null is refused. Email uniqueness includes revoked accounts. An update that changes `role` on the caller's own row is refused. Setting `password_hash` for another person revokes that person's open sessions in the same transaction.
 
 ## sessions
 
@@ -25,7 +25,7 @@ The seed administrator's `created_by` is its own `id`. An update that would leav
 | --- | --- |
 | staff_user_id | Required |
 | expires_at | Required |
-| revoked_at | Set on sign-out and when the account is revoked |
+| revoked_at | Set on sign-out, when the account is revoked, and when an administrator sets another person's password |
 
 A request with a missing, expired, or revoked session is unauthenticated. A session whose user has `revoked_at` set is refused even if the session row is still open.
 
@@ -145,7 +145,7 @@ One booked task. The priced job is this row, not the vendor and not the link.
 
 Insert requires an existing link and both the vendor and the project active (`archived = false`).
 
-Conflict query: other rows with the same `vendor_id`, the same `work_date`, `archived = false`, and `start_time < other.end_time` and `end_time > other.start_time`. The vendor's `availability` is not part of the query. Conflicts are returned and the row is still saved.
+Conflict query: other rows with the same `vendor_id`, the same `work_date`, `archived = false`, and `start_time < other.end_time` and `end_time > other.start_time`. A row that starts exactly when another ends does not match. The vendor's `availability` is not part of the query. Conflicts are returned and the row is still saved.
 
 Working project views exclude `archived = true`. An archived schedule, its price history, and its files remain readable by id.
 
@@ -160,7 +160,7 @@ Append-only charges and reversals for `pricing_mode = FIXED`.
 | kind | `CHARGE` or `REVERSAL` |
 | reverses_entry_id | Required for `REVERSAL`, otherwise null |
 
-The current price is the latest `CHARGE` that has no reversal. Changing it inserts a `REVERSAL` of that charge and a new `CHARGE`. Rows are not updated to hide an old amount. A charge cannot be inserted while `pricing_mode` is `FILE`.
+The current price is the latest `CHARGE` that has no reversal. Changing it inserts a `REVERSAL` of that charge and a new `CHARGE`. Rows are not updated to hide an old amount. A charge cannot be inserted while `pricing_mode` is `FILE`. Clearing a fixed price inserts a `REVERSAL` of the open charge with no new `CHARGE`, leaving no current price; its `created_by` and `created_at` record who cleared it and when.
 
 ## costing_sheet_files
 
@@ -173,7 +173,7 @@ The current price is the latest `CHARGE` that has no reversal. Changing it inser
 | byte_size | Greater than 0, at most 10 MB |
 | archived | Default false |
 
-At most one row per schedule has `archived = false`. Replacing a file sets the previous row `archived = true` and keeps the bytes. A file cannot be attached while `pricing_mode` is `FIXED`. Download requires a signed-in active staff member.
+At most one row per schedule has `archived = false`. Replacing a file sets the previous row `archived = true` and keeps the bytes. A file cannot be attached while `pricing_mode` is `FIXED`. Clearing a costing sheet sets the current row `archived = true` and keeps the bytes; that row's `updated_by` and `updated_at` record who cleared it and when, and it is not updated again. Download requires a signed-in active staff member, including for archived files.
 
 ## Relationships
 
@@ -204,7 +204,7 @@ A schedule stores `vendor_id` and `project_id` so it remains readable after the 
 
 **Vendor and project**: working (`archived` false) or archived. Project `status` changes without archiving. Completed and not archived stays on the default list.
 
-**Schedule pricing**: `NONE` → `FIXED` or `NONE` → `FILE`. No transition between `FIXED` and `FILE` in this feature.
+**Schedule pricing**: `NONE` → `FIXED` or `NONE` → `FILE`. Clearing returns `FIXED` → `NONE` (reversal) or `FILE` → `NONE` (file archived). There is no direct transition between `FIXED` and `FILE`; a switch is a clear followed by the other method. These transitions use the existing columns, so no migration is needed.
 
 **Schedule visibility**: working or archived. Archive happens when the schedule is removed or when its vendor-project link is removed.
 
