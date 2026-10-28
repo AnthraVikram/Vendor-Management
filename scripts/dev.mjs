@@ -29,17 +29,9 @@ await waitForPort(5432);
 execSync('npm run prisma:deploy -w api', { stdio: 'inherit' });
 execSync('npm run prisma:seed -w api', { stdio: 'inherit' });
 
+// One command string: with shell: true, Node joins separate args without quoting them.
 const child = spawn(
-  'npm.cmd',
-  [
-    'exec',
-    '--',
-    'concurrently',
-    '-n',
-    'api,web',
-    'npm.cmd run dev -w api',
-    'npm.cmd run dev -w web',
-  ],
+  'npm exec -- concurrently -n api,web "npm run dev -w api" "npm run dev -w web"',
   { stdio: 'inherit', shell: true },
 );
 
