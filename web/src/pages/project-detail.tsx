@@ -1,10 +1,12 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api } from '../api/client';
+import { ProjectTimeline } from './project-timeline';
 
 interface LinkRow {
   id: string;
   vendor_id: string;
   vendor_name: string;
+  vendor_archived: boolean;
   role_on_project: string | null;
   scope_of_work: string | null;
   note: string | null;
@@ -151,7 +153,7 @@ export function ScheduleForm({ projectId, vendors, onSaved }: { projectId: strin
   );
 }
 
-export function ProjectDetail({ id }: { id: string }) {
+export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
   const [project, setProject] = useState<ProjectDetailData | null>(null);
   const [vendors, setVendors] = useState<VendorOption[]>([]);
   const [vendorId, setVendorId] = useState('');
@@ -259,6 +261,12 @@ export function ProjectDetail({ id }: { id: string }) {
         <input name="file" type="file" />
         <button type="submit">Attach file</button>
       </form>
+      <ProjectTimeline
+        projectId={id}
+        linkedVendors={project.links.map((link) => ({ id: link.vendor_id, name: link.vendor_name, archived: link.vendor_archived }))}
+        version={version}
+        itemId={itemId}
+      />
       {error ? <p className="error">{error}</p> : null}
     </section>
   );

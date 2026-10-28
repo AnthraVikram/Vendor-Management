@@ -4,6 +4,7 @@ import path from 'node:path';
 import { PrismaClient, type StaffRole } from '@prisma/client';
 import { hashPassword } from '../src/lib/passwords';
 import { stampCreate } from '../src/lib/audit';
+import { addDays, toDateColumn, todayInIndia } from '../src/lib/india-date';
 
 const prisma = new PrismaClient();
 
@@ -174,6 +175,83 @@ async function main() {
         mediaType: 'application/pdf',
         byteSize: SAMPLE_PDF.length,
         ...stampCreate(office.id),
+      },
+    });
+  }
+
+  const today = todayInIndia();
+  const indiaNoon = (offset: number) => new Date(`${addDays(today, offset)}T06:30:00Z`);
+  async function timelineItem(input: {
+    name: string;
+    itemType: 'MILESTONE' | 'ACTIVITY';
+    deadline: number;
+    responsible?: 'VENDOR' | 'FIRM_TEAM';
+    updates?: { status: 'IN_PROGRESS' | 'DONE'; daysAgo: number; note: string }[];
+  }) {
+    const existing = await prisma.timelineItem.findFirst({ where: { projectId: lake.id, name: input.name } });
+    if (existing) return existing;
+    const item = await prisma.timelineItem.create({
+      data: {
+        projectId: lake.id,
+        name: input.name,
+        itemType: input.itemType,
+        deadline: toDateColumn(addDays(today, input.deadline)),
+        responsibleKind: input.responsible ?? 'NONE',
+        responsibleVendorId: input.responsible === 'VENDOR' ? mehta.id : null,
+        ...stampCreate(office.id),
+      },
+    });
+    for (const update of input.updates ?? []) {
+      await prisma.timelineProgressUpdate.create({
+        data: {
+          timelineItemId: item.id,
+          status: update.status,
+          note: update.note,
+          createdAt: indiaNoon(-update.daysAgo),
+          ...stampCreate(office.id),
+        },
+      });
+    }
+    return item;
+  }
+
+  const overdueJoinery = await timelineItem({
+    name: 'Kitchen joinery',
+    itemType: 'ACTIVITY',
+    deadline: -3,
+    responsible: 'VENDOR',
+    updates: [{ status: 'IN_PROGRESS', daysAgo: 4, note: 'Carcasses on site' }],
+  });
+  await timelineItem({ name: 'Client walkthrough', itemType: 'MILESTONE', deadline: 4 });
+  await timelineItem({
+    name: 'Ceiling wiring',
+    itemType: 'ACTIVITY',
+    deadline: 20,
+    updates: [{ status: 'IN_PROGRESS', daysAgo: 8, note: 'First fix started' }],
+  });
+  await timelineItem({
+    name: 'Demolition',
+    itemType: 'ACTIVITY',
+    deadline: -10,
+    updates: [{ status: 'DONE', daysAgo: 9, note: 'Debris cleared' }],
+  });
+  await timelineItem({ name: 'Material selection', itemType: 'ACTIVITY', deadline: 12, responsible: 'FIRM_TEAM' });
+
+  const delayReason = 'Laminate shipment arrived late';
+  if (!(await prisma.delay.findFirst({ where: { projectId: lake.id, reason: delayReason } }))) {
+    await prisma.delay.create({
+      data: { projectId: lake.id, timelineItemId: overdueJoinery.id, reason: delayReason, ...stampCreate(office.id) },
+    });
+  }
+  const issueText = 'Carpenter and electrician both need the kitchen ceiling this week';
+  if (!(await prisma.coordinationIssue.findFirst({ where: { projectId: lake.id, description: issueText } }))) {
+    await prisma.coordinationIssue.create({
+      data: {
+        projectId: lake.id,
+        timelineItemId: overdueJoinery.id,
+        description: issueText,
+        ...stampCreate(office.id),
+        vendors: { create: [{ vendorId: mehta.id, ...stampCreate(office.id) }] },
       },
     });
   }

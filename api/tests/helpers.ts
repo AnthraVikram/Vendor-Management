@@ -1,13 +1,21 @@
 import { randomUUID } from 'node:crypto';
 import request from 'supertest';
-import type { StaffRole } from '@prisma/client';
+import type { ResponsibleKind, StaffRole, TimelineItemType, TimelineStatus } from '@prisma/client';
 import { createApp } from '../src/app';
 import { prisma } from '../src/db';
 import { hashPassword } from '../src/lib/passwords';
+import { addDays, todayInIndia } from '../src/lib/india-date';
 
 export const app = createApp();
 
 export async function resetDatabase(): Promise<void> {
+  await prisma.coordinationIssueVendor.deleteMany();
+  await prisma.coordinationIssue.deleteMany();
+  await prisma.delay.deleteMany();
+  await prisma.timelineProgressUpdate.deleteMany();
+  await prisma.timelineResponsibleChange.deleteMany();
+  await prisma.timelineDateChange.deleteMany();
+  await prisma.timelineItem.deleteMany();
   await prisma.costingSheetFile.deleteMany();
   await prisma.taskPriceEntry.deleteMany();
   await prisma.workSchedule.deleteMany();
@@ -82,4 +90,66 @@ export async function createProject(actorId: string, name: string, status: 'PLAN
   return prisma.project.create({
     data: { name, status, createdById: actorId, updatedById: actorId },
   });
+}
+
+export function dayOffset(days: number): string {
+  return addDays(todayInIndia(), days);
+}
+
+export async function linkVendor(actorId: string, vendorId: string, projectId: string) {
+  return prisma.vendorProjectLink.create({
+    data: { vendorId, projectId, createdById: actorId, updatedById: actorId },
+  });
+}
+
+export async function createTimelineItem(
+  actorId: string,
+  input: {
+    projectId: string;
+    name: string;
+    deadline: string;
+    itemType?: TimelineItemType;
+    plannedDate?: string;
+    responsibleKind?: ResponsibleKind;
+    responsibleVendorId?: string;
+    archived?: boolean;
+  },
+) {
+  return prisma.timelineItem.create({
+    data: {
+      projectId: input.projectId,
+      name: input.name,
+      itemType: input.itemType ?? 'ACTIVITY',
+      deadline: new Date(`${input.deadline}T00:00:00Z`),
+      plannedDate: input.plannedDate ? new Date(`${input.plannedDate}T00:00:00Z`) : null,
+      responsibleKind: input.responsibleKind ?? (input.responsibleVendorId ? 'VENDOR' : 'NONE'),
+      responsibleVendorId: input.responsibleVendorId ?? null,
+      archived: input.archived ?? false,
+      createdById: actorId,
+      updatedById: actorId,
+    },
+  });
+}
+
+export async function insertProgressUpdate(input: {
+  itemId: string;
+  status: TimelineStatus;
+  actorId: string;
+  createdAt?: Date;
+  note?: string;
+}) {
+  return prisma.timelineProgressUpdate.create({
+    data: {
+      timelineItemId: input.itemId,
+      status: input.status,
+      note: input.note,
+      createdAt: input.createdAt,
+      createdById: input.actorId,
+      updatedById: input.actorId,
+    },
+  });
+}
+
+export function indiaNoon(date: string): Date {
+  return new Date(`${date}T06:30:00Z`);
 }
