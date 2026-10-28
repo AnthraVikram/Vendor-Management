@@ -9,7 +9,7 @@ import { stampCreate, stampUpdate } from '../../lib/audit';
 import { inspectUpload, MAX_FILE_BYTES } from '../../lib/files';
 import { HttpError } from '../../lib/http';
 import { asyncRoute } from '../async-route';
-import { presentSchedule } from '../schedules/routes';
+import { lockSchedule, presentSchedule } from '../schedules/routes';
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_FILE_BYTES } });
 
@@ -26,18 +26,19 @@ fileRouter.post(
       });
     }
     const inspected = inspectUpload(file.originalname, file.buffer);
-    const schedule = await prisma.workSchedule.findUnique({ where: { id: req.params.id } });
-    if (!schedule) throw new HttpError(404, 'Schedule not found.');
-    if (schedule.pricingMode === 'FIXED') {
-      throw new HttpError(409, 'This task uses a fixed price.', { code: 'PRICE_AND_FILE' });
-    }
     const actor = req.staff!.id;
     const config = loadConfig();
     const directory = path.resolve(config.FILE_STORAGE_DIR);
-    await fs.mkdir(directory, { recursive: true });
-    const storageKey = `${randomUUID()}${inspected.ext}`;
-    await fs.writeFile(path.join(directory, storageKey), file.buffer);
     await prisma.$transaction(async (tx) => {
+      await lockSchedule(tx, req.params.id);
+      const schedule = await tx.workSchedule.findUnique({ where: { id: req.params.id } });
+      if (!schedule) throw new HttpError(404, 'Schedule not found.');
+      if (schedule.pricingMode === 'FIXED') {
+        throw new HttpError(409, 'This task uses a fixed price.', { code: 'PRICE_AND_FILE' });
+      }
+      await fs.mkdir(directory, { recursive: true });
+      const storageKey = `${randomUUID()}${inspected.ext}`;
+      await fs.writeFile(path.join(directory, storageKey), file.buffer);
       await tx.costingSheetFile.updateMany({
         where: { scheduleId: schedule.id, archived: false },
         data: { archived: true, updatedById: actor },
@@ -58,6 +59,31 @@ fileRouter.post(
       });
     });
     res.status(201).json(await presentSchedule(req.params.id));
+  }),
+);
+
+fileRouter.post(
+  '/schedules/:id/costing-sheet/clear',
+  asyncRoute(async (req, res) => {
+    const actor = req.staff!.id;
+    await prisma.$transaction(async (tx) => {
+      await lockSchedule(tx, req.params.id);
+      const schedule = await tx.workSchedule.findUnique({ where: { id: req.params.id } });
+      if (!schedule) throw new HttpError(404, 'Schedule not found.');
+      if (schedule.pricingMode !== 'FILE') {
+        throw new HttpError(409, 'This task has no costing sheet to clear.', { code: 'NOT_FILE' });
+      }
+      // The row is archived, not deleted, and the bytes stay on disk so the cleared sheet remains readable.
+      await tx.costingSheetFile.updateMany({
+        where: { scheduleId: schedule.id, archived: false },
+        data: { archived: true, ...stampUpdate(actor) },
+      });
+      await tx.workSchedule.update({
+        where: { id: schedule.id },
+        data: { pricingMode: 'NONE', ...stampUpdate(actor) },
+      });
+    });
+    res.json(await presentSchedule(req.params.id));
   }),
 );
 

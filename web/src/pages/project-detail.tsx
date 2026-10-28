@@ -29,6 +29,81 @@ interface ProjectDetailData {
   schedules: ScheduleRow[];
 }
 interface VendorOption { id: string; name: string }
+interface Person { id: string; name: string }
+interface PriceEntry { id: string; amount: string; kind: string; created_at: string; author: Person }
+interface FileEntry {
+  id: string;
+  original_filename: string;
+  archived: boolean;
+  created_at: string;
+  author: Person;
+  archived_at: string | null;
+  archived_by: Person | null;
+}
+interface SchedulePricingData {
+  pricing_mode: string;
+  current_price: { amount: string } | null;
+  price_history: PriceEntry[];
+  current_file: { id: string; original_filename: string } | null;
+  file_history: FileEntry[];
+}
+
+function day(value: string): string {
+  return value.slice(0, 10);
+}
+
+function SchedulePricing({ scheduleId, version, onChanged }: { scheduleId: string; version: number; onChanged: () => void }) {
+  const [pricing, setPricing] = useState<SchedulePricingData | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api<SchedulePricingData>(`/api/schedules/${scheduleId}`).then(setPricing).catch((caught: Error) => setError(caught.message));
+  }, [scheduleId, version]);
+
+  async function clear(path: 'price/clear' | 'costing-sheet/clear') {
+    setError('');
+    try {
+      setPricing(await api<SchedulePricingData>(`/api/schedules/${scheduleId}/${path}`, { method: 'POST' }));
+      onChanged();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not clear the pricing method');
+    }
+  }
+
+  if (!pricing) return <p>{error || 'Loading pricing'}</p>;
+  return (
+    <div className="grid">
+      {pricing.current_price ? <p>Fixed price: {pricing.current_price.amount}</p> : null}
+      {pricing.current_file ? (
+        <p>
+          Costing sheet: {pricing.current_file.original_filename}{' '}
+          <a href={`/api/schedules/${scheduleId}/costing-sheets/${pricing.current_file.id}`}>Open costing sheet</a>
+        </p>
+      ) : null}
+      {!pricing.current_price && !pricing.current_file ? <p>Unpriced</p> : null}
+      {pricing.pricing_mode === 'FIXED' ? <button type="button" className="secondary" onClick={() => clear('price/clear')}>Clear price</button> : null}
+      {pricing.pricing_mode === 'FILE' ? <button type="button" className="secondary" onClick={() => clear('costing-sheet/clear')}>Clear costing sheet</button> : null}
+      {pricing.price_history.length > 0 ? (
+        <ul aria-label="Price history">
+          {pricing.price_history.map((entry) => (
+            <li key={entry.id}>{entry.amount} · {entry.kind.toLowerCase()} · {entry.author.name} · {day(entry.created_at)}</li>
+          ))}
+        </ul>
+      ) : null}
+      {pricing.file_history.length > 0 ? (
+        <ul aria-label="Costing sheet history">
+          {pricing.file_history.map((file) => (
+            <li key={file.id}>
+              <a href={`/api/schedules/${scheduleId}/costing-sheets/${file.id}`}>{file.original_filename}</a> · {file.author.name} · {day(file.created_at)}
+              {file.archived && file.archived_by && file.archived_at ? ` · cleared or replaced by ${file.archived_by.name} · ${day(file.archived_at)}` : ''}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      {error ? <p className="error">{error}</p> : null}
+    </div>
+  );
+}
 
 export function ScheduleForm({ projectId, vendors, onSaved }: { projectId: string; vendors: VendorOption[]; onSaved: () => void }) {
   const [vendorId, setVendorId] = useState(vendors[0]?.id ?? '');
@@ -85,11 +160,13 @@ export function ProjectDetail({ id }: { id: string }) {
   const [note, setNote] = useState('');
   const [price, setPrice] = useState('');
   const [scheduleId, setScheduleId] = useState('');
+  const [version, setVersion] = useState(0);
   const [error, setError] = useState('');
 
   function load() {
     api<ProjectDetailData>(`/api/projects/${id}`).then((row) => {
       setProject(row);
+      setVersion((current) => current + 1);
       setScheduleId((current) => current || row.schedules[0]?.id || '');
     }).catch((caught: Error) => setError(caught.message));
   }
@@ -118,11 +195,6 @@ export function ProjectDetail({ id }: { id: string }) {
     await api(`/api/schedules/${scheduleId}/price`, { method: 'PUT', body: JSON.stringify({ amount: price }) });
     setPrice('');
     load();
-  }
-
-  async function openSheet(idToOpen: string) {
-    const detail = await api<{ current_file: { id: string } | null }>(`/api/schedules/${idToOpen}`);
-    if (detail.current_file) window.location.assign(`/api/schedules/${idToOpen}/costing-sheets/${detail.current_file.id}`);
   }
 
   async function upload(event: FormEvent<HTMLFormElement>) {
@@ -164,11 +236,10 @@ export function ProjectDetail({ id }: { id: string }) {
       </form>
       <h2>Schedules</h2>
       {project.schedules.map((schedule) => (
-        <article className="card" key={schedule.id}>
+        <article className="card" key={schedule.id} aria-label={`Schedule ${schedule.task}`}>
           <p>{schedule.task} {schedule.work_date} {schedule.start_time}-{schedule.end_time} team {schedule.required_team_size}</p>
-          <p>Pricing: {schedule.pricing_mode}</p>
           {schedule.conflicts.length > 0 ? <p>Conflicts with {schedule.conflicts.map((conflict) => `${conflict.task} (${conflict.project_name})`).join(', ')}</p> : null}
-          {schedule.pricing_mode === 'FILE' ? <button type="button" onClick={() => openSheet(schedule.id)}>Open costing sheet</button> : null}
+          <SchedulePricing scheduleId={schedule.id} version={version} onChanged={load} />
         </article>
       ))}
       <ScheduleForm projectId={id} vendors={project.links.map((link) => ({ id: link.vendor_id, name: link.vendor_name }))} onSaved={load} />

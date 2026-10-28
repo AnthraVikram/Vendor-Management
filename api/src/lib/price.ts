@@ -42,3 +42,14 @@ export function planFixedPrice(
     chargeAmount,
   };
 }
+
+export function planClearPrice(
+  mode: PricingModeName,
+  entries: StoredPrice[],
+): { amount: string; reversesEntryId: string } {
+  const current = openCharge(entries);
+  if (mode !== 'FIXED' || !current) {
+    throw new HttpError(409, 'This task has no fixed price to clear.', { code: 'NOT_FIXED' });
+  }
+  return { amount: new Prisma.Decimal(current.amount).negated().toFixed(2), reversesEntryId: current.id };
+}

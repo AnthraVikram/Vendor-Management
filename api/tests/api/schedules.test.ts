@@ -81,4 +81,59 @@ describe('schedules', () => {
       required_team_size: 1,
     })).status).toBe(409);
   });
+
+  it('treats back-to-back bookings as no conflict and refuses each invalid input separately', async () => {
+    const admin = await createUser({ email: 'admin@example.com' });
+    const session = await signIn('admin@example.com');
+    const category = await createCategory(admin.id, 'Carpentry');
+    const vendor = await createVendor(admin.id, { name: 'Mehta', phone: '9000000071', categoryId: category.id });
+    const project = await createProject(admin.id, 'Lake House');
+    await session.client.post(`/api/projects/${project.id}/links`).send({ vendor_id: vendor.id });
+    const base = { vendor_id: vendor.id, task: 'Tiling', work_date: '2026-11-02', start_time: '09:00', end_time: '12:00', required_team_size: 2 };
+
+    const first = await session.client.post(`/api/projects/${project.id}/schedules`).send(base);
+    const second = await session.client.post(`/api/projects/${project.id}/schedules`).send({ ...base, start_time: '12:00', end_time: '14:00' });
+    expect(first.body.conflicts).toEqual([]);
+    expect(second.body.conflicts).toEqual([]);
+
+    const invalid: Record<string, unknown>[] = [
+      { ...base, task: '' },
+      { ...base, work_date: undefined },
+      { ...base, end_time: '09:00' },
+      { ...base, end_time: '08:00' },
+      { ...base, required_team_size: undefined },
+      { ...base, required_team_size: 0 },
+      { ...base, required_team_size: -1 },
+      { ...base, required_team_size: 1.5 },
+    ];
+    for (const body of invalid) {
+      expect((await session.client.post(`/api/projects/${project.id}/schedules`).send(body)).status).toBe(400);
+    }
+    const view = (await session.client.get(`/api/projects/${project.id}`)).body;
+    expect(view.schedules.map((row: { id: string }) => row.id).sort()).toEqual([first.body.id, second.body.id].sort());
+
+    await session.client.post(`/api/schedules/${first.body.id}/archive`);
+    expect((await session.client.get(`/api/projects/${project.id}`)).body.schedules.map((row: { id: string }) => row.id)).toEqual([second.body.id]);
+  });
+
+  it('refuses a schedule while the vendor or the project is archived', async () => {
+    const admin = await createUser({ email: 'admin@example.com' });
+    const session = await signIn('admin@example.com');
+    const category = await createCategory(admin.id, 'Carpentry');
+    const vendor = await createVendor(admin.id, { name: 'Mehta', phone: '9000000081', categoryId: category.id });
+    const project = await createProject(admin.id, 'Lake House');
+    await session.client.post(`/api/projects/${project.id}/links`).send({ vendor_id: vendor.id });
+    const body = { vendor_id: vendor.id, task: 'Tiling', work_date: '2026-11-02', start_time: '09:00', end_time: '10:00', required_team_size: 1 };
+
+    await session.client.post(`/api/vendors/${vendor.id}/archive`);
+    const vendorArchived = await session.client.post(`/api/projects/${project.id}/schedules`).send(body);
+    expect(vendorArchived.status).toBe(409);
+    expect(vendorArchived.body.code).toBe('ARCHIVED');
+    await session.client.post(`/api/vendors/${vendor.id}/restore`);
+
+    await session.client.post(`/api/projects/${project.id}/archive`);
+    const projectArchived = await session.client.post(`/api/projects/${project.id}/schedules`).send(body);
+    expect(projectArchived.status).toBe(409);
+    expect(projectArchived.body.code).toBe('ARCHIVED');
+  });
 });

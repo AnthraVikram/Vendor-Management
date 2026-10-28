@@ -14,7 +14,7 @@ Every route except `POST /api/auth/login` and `GET /api/health` requires a sessi
 | 401 | Missing session, expired session, revoked session, or sign-in failure |
 | 403 | Signed in, and the role cannot perform the action, or the caller is changing their own role (`OWN_ROLE`) |
 | 404 | The row does not exist, including a file the caller cannot address |
-| 409 | Conflict that is not a schedule overlap: duplicate email, duplicate GSTIN, duplicate link, last administrator, already revoked, phone warning, price and file both present, clearing a pricing method the task does not use (*planned: T086, T087*) |
+| 409 | Conflict that is not a schedule overlap: duplicate email, duplicate GSTIN, duplicate link, last administrator, already revoked, phone warning, price and file both present, clearing a pricing method the task does not use |
 
 Sign-in failure body, for an unknown email, a wrong password, or a revoked account:
 
@@ -175,7 +175,7 @@ The default list includes Planned, Active, On hold, and Completed, and excludes 
 
 - Each `price_history` entry has `id`, `amount`, `kind` (`CHARGE` or `REVERSAL`), `reverses_entry_id`, `created_at`, and `author` (`{ id, name }`).
 - Each `file_history` entry has `id`, `original_filename`, `media_type`, `byte_size`, `archived`, `created_at`, `author` (`{ id, name }`), `archived_at`, and `archived_by` (`{ id, name }`).
-- `archived_at` and `archived_by` are **planned and not yet returned by the API**. FR-033 requires them to record who replaced or cleared the file and when, and tasks.md T086 adds them. Once added, both are `null` while the file is current. Until then, `file_history` entries carry only the other fields listed above.
+- `archived_at` and `archived_by` record who replaced or cleared the file and when (FR-033). Both are `null` while the file is current.
 
 `PATCH /api/schedules/:id` updates task, date, times, and team size. Overlap is recalculated. It does not change pricing mode.
 
@@ -191,11 +191,11 @@ Refused with 409 when `pricing_mode` is `FILE`. On success, `pricing_mode` becom
 
 Refused with 409 when `pricing_mode` is `FIXED`. Refused with 400 when the file is empty, over 10 MB, or not `.xls`, `.xlsx`, `.csv`, or `.pdf`. On success, `pricing_mode` becomes `FILE`, any previous current file is archived, and the new file is current.
 
-`POST /api/schedules/:id/price/clear` *(planned: T086)*
+`POST /api/schedules/:id/price/clear`
 
 Refused with 409 `{ "code": "NOT_FIXED" }` when `pricing_mode` is not `FIXED`. On success, inserts a reversal of the current charge, sets `pricing_mode` to `NONE`, and returns the schedule with `current_price: null` and the full price history. The task can then receive a costing sheet.
 
-`POST /api/schedules/:id/costing-sheet/clear` *(planned: T087)*
+`POST /api/schedules/:id/costing-sheet/clear`
 
 Refused with 409 `{ "code": "NOT_FILE" }` when `pricing_mode` is not `FILE`. On success, archives the current file, keeps its bytes, sets `pricing_mode` to `NONE`, and returns the schedule with `current_file: null` and the full file history. The task can then receive a fixed price.
 

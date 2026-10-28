@@ -56,8 +56,8 @@ description: "Task list for core auth and directory"
 - [ ] T016 Serve `GET /api/health` as public `200 { "status": "ok" }` and mount the error middleware in `api/src/app.ts`. Awaiting demonstration (T061): US1-4, US1-5, US2-2, US2-6, US2-7, US2-8, US3-2, US4-2, US4-3, US5-5, US5-6, US6-5, US6-6. Verify only; do not re-implement.
 - [ ] T017 Reject missing, expired, revoked, and revoked-user sessions with HTTP 401 before any other business route in `api/src/middleware/session.ts`. Awaiting demonstration (T061): US1-2, US1-9, US6-4. Verify only; do not re-implement.
 - [ ] T018 Allow any active role, and require `ADMINISTRATOR` only where a route asks, in `api/src/middleware/require-role.ts`. Awaiting demonstration (T061): US1-4, US1-7. Verify only; do not re-implement.
-- [ ] T019 Start the HTTP server from `api/src/server.ts`. Implemented or partially implemented; verification outstanding: start the API from `api/src/server.ts` and confirm `GET /api/health` returns 200. Verify first; do not re-implement without evidence of a gap. Then awaiting demonstration (T061): all acceptance scenarios.
-- [ ] T020 Seed one administrator whose `created_by` is its own id, using the admin password from `.env`, in `api/prisma/seed.ts`. Implemented or partially implemented; verification outstanding: run the seed with `.env` set and confirm the administrator exists with `created_by` equal to its own id. Verify first; do not re-implement without evidence of a gap. Then awaiting demonstration (T061): US1-1 to US1-5.
+- [ ] T019 Start the HTTP server from `api/src/server.ts`. Verified 2026-10-28: the API started from `api/src/server.ts` against a local PostgreSQL 17 (the bundled embedded-postgres, not Docker) and `GET /api/health` returned 200 directly and through the Vite proxy. Awaiting demonstration (T061): all acceptance scenarios. Verify only; do not re-implement.
+- [ ] T020 Seed one administrator whose `created_by` is its own id, using the admin password from `.env`, in `api/prisma/seed.ts`. Verified 2026-10-28: the seed ran against that database with the variables set in the shell, and the administrator's `created_by` equals its own id. Awaiting demonstration (T061): US1-1 to US1-5. Verify only; do not re-implement.
 
 **Checkpoint**: Foundation ready. User story implementation can now begin.
 
@@ -182,6 +182,7 @@ description: "Task list for core auth and directory"
   - the vendor's `phone` and `rates` are unchanged after linking
   - after `DELETE /api/links/:id` the project view no longer lists the link
   - closing the T042 gap: before deleting the link, attach a PDF to a file-priced schedule on that same vendor and project; after the delete that schedule is `archived: true`, its `file_history` still lists the file, and `GET /api/schedules/:scheduleId/costing-sheets/:fileId` returns 200 with a session
+  - Awaiting demonstration (T061): US4-3, US4-4, US4-5. Verify only; do not re-implement.
 - [ ] T080 [US4] In `web/src/pages/project-detail.tsx`, edit each link's role, scope, and note through `PATCH /api/links/:id`, and mark a link whose `vendor_archived` is true as archived
 
 **Checkpoint**: Linking does not duplicate vendors. Schedules are not required yet.
@@ -214,6 +215,7 @@ description: "Task list for core auth and directory"
   - a schedule for an archived vendor or an archived project returns 409 `ARCHIVED`
   - `GET /api/projects/:id` lists the saved schedule
   - after `POST /api/schedules/:id/archive` the project view omits it
+  - Awaiting demonstration (T061): US5-1, US5-5, US5-6. Verify only; do not re-implement.
 - [ ] T082 [US5] In `web/src/pages/project-detail.tsx`, edit a schedule's task, date, times, and team size through `PATCH /api/schedules/:id`, show the returned `conflicts`, and archive it through `POST /api/schedules/:id/archive`
 
 **Checkpoint**: Schedules save with conflicts visible. Pricing mode stays `NONE`.
@@ -240,7 +242,7 @@ description: "Task list for core auth and directory"
 
 ### Revision 2026-10-27 for User Story 6
 
-- [ ] T083 [P] [US6] Add failing unit tests to `api/tests/unit/price.test.ts` for `planClearPrice(mode, entries)`. With mode `FIXED` and an open charge, it returns `{ amount: <negated open charge>, reversesEntryId: <open charge id> }`. With mode `NONE` or `FILE`, it throws `HttpError` 409 `NOT_FIXED`.
+- [ ] T083 [P] [US6] Add failing unit tests to `api/tests/unit/price.test.ts` for `planClearPrice(mode, entries)`. With mode `FIXED` and an open charge, it returns `{ amount: <negated open charge>, reversesEntryId: <open charge id> }`. With mode `NONE` or `FILE`, it throws `HttpError` 409 `NOT_FIXED`. Awaiting demonstration (T061): US6-8. Verify only; do not re-implement.
 - [ ] T084 [P] [US6] Extend `api/tests/api/pricing.test.ts` to cover spec User Story 6 scenario 8:
   - `POST /api/schedules/:id/price/clear` on a fixed-priced schedule returns 200 with `pricing_mode: 'NONE'` and `current_price: null`, and `price_history` ends with a `REVERSAL` carrying `author` and `created_at`
   - then attaching a PDF returns 201
@@ -250,17 +252,20 @@ description: "Task list for core auth and directory"
   - a file over 10 MB gives 400 `fields.file`
   - amount `'1.001'` gives 400 at the API
   - firing `PUT …/price` and `POST …/costing-sheet` at once on an unpriced schedule with `Promise.all` gives exactly one success, and the schedule ends with one current method
-- [ ] T085 [US6] Implement `planClearPrice(mode: PricingModeName, entries: StoredPrice[])` in `api/src/lib/price.ts` using `openCharge`. It throws `HttpError(409, 'This task has no fixed price to clear.', { code: 'NOT_FIXED' })` unless mode is `FIXED` and an open charge exists.
+  - Awaiting demonstration (T061): US6-6, US6-7, US6-8. Verify only; do not re-implement.
+- [ ] T085 [US6] Implement `planClearPrice(mode: PricingModeName, entries: StoredPrice[])` in `api/src/lib/price.ts` using `openCharge`. It throws `HttpError(409, 'This task has no fixed price to clear.', { code: 'NOT_FIXED' })` unless mode is `FIXED` and an open charge exists. Awaiting demonstration (T061): US6-8. Verify only; do not re-implement.
 - [ ] T086 [US6] In `api/src/modules/schedules/routes.ts`:
   - add `POST /schedules/:id/price/clear`: in a `$transaction`, lock first with `` tx.$queryRaw`SELECT id FROM work_schedules WHERE id = ${req.params.id}::uuid FOR UPDATE` ``, call `planClearPrice`, insert the `REVERSAL` with `stampCreate(actor)`, set `pricing_mode` to `NONE` with `stampUpdate(actor)`, and return `presentSchedule`
   - add the same row lock as the first statement of the `PUT /schedules/:id/price` transaction
   - in `presentSchedule`, include `files.updatedBy` and add `archived_at` (`updatedAt` when `archived`, else `null`) and `archived_by` (`{ id, name }` from `updatedBy` when `archived`, else `null`) to each `file_history` entry
+  - Awaiting demonstration (T061): US6-7, US6-8. Verify only; do not re-implement.
 - [ ] T087 [US6] In `api/src/modules/files/routes.ts`:
   - add `POST /schedules/:id/costing-sheet/clear`: in a `$transaction`, lock the schedule row as in T086; if `pricing_mode` is not `FILE`, throw `HttpError(409, 'This task has no costing sheet to clear.', { code: 'NOT_FILE' })`; set the current file `archived = true` with `stampUpdate(actor)` and keep the bytes; set `pricing_mode` to `NONE`; return `presentSchedule`
   - in the upload route, move the `pricing_mode === 'FIXED'` check inside the transaction after the same row lock
   - keep the existing rule that `byte_size` is "Greater than 0, at most 10 MB"
-- [ ] T088 [P] [US6] Write a failing web test in `web/tests/pricing-controls.test.tsx` that renders `ProjectDetail` with a mocked `fetch`. Each schedule shows its current fixed amount, or `Costing sheet` with an open link, or `Unpriced`. Its price history and file history show amounts or file names with author and date. `Clear price` sends `POST /api/schedules/:id/price/clear` and `Clear costing sheet` sends `POST /api/schedules/:id/costing-sheet/clear`.
-- [ ] T089 [US6] Implement the T088 pricing display, history lists, and clear buttons in `web/src/pages/project-detail.tsx`, loading each schedule's detail from `GET /api/schedules/:id`. Do not show task prices on `web/src/pages/vendor-detail.tsx`.
+  - Awaiting demonstration (T061): US6-5, US6-7, US6-8. Verify only; do not re-implement.
+- [ ] T088 [P] [US6] Write a failing web test in `web/tests/pricing-controls.test.tsx` that renders `ProjectDetail` with a mocked `fetch`. Each schedule shows its current fixed amount, or `Costing sheet` with an open link, or `Unpriced`. Its price history and file history show amounts or file names with author and date. `Clear price` sends `POST /api/schedules/:id/price/clear` and `Clear costing sheet` sends `POST /api/schedules/:id/costing-sheet/clear`. Awaiting demonstration (T061): US6-1, US6-2, US6-3, US6-7, US6-8. Verify only; do not re-implement.
+- [ ] T089 [US6] Implement the T088 pricing display, history lists, and clear buttons in `web/src/pages/project-detail.tsx`, loading each schedule's detail from `GET /api/schedules/:id`. Do not show task prices on `web/src/pages/vendor-detail.tsx`. Awaiting demonstration (T061): US6-1, US6-2, US6-3, US6-7, US6-8. Verify only; do not re-implement.
 
 **Checkpoint**: Two tasks for one vendor can show two prices. A signed-out download is refused. A task can switch pricing method by clearing first, and every cleared price or file stays readable with date and author.
 
@@ -270,10 +275,10 @@ description: "Task list for core auth and directory"
 
 **Purpose**: Seed data, one-command startup, and the quickstart demonstration
 
-- [ ] T058 Extend `api/prisma/seed.ts` so it is idempotent and also loads categories, vendors, two projects, one vendor linked to both, two schedules with different fixed prices, and one schedule with a sample PDF. Implemented or partially implemented; verification outstanding: run the seed twice and confirm it loads the listed data without duplicates. Verify first; do not re-implement without evidence of a gap. Then awaiting demonstration (T061): all acceptance scenarios.
-- [ ] T059 Start compose, migrate, seed, and both dev servers from the root `dev` script in `package.json` using concurrently. Implemented or partially implemented; verification outstanding: run `npm run dev` and confirm it starts PostgreSQL, migrates, seeds, and serves the API and the web app. Verify first; do not re-implement without evidence of a gap. Then awaiting demonstration (T061): all acceptance scenarios.
+- [ ] T058 Extend `api/prisma/seed.ts` so it is idempotent and also loads categories, vendors, two projects, one vendor linked to both, two schedules with different fixed prices, and one schedule with a sample PDF. Verified 2026-10-28: the seed ran a second and third time with identical record counts and no duplicates. Awaiting demonstration (T061): all acceptance scenarios. Verify only; do not re-implement.
+- [ ] T059 Start compose, migrate, seed, and both dev servers from the root `dev` script in `package.json` using concurrently. Implemented or partially implemented; verification outstanding: run `npm run dev` and confirm it starts PostgreSQL, migrates, seeds, and serves the API and the web app (2026-10-28: the migrate, seed, API, and web steps ran individually and work; the script's `docker compose up -d` step is unverified because Docker is not installed). Verify first; do not re-implement without evidence of a gap. Then awaiting demonstration (T061): all acceptance scenarios.
 - [ ] T060 Make sign-in, vendor search, project open, and schedule entry usable at 375px and 1280px in `web/src/styles.css`
-- [ ] T090 Run `npm run lint`, `npm run typecheck`, and `npm test` from the root `package.json`. The web suite must include `web/tests/app.test.tsx`, the regression test for the hooks-order fix in `web/src/main.tsx`, which has not run yet. All three must exit 0. Record the outputs for the pull request.
+- [ ] T090 Run `npm run lint`, `npm run typecheck`, and `npm test` from the root `package.json`. The web suite must include `web/tests/app.test.tsx`, the regression test for the hooks-order fix in `web/src/main.tsx`, which has not run yet. All three must exit 0. Record the outputs for the pull request. Ran 2026-10-28: `npm run lint` and `npm run typecheck` passed; `npm test` passed with API 50 of 50 and web 13 passed, 1 skipped (T075 part (d), waiting on T077).
 - [ ] T091 The product owner adds requirement ids for work scheduling and per-task pricing as Phase 1 items in `docs/prd.md` section 7, and this spec's **Backlog coverage** line in `specs/001-core-auth-directory/spec.md` cites them (Constitution Principles I and VI). An agent does not choose the ids. Verification 2026-10-27: `docs/prd.md` section 7 defines FR-17 (Work Scheduling) and FR-18 (Task Pricing) with the product owner's wording, and section 5.1 lists both in Phase 1; `spec.md` cites them on the Backlog coverage line and in Assumptions; the `plan.md` PRD gate reads Pass. Awaiting product-owner review and approval of the applied change, recorded here or in the pull request.
 - [ ] T092 Ask the product owner through `/speckit-clarify` whether an administrator may set their own password through `PATCH /api/staff/:id` without the current password, and record the answer in `specs/001-core-auth-directory/spec.md`. Until it is answered, the route's behavior stays unchanged.
 - [ ] T093 Ask the product owner through `/speckit-clarify` whether `PATCH /api/vendors/:id` in `api/src/modules/vendors/routes.ts` is a full replacement or a partial update, and record the answer in `specs/001-core-auth-directory/spec.md`. Today the route reuses the create schema: it requires `name`, `phone`, and `category_ids`, empties omitted `locations`, `services`, `materials`, and `rates`, resets omitted `team_size`, `availability`, and GST fields, and leaves omitted text fields unchanged (plan.md, Unresolved items). Until it is answered, the route's behavior stays unchanged. A behavior change from the answer is a new implementation task. An agent does not choose the answer.

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import type { Prisma } from '@prisma/client';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../../db';
@@ -6,8 +7,24 @@ import { stampCreate, stampUpdate } from '../../lib/audit';
 import { HttpError } from '../../lib/http';
 import { moneyString } from '../../lib/money';
 import { conflictingBookings, timeProblem, type Booking } from '../../lib/overlap';
-import { planFixedPrice, type StoredPrice } from '../../lib/price';
+import { planClearPrice, planFixedPrice, type StoredPrice } from '../../lib/price';
 import { asyncRoute } from '../async-route';
+
+// Price and costing-sheet changes lock the schedule row so two of them never run against the same pricing mode.
+export async function lockSchedule(tx: Prisma.TransactionClient, id: string): Promise<void> {
+  await tx.$queryRaw`SELECT id FROM work_schedules WHERE id = ${id}::uuid FOR UPDATE`;
+}
+
+function storedPrices(
+  entries: { id: string; kind: StoredPrice['kind']; amount: Prisma.Decimal; reversesEntryId: string | null }[],
+): StoredPrice[] {
+  return entries.map((entry) => ({
+    id: entry.id,
+    kind: entry.kind,
+    amount: moneyString(entry.amount),
+    reversesEntryId: entry.reversesEntryId,
+  }));
+}
 
 const scheduleSchema = z.object({
   vendor_id: z.string().uuid(),
@@ -34,7 +51,10 @@ export async function presentSchedule(id: string) {
     where: { id },
     include: {
       prices: { include: { createdBy: { select: { id: true, name: true } } }, orderBy: { createdAt: 'asc' } },
-      files: { include: { createdBy: { select: { id: true, name: true } } }, orderBy: { createdAt: 'asc' } },
+      files: {
+        include: { createdBy: { select: { id: true, name: true } }, updatedBy: { select: { id: true, name: true } } },
+        orderBy: { createdAt: 'asc' },
+      },
     },
   });
   if (!schedule) throw new HttpError(404, 'Schedule not found.');
@@ -54,6 +74,8 @@ export async function presentSchedule(id: string) {
     archived: file.archived,
     created_at: file.createdAt.toISOString(),
     author: file.createdBy,
+    archived_at: file.archived ? file.updatedAt.toISOString() : null,
+    archived_by: file.archived ? file.updatedBy : null,
   }));
   const open = [...schedule.prices].reverse().find((entry) => entry.kind === 'CHARGE' && !schedule.prices.some((other) => other.reversesEntryId === entry.id));
   return {
@@ -214,18 +236,13 @@ scheduleRouter.put(
     const body = priceSchema.parse(req.body);
     const actor = req.staff!.id;
     await prisma.$transaction(async (tx) => {
+      await lockSchedule(tx, req.params.id);
       const schedule = await tx.workSchedule.findUnique({
         where: { id: req.params.id },
         include: { prices: { orderBy: { createdAt: 'asc' } } },
       });
       if (!schedule) throw new HttpError(404, 'Schedule not found.');
-      const stored: StoredPrice[] = schedule.prices.map((entry) => ({
-        id: entry.id,
-        kind: entry.kind,
-        amount: moneyString(entry.amount),
-        reversesEntryId: entry.reversesEntryId,
-      }));
-      const plan = planFixedPrice(schedule.pricingMode, stored, body.amount);
+      const plan = planFixedPrice(schedule.pricingMode, storedPrices(schedule.prices), body.amount);
       if (plan.reversal) {
         await tx.taskPriceEntry.create({
           data: {
@@ -248,6 +265,36 @@ scheduleRouter.put(
       await tx.workSchedule.update({
         where: { id: schedule.id },
         data: { pricingMode: 'FIXED', ...stampUpdate(actor) },
+      });
+    });
+    res.json(await presentSchedule(req.params.id));
+  }),
+);
+
+scheduleRouter.post(
+  '/schedules/:id/price/clear',
+  asyncRoute(async (req, res) => {
+    const actor = req.staff!.id;
+    await prisma.$transaction(async (tx) => {
+      await lockSchedule(tx, req.params.id);
+      const schedule = await tx.workSchedule.findUnique({
+        where: { id: req.params.id },
+        include: { prices: { orderBy: { createdAt: 'asc' } } },
+      });
+      if (!schedule) throw new HttpError(404, 'Schedule not found.');
+      const reversal = planClearPrice(schedule.pricingMode, storedPrices(schedule.prices));
+      await tx.taskPriceEntry.create({
+        data: {
+          scheduleId: schedule.id,
+          amount: reversal.amount,
+          kind: 'REVERSAL',
+          reversesEntryId: reversal.reversesEntryId,
+          ...stampCreate(actor),
+        },
+      });
+      await tx.workSchedule.update({
+        where: { id: schedule.id },
+        data: { pricingMode: 'NONE', ...stampUpdate(actor) },
       });
     });
     res.json(await presentSchedule(req.params.id));
