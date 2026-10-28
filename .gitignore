@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+coverage/
+*.log
+.env
+.env.local
+storage/
+.pgdata/
+api/.pgdata/
+api/tests/.test-env.json
+api/tests/.files/
+*.tmp
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
