@@ -44,6 +44,33 @@ enum PriceKind {
   REVERSAL
 }
 
+enum TimelineItemType {
+  MILESTONE
+  ACTIVITY
+}
+
+enum TimelineStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  DONE
+}
+
+enum ResponsibleKind {
+  NONE
+  VENDOR
+  FIRM_TEAM
+}
+
+enum TimelineDateField {
+  PLANNED_DATE
+  DEADLINE
+}
+
+enum ResponsibleChangeCause {
+  EDIT
+  LINK_REMOVED
+}
+
 model StaffUser {
   id           String    @id @default(uuid()) @db.Uuid
   name         String
@@ -93,6 +120,20 @@ model StaffUser {
   pricesUpdated TaskPriceEntry[] @relation("PriceUpdatedBy")
   filesCreated CostingSheetFile[] @relation("FileCreatedBy")
   filesUpdated CostingSheetFile[] @relation("FileUpdatedBy")
+  timelineItemsCreated TimelineItem[] @relation("TimelineItemCreatedBy")
+  timelineItemsUpdated TimelineItem[] @relation("TimelineItemUpdatedBy")
+  dateChangesCreated TimelineDateChange[] @relation("DateChangeCreatedBy")
+  dateChangesUpdated TimelineDateChange[] @relation("DateChangeUpdatedBy")
+  responsibleChangesCreated TimelineResponsibleChange[] @relation("ResponsibleChangeCreatedBy")
+  responsibleChangesUpdated TimelineResponsibleChange[] @relation("ResponsibleChangeUpdatedBy")
+  progressUpdatesCreated TimelineProgressUpdate[] @relation("ProgressUpdateCreatedBy")
+  progressUpdatesUpdated TimelineProgressUpdate[] @relation("ProgressUpdateUpdatedBy")
+  delaysCreated Delay[] @relation("DelayCreatedBy")
+  delaysUpdated Delay[] @relation("DelayUpdatedBy")
+  issuesCreated CoordinationIssue[] @relation("IssueCreatedBy")
+  issuesUpdated CoordinationIssue[] @relation("IssueUpdatedBy")
+  issueVendorsCreated CoordinationIssueVendor[] @relation("IssueVendorCreatedBy")
+  issueVendorsUpdated CoordinationIssueVendor[] @relation("IssueVendorUpdatedBy")
 
   @@map("staff_users")
 }
@@ -160,6 +201,10 @@ model Vendor {
   ratings    VendorRating[]
   links      VendorProjectLink[]
   schedules  WorkSchedule[]
+  responsibleItems      TimelineItem[]
+  responsibleChangesOld TimelineResponsibleChange[] @relation("ResponsibleChangeOldVendor")
+  responsibleChangesNew TimelineResponsibleChange[] @relation("ResponsibleChangeNewVendor")
+  coordinationIssues    CoordinationIssueVendor[]
 
   @@map("vendors")
 }
@@ -302,6 +347,9 @@ model Project {
   updatedBy StaffUser @relation("ProjectUpdatedBy", fields: [updatedById], references: [id])
   links     VendorProjectLink[]
   schedules WorkSchedule[]
+  timelineItems      TimelineItem[]
+  delays             Delay[]
+  coordinationIssues CoordinationIssue[]
 
   @@map("projects")
 }
@@ -391,4 +439,149 @@ model CostingSheetFile {
   updatedBy StaffUser    @relation("FileUpdatedBy", fields: [updatedById], references: [id])
 
   @@map("costing_sheet_files")
+}
+
+model TimelineItem {
+  id                  String           @id @default(uuid()) @db.Uuid
+  projectId           String           @map("project_id") @db.Uuid
+  itemType            TimelineItemType @map("item_type")
+  name                String
+  description         String?
+  plannedDate         DateTime?        @map("planned_date") @db.Date
+  deadline            DateTime         @db.Date
+  responsibleKind     ResponsibleKind  @default(NONE) @map("responsible_kind")
+  responsibleVendorId String?          @map("responsible_vendor_id") @db.Uuid
+  archived            Boolean          @default(false)
+  createdAt           DateTime         @default(now()) @map("created_at")
+  createdById         String           @map("created_by") @db.Uuid
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+  updatedById         String           @map("updated_by") @db.Uuid
+
+  project            Project                     @relation(fields: [projectId], references: [id])
+  responsibleVendor  Vendor?                     @relation(fields: [responsibleVendorId], references: [id])
+  createdBy          StaffUser                   @relation("TimelineItemCreatedBy", fields: [createdById], references: [id])
+  updatedBy          StaffUser                   @relation("TimelineItemUpdatedBy", fields: [updatedById], references: [id])
+  dateChanges        TimelineDateChange[]
+  responsibleChanges TimelineResponsibleChange[]
+  progressUpdates    TimelineProgressUpdate[]
+  delays             Delay[]
+  coordinationIssues CoordinationIssue[]
+
+  @@index([projectId, archived, deadline, name])
+  @@index([responsibleVendorId])
+  @@map("timeline_items")
+}
+
+model TimelineDateChange {
+  id             String            @id @default(uuid()) @db.Uuid
+  timelineItemId String            @map("timeline_item_id") @db.Uuid
+  field          TimelineDateField
+  oldValue       DateTime?         @map("old_value") @db.Date
+  newValue       DateTime?         @map("new_value") @db.Date
+  createdAt      DateTime          @default(now()) @map("created_at")
+  createdById    String            @map("created_by") @db.Uuid
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  updatedById    String            @map("updated_by") @db.Uuid
+
+  timelineItem TimelineItem @relation(fields: [timelineItemId], references: [id])
+  createdBy    StaffUser    @relation("DateChangeCreatedBy", fields: [createdById], references: [id])
+  updatedBy    StaffUser    @relation("DateChangeUpdatedBy", fields: [updatedById], references: [id])
+
+  @@map("timeline_date_changes")
+}
+
+model TimelineResponsibleChange {
+  id             String                 @id @default(uuid()) @db.Uuid
+  timelineItemId String                 @map("timeline_item_id") @db.Uuid
+  oldKind        ResponsibleKind        @map("old_kind")
+  oldVendorId    String?                @map("old_vendor_id") @db.Uuid
+  newKind        ResponsibleKind        @map("new_kind")
+  newVendorId    String?                @map("new_vendor_id") @db.Uuid
+  cause          ResponsibleChangeCause
+  createdAt      DateTime               @default(now()) @map("created_at")
+  createdById    String                 @map("created_by") @db.Uuid
+  updatedAt      DateTime               @updatedAt @map("updated_at")
+  updatedById    String                 @map("updated_by") @db.Uuid
+
+  timelineItem TimelineItem @relation(fields: [timelineItemId], references: [id])
+  oldVendor    Vendor?      @relation("ResponsibleChangeOldVendor", fields: [oldVendorId], references: [id])
+  newVendor    Vendor?      @relation("ResponsibleChangeNewVendor", fields: [newVendorId], references: [id])
+  createdBy    StaffUser    @relation("ResponsibleChangeCreatedBy", fields: [createdById], references: [id])
+  updatedBy    StaffUser    @relation("ResponsibleChangeUpdatedBy", fields: [updatedById], references: [id])
+
+  @@map("timeline_responsible_changes")
+}
+
+model TimelineProgressUpdate {
+  id             String         @id @default(uuid()) @db.Uuid
+  timelineItemId String         @map("timeline_item_id") @db.Uuid
+  status         TimelineStatus
+  note           String?
+  seq            Int            @unique @default(autoincrement())
+  createdAt      DateTime       @default(now()) @map("created_at")
+  createdById    String         @map("created_by") @db.Uuid
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  updatedById    String         @map("updated_by") @db.Uuid
+
+  timelineItem TimelineItem @relation(fields: [timelineItemId], references: [id])
+  createdBy    StaffUser    @relation("ProgressUpdateCreatedBy", fields: [createdById], references: [id])
+  updatedBy    StaffUser    @relation("ProgressUpdateUpdatedBy", fields: [updatedById], references: [id])
+
+  @@index([timelineItemId, seq])
+  @@map("timeline_progress_updates")
+}
+
+model Delay {
+  id             String   @id @default(uuid()) @db.Uuid
+  projectId      String   @map("project_id") @db.Uuid
+  timelineItemId String?  @map("timeline_item_id") @db.Uuid
+  reason         String
+  createdAt      DateTime @default(now()) @map("created_at")
+  createdById    String   @map("created_by") @db.Uuid
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  updatedById    String   @map("updated_by") @db.Uuid
+
+  project      Project       @relation(fields: [projectId], references: [id])
+  timelineItem TimelineItem? @relation(fields: [timelineItemId], references: [id])
+  createdBy    StaffUser     @relation("DelayCreatedBy", fields: [createdById], references: [id])
+  updatedBy    StaffUser     @relation("DelayUpdatedBy", fields: [updatedById], references: [id])
+
+  @@map("delays")
+}
+
+model CoordinationIssue {
+  id             String   @id @default(uuid()) @db.Uuid
+  projectId      String   @map("project_id") @db.Uuid
+  timelineItemId String?  @map("timeline_item_id") @db.Uuid
+  description    String
+  createdAt      DateTime @default(now()) @map("created_at")
+  createdById    String   @map("created_by") @db.Uuid
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  updatedById    String   @map("updated_by") @db.Uuid
+
+  project      Project                   @relation(fields: [projectId], references: [id])
+  timelineItem TimelineItem?             @relation(fields: [timelineItemId], references: [id])
+  vendors      CoordinationIssueVendor[]
+  createdBy    StaffUser                 @relation("IssueCreatedBy", fields: [createdById], references: [id])
+  updatedBy    StaffUser                 @relation("IssueUpdatedBy", fields: [updatedById], references: [id])
+
+  @@map("coordination_issues")
+}
+
+model CoordinationIssueVendor {
+  id                  String   @id @default(uuid()) @db.Uuid
+  coordinationIssueId String   @map("coordination_issue_id") @db.Uuid
+  vendorId            String   @map("vendor_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at")
+  createdById         String   @map("created_by") @db.Uuid
+  updatedAt           DateTime @updatedAt @map("updated_at")
+  updatedById         String   @map("updated_by") @db.Uuid
+
+  coordinationIssue CoordinationIssue @relation(fields: [coordinationIssueId], references: [id])
+  vendor            Vendor            @relation(fields: [vendorId], references: [id])
+  createdBy         StaffUser         @relation("IssueVendorCreatedBy", fields: [createdById], references: [id])
+  updatedBy         StaffUser         @relation("IssueVendorUpdatedBy", fields: [updatedById], references: [id])
+
+  @@unique([coordinationIssueId, vendorId])
+  @@map("coordination_issue_vendors")
 }

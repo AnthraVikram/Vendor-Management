@@ -47,6 +47,9 @@ function mockFetch() {
     if (match && !init?.method) return json(200, { id: match[1], ...(details[match[1]] as object) });
     if (match && init?.method === 'POST') return json(200, { id: match[1], ...(details.s3 as object) });
     if (url === '/api/projects/p1') return json(200, project);
+    if (url === '/api/projects/p1/timeline') {
+      return json(200, { project: { id: 'p1', name: 'Lake House', archived: false }, items: [], archived_items: [], delays: [], coordination_issues: [] });
+    }
     return json(200, []);
   });
   vi.stubGlobal('fetch', fetchMock);

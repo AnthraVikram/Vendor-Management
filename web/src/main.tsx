@@ -7,6 +7,7 @@ import { VendorDetail } from './pages/vendor-detail';
 import { Projects } from './pages/projects';
 import { ProjectDetail } from './pages/project-detail';
 import { StaffPage } from './pages/staff';
+import { Dashboard } from './pages/dashboard';
 import './styles.css';
 
 interface Me { id: string; name: string; role: string }
@@ -50,12 +51,15 @@ function App() {
   }
 
   const vendorId = path.startsWith('/vendors/') ? path.slice('/vendors/'.length) : '';
-  const projectId = path.startsWith('/projects/') ? path.slice('/projects/'.length) : '';
+  const [projectPath, projectQuery = ''] = path.split('?');
+  const projectId = projectPath.startsWith('/projects/') ? projectPath.slice('/projects/'.length) : '';
+  const focusItemId = new URLSearchParams(projectQuery).get('item') ?? undefined;
 
   return (
     <div className="shell">
       <nav>
         <strong>{me.name}</strong>
+        <a href="#/dashboard">Dashboard</a>
         <a href="#/vendors">Vendors</a>
         <a href="#/projects">Projects</a>
         <a href="#/staff">Staff</a>
@@ -72,7 +76,8 @@ function App() {
       </form>
       {path.startsWith('/vendors/') && vendorId ? <VendorDetail id={vendorId} /> : null}
       {path === '/vendors' ? <Vendors openVendor={(id) => { window.location.hash = `/vendors/${id}`; }} /> : null}
-      {path.startsWith('/projects/') && projectId ? <ProjectDetail id={projectId} /> : null}
+      {path === '/dashboard' ? <Dashboard /> : null}
+      {projectPath.startsWith('/projects/') && projectId ? <ProjectDetail key={`${projectId}:${focusItemId ?? ''}`} id={projectId} itemId={focusItemId} /> : null}
       {path === '/projects' ? <Projects openProject={(id) => { window.location.hash = `/projects/${id}`; }} /> : null}
       {path === '/staff' ? <StaffPage currentUserId={me.id} /> : null}
     </div>

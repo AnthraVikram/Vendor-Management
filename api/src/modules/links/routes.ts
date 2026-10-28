@@ -94,7 +94,7 @@ linkRouter.delete(
     const existing = await prisma.vendorProjectLink.findUnique({ where: { id: req.params.id } });
     if (!existing) throw new HttpError(404, 'Link not found.');
     const actor = req.staff!.id;
-    const archivedIds = await prisma.$transaction(async (tx) => {
+    const { archivedIds, clearedItemIds } = await prisma.$transaction(async (tx) => {
       const schedules = await tx.workSchedule.findMany({
         where: { vendorId: existing.vendorId, projectId: existing.projectId, archived: false },
         select: { id: true },
@@ -105,14 +105,37 @@ linkRouter.delete(
           data: { archived: true, updatedById: actor },
         });
       }
+      // Feature 002 FR-005: clear the vendor as responsible party, even on an archived project.
+      const items = await tx.timelineItem.findMany({
+        where: { projectId: existing.projectId, responsibleVendorId: existing.vendorId },
+        select: { id: true },
+      });
+      if (items.length > 0) {
+        await tx.timelineItem.updateMany({
+          where: { id: { in: items.map((row) => row.id) } },
+          data: { responsibleKind: 'NONE', responsibleVendorId: null, updatedById: actor },
+        });
+        await tx.timelineResponsibleChange.createMany({
+          data: items.map((row) => ({
+            timelineItemId: row.id,
+            oldKind: 'VENDOR' as const,
+            oldVendorId: existing.vendorId,
+            newKind: 'NONE' as const,
+            newVendorId: null,
+            cause: 'LINK_REMOVED' as const,
+            ...stampCreate(actor),
+          })),
+        });
+      }
       await tx.vendorProjectLink.delete({ where: { id: existing.id } });
-      return schedules.map((row) => row.id);
+      return { archivedIds: schedules.map((row) => row.id), clearedItemIds: items.map((row) => row.id) };
     });
     res.json({
       id: existing.id,
       vendor_id: existing.vendorId,
       project_id: existing.projectId,
       archived_schedule_ids: archivedIds,
+      cleared_timeline_item_ids: clearedItemIds,
     });
   }),
 );

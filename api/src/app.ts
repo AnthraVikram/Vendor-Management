@@ -10,6 +10,8 @@ import { projectRouter } from './modules/projects/routes';
 import { linkRouter } from './modules/links/routes';
 import { scheduleRouter } from './modules/schedules/routes';
 import { fileRouter } from './modules/files/routes';
+import { timelineRouter } from './modules/timeline/routes';
+import { dashboardRouter } from './modules/dashboard/routes';
 
 export function createApp() {
   const config = loadConfig();
@@ -29,6 +31,8 @@ export function createApp() {
   app.use('/api', linkRouter);
   app.use('/api', scheduleRouter);
   app.use('/api', fileRouter);
+  app.use('/api', timelineRouter);
+  app.use('/api', dashboardRouter);
   app.use('/api', (_req, res) => {
     res.status(404).json({ message: 'Not found.' });
   });
