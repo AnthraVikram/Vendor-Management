@@ -82,6 +82,8 @@ The first version will include:
 - Maintain vendor ratings, past work history, reliability notes, and coordination issues.
 - Create and manage projects.
 - Link multiple vendors to a project without creating duplicate vendor records.
+- Schedule linked vendors on projects and flag overlapping bookings.
+- Record a fixed price or a costing sheet for each scheduled task.
 - Record project milestones, responsible agencies, planned dates, deadlines, and progress updates.
 - Identify upcoming deadlines, delayed activities, and missing progress updates.
 - Import vendor records from spreadsheets with validation and duplicate detection.
@@ -219,6 +221,10 @@ This workflow will be implemented across later phases.
 **FR-15 â€” Audit History:** Important record changes, particularly financial changes, shall be traceable to the user and time of change.
 
 **FR-16 â€” Document Retention:** The system shall support a seven-year document retention policy, subject to applicable legal requirements and the firm's policy.
+
+**FR-17 â€” Work Scheduling:** Users shall be able to schedule work for a vendor already linked to a project, recording the task, date, start and end time, and required team size. The system shall flag overlapping bookings for the same vendor without blocking them.
+
+**FR-18 â€” Task Pricing:** Each scheduled task shall be able to carry its own fixed price or one spreadsheet or PDF costing sheet, kept separate from the vendor's indicative rates, with earlier prices and files kept readable. This is not a quotation, order, invoice, or payment.
 
 ## 8. Non-Functional Requirements
 

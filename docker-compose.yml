@@ -1,0 +1,14 @@
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: vendor
+      POSTGRES_PASSWORD: vendor
+      POSTGRES_DB: vendor
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vendor -d vendor"]
+      interval: 5s
+      timeout: 5s
+      retries: 20

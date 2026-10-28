@@ -1,0 +1,25 @@
+{
+  "name": "vendor-management",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "workspaces": [
+    "api",
+    "web"
+  ],
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "lint": "eslint .",
+    "typecheck": "npm run typecheck -w api && npm run typecheck -w web",
+    "test": "npm run test -w api && npm run test -w web",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "eslint": "^9.38.0",
+    "prettier": "^3.6.2",
+    "typescript-eslint": "^8.46.2"
+  }
+}

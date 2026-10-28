@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: vendor
+          POSTGRES_PASSWORD: vendor
+          POSTGRES_DB: vendor
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U vendor -d vendor"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://vendor:vendor@localhost:5432/vendor
+      SESSION_SECRET: ci-session-secret-value
+      FILE_STORAGE_DIR: /tmp/vendor-files
+      WEB_ORIGIN: http://localhost:5173
+      API_PORT: 4000
+      WEB_PORT: 5173
+      SEED_ADMIN_PASSWORD: admin-pass-123
+      SEED_OFFICE_PASSWORD: office-pass-123
+      SEED_ACCOUNTANT_PASSWORD: accountant-pass-123
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run prisma:generate -w api
+      - run: npm run prisma:deploy -w api
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
