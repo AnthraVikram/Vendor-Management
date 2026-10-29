@@ -47,4 +47,5 @@
   - Phone matching: one rule for the vendor form and the import (FR-030, SC-011).
   - Documents on archived vendors and projects are read-only (FR-015; User Story 3 scenario 7).
   - History begins at deployment (FR-027; User Story 5 scenario 6).
+- Iteration 4, 2026-10-29, at the start of `/speckit-plan`, passed. The product owner chose that only the uploader may view, confirm, or cancel an import preview (FR-008d, User Story 2 scenario 14).
 - Items marked incomplete require spec updates before `/speckit-clarify` or `/speckit-plan`

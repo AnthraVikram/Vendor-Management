@@ -22,6 +22,7 @@
 - Q: When an older advance is reversed this month, which month's figure does the reversal reduce? → A: The month in which the original advance was received. The month tile counts advances received this month that are not reversed. A reversal recorded this month for an older advance does not reduce this month's figure. The all-time total excludes every reversed advance.
 - Q: How must import confirmation behave on a system failure, a retry, or a stale preview? → A: Confirmation saves all eligible rows in one step, or none if a system failure occurs. Rows are revalidated at confirmation, and rows that have become invalid or duplicates are rejected while other eligible rows still import. A preview is single-use and confirmation is idempotent, so retries and double-clicks create no extra vendors. A preview expires 30 minutes after it is created and must then be uploaded again.
 - Q: Are indicative rates imported? → A: No. The import template lists only vendor fields from the Feature 001 vendor form, excluding indicative rates. No new vendor fields are added.
+- Q: Who may confirm or cancel an import preview? → A: Only the staff member who uploaded the file.
 - Q: Which code baseline does Feature 003 build on? → A: The `002-timelines-delays` branch, which already includes Feature 001. Feature 003 is not merged into `main` as part of this work.
 - Q: How are phone duplicates matched in the vendor form and in the import? → A: The same way in both. Spaces and dashes are removed, and the new vendor's phone and alternate phone are compared with every existing vendor's phone and alternate phone. A match is a possible duplicate that requires explicit approval. A GSTIN match is still rejected.
 - Q: Can documents on an archived vendor or project be archived or restored? → A: No. Documents on an archived vendor or project are read-only: no upload, archive, or restore. Existing documents stay readable.
@@ -74,6 +75,7 @@ An authorized staff member uploads the firm's existing vendor spreadsheet in the
 11. **Given** a preview created more than 30 minutes ago, or one that was cancelled, **When** the staff member tries to confirm it, **Then** the system refuses, creates nothing, and asks for the file to be uploaded again.
 12. **Given** a system or database failure part way through confirmation, **When** the failure occurs, **Then** no vendor from that batch is saved, no import is recorded as confirmed, and the staff member is told the import did not happen.
 13. **Given** a staff member enters a phone number on the vendor form, **When** it matches an existing vendor's phone or alternate phone after removing spaces and dashes, such as "98765-43210" against "98765 43210", **Then** the system warns of the possible duplicate and saves only after the person confirms.
+14. **Given** a preview uploaded by one staff member, **When** a different staff member tries to view, confirm, or cancel it, **Then** the system refuses and the preview is unchanged.
 
 ---
 
@@ -186,6 +188,7 @@ Any active staff member opens the history of a vendor, a project, a document, an
 - **FR-008a**: All vendors from one confirmation, its new categories, and its import history entry MUST be saved together in one step. If a system or database failure occurs during that step, none of them MUST be saved, and the person MUST be told the import did not happen.
 - **FR-008b**: A preview MUST be confirmed at most once. Repeating the confirmation, by a retry or a double-click, MUST create no further vendor and MUST return the summary of the original confirmation. A cancelled preview MUST NOT be confirmable.
 - **FR-008c**: A preview MUST expire 30 minutes after it is created. Confirming an expired preview MUST be refused, MUST create nothing, and MUST tell the person to upload the file again.
+- **FR-008d**: Only the staff member who uploaded the file MUST be able to view, confirm, or cancel its preview. Any other person MUST be refused, and the preview MUST stay unchanged.
 - **FR-009**: After confirmation the system MUST show a summary with the number of rows imported, skipped, and rejected, and the row number and reason for every skipped and rejected row.
 - **FR-010**: Each confirmed import MUST be kept in an import history with the person, the time, the file name, and its summary. Vendors created by an import MUST show which import created them.
 - **FR-011**: An import MUST only create vendors. It MUST NOT change, merge, or archive an existing vendor.
