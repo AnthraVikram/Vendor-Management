@@ -266,7 +266,7 @@ Write each listed test so it fails, then implement the task that makes it pass.
 
 ### Tests for User Story 1 ⚠️
 
-- [ ] T029 [P] [US1] Write `api/tests/api/client-advances.test.ts` covering US1-1 to US1-9:
+- [X] T029 [P] [US1] Write `api/tests/api/client-advances.test.ts` covering US1-1 to US1-9:
   - **Recording:** an Accountant and an Administrator each record (201), the advance is listed with author and time, and `net_amount` rises.
   - **Validation (400 `fields`):** `0`, `-5`, `10.123`, `1.005`, a missing amount, `10000000000000.00`, a missing date, and tomorrow in India Standard Time are each refused. `0.01` and `9999999999999.99` are accepted.
   - **No edit or delete:** `PATCH` and `DELETE` on `/api/client-advances/:id` return 404, and the row is unchanged.
@@ -279,8 +279,8 @@ Write each listed test so it fails, then implement the task that makes it pass.
   - **Signed out or revoked:** 401 on read, with no amount in the body.
   - **History:** each record writes one `history_entries` row with `action = CREATED` and `client_advance_id`. Each reversal writes one `REVERSED` row with the reason and amount in `details`.
   - **Money format:** money in responses is a string with two decimals (FR-021, SC-007)
-- [ ] T030 [P] [US1] Change `api/tests/api/excluded-routes.test.ts`: remove `/api/client-advances` from the list. Keep `/api/quotations`, `/api/purchase-orders`, `/api/invoices`, and `/api/payments` returning 404 for GET and POST (FR-029)
-- [ ] T031 [P] [US1] Write `web/tests/advances-section.test.tsx`:
+- [X] T030 [P] [US1] Change `api/tests/api/excluded-routes.test.ts`: remove `/api/client-advances` from the list. Keep `/api/quotations`, `/api/purchase-orders`, `/api/invoices`, and `/api/payments` returning 404 for GET and POST (FR-029)
+- [X] T031 [P] [US1] Write `web/tests/advances-section.test.tsx`:
   - it renders advances in date order with a reversed badge and the reversal reason
   - it shows `net_amount` as rupees with two decimals
   - the record and reverse controls are shown for `ACCOUNTANT` and `ADMINISTRATOR`, and absent for `OFFICE_TEAM`, while amounts still show
@@ -757,3 +757,8 @@ Each story keeps the earlier stories' tests and the Feature 001 and Feature 002 
   - **Temporary check** (3 tests, deleted after the run): two transactions taking the lock ran one after the other, and an oversized costing sheet now returns `code: 'FILE_TOO_LARGE'` with the unchanged message "The file must be 10 MB or smaller."
   - **`recordHistory`** has no caller yet. Its first use is T032, whose API tests exercise it.
   - **Full run:** API 34 files, 161 tests passed. Web 11 files, 21 passed, 1 skipped. Typecheck 0 errors. Lint clean.
+- T029–T031 (2026-10-29), US1 tests written first:
+  - **API:** 10 of 12 `client-advances` tests fail with 404 because the routes do not exist yet. The other 2 pass now and must keep passing after T032: unknown ids give 404, and signed-out or revoked callers get 401 through the Feature 001 session middleware.
+  - **Web:** fails only on the missing `advances-section` module.
+  - **Design decision for T034:** the advances section reads the viewer's role from the existing `/api/auth/me`, so `main.tsx` needs no change. The role only decides which controls are shown; the server still enforces `ROLE_NOT_ALLOWED`.
+  - **Display format:** money is shown as `₹` plus two decimals, matching the plain-number style already used for task prices.
