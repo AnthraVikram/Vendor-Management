@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api } from '../api/client';
+import { AdvancesSection } from './advances-section';
 import { ProjectTimeline } from './project-timeline';
 
 interface LinkRow {
@@ -261,6 +262,7 @@ export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
         <input name="file" type="file" />
         <button type="submit">Attach file</button>
       </form>
+      <AdvancesSection projectId={id} version={version} />
       <ProjectTimeline
         projectId={id}
         linkedVendors={project.links.map((link) => ({ id: link.vendor_id, name: link.vendor_name, archived: link.vendor_archived }))}

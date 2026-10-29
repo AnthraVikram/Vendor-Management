@@ -288,7 +288,7 @@ Write each listed test so it fails, then implement the task that makes it pass.
 
 ### Implementation for User Story 1
 
-- [ ] T032 [US1] Create `api/src/modules/client-advances/routes.ts`:
+- [X] T032 [US1] Create `api/src/modules/client-advances/routes.ts`:
   - **`GET /projects/:id/client-advances`:** any `ADVANCE_VIEWERS` role. Advances are ordered by `received_on`, then `created_at`, each with `reversal` or `null`. `net_amount` is a Prisma `aggregate` `_sum.amount` with `reversal: null`, returned through `moneyString`.
   - **`POST /projects/:id/client-advances`:** `ADVANCE_RECORDERS` only, else 403 `ROLE_NOT_ALLOWED` "Only an Administrator or an Accountant can record or reverse a client advance." Zod body: `amount` via `parsePositiveAmount`; `received_on` `YYYY-MM-DD` "no later than today in India Standard Time"; `payment_method` optional `PaymentMethod`; `reference` and `note` optional. A project that does not exist gives 404, and an archived one gives 409 `PROJECT_ARCHIVED`. Insert and `recordHistory(CREATED, details { amount, received_on })` in one transaction.
   - **`POST /client-advances/:id/reversal`:** `ADVANCE_RECORDERS` only. Zod requires `reason` trimmed, at least 1 character. Insert the reversal with `amount` copied from the advance, plus `recordHistory(REVERSED, details { amount, reason })`, in one transaction. Catch Prisma `P2002` on `client_advance_id` and return 409 `ALREADY_REVERSED`. Allowed on archived projects.
@@ -296,14 +296,14 @@ Write each listed test so it fails, then implement the task that makes it pass.
   - **No other routes:** no update, delete, or `PATCH` route exists
 
   Makes T029 pass
-- [ ] T033 [US1] Change `api/src/app.ts` to mount `clientAdvanceRouter` under `/api` after the session middleware and before the 404 fallback. Confirm T030 passes
-- [ ] T034 [US1] Create `web/src/pages/advances-section.tsx`:
+- [X] T033 [US1] Change `api/src/app.ts` to mount `clientAdvanceRouter` under `/api` after the session middleware and before the 404 fallback. Confirm T030 passes
+- [X] T034 [US1] Create `web/src/pages/advances-section.tsx`:
   - a list with amount, date received, method, reference, note, and author and time, plus a reversal line with its reason
   - a net amount labelled "Net client advances received (not reversed)"
   - a record form and a reverse form with a required reason, shown only to Administrators and Accountants
 
   Change `web/src/pages/project-detail.tsx` to render it. Makes T031 pass
-- [ ] T035 [US1] Change `api/prisma/seed.ts` to add advances idempotently, matching existing rows by project, amount, and `received_on`, as `data-model.md` "Seed additions" lists:
+- [X] T035 [US1] Change `api/prisma/seed.ts` to add advances idempotently, matching existing rows by project, amount, and `received_on`, as `data-model.md` "Seed additions" lists:
   - two advances on one seeded project: one received this month, and one received last month and reversed this month
   - one advance on a second project
 
@@ -762,3 +762,10 @@ Each story keeps the earlier stories' tests and the Feature 001 and Feature 002 
   - **Web:** fails only on the missing `advances-section` module.
   - **Design decision for T034:** the advances section reads the viewer's role from the existing `/api/auth/me`, so `main.tsx` needs no change. The role only decides which controls are shown; the server still enforces `ROLE_NOT_ALLOWED`.
   - **Display format:** money is shown as `₹` plus two decimals, matching the plain-number style already used for task prices.
+- T032–T035 (2026-10-29), where the delivered work differs from the task text:
+  - **T033 with T032:** the two-line mount in `app.ts` was done together with T032, because T032's API tests cannot reach the routes until they are mounted.
+  - **Malformed ids:** path ids are checked with `z.string().uuid()`, so a malformed id is 400 rather than a database error.
+  - **Feature 001 `web/tests/pricing-controls.test.tsx`:** its fetch mock now answers `GET /api/auth/me` and `GET /api/projects/p1/client-advances`, because the project page now renders the advances section. This follows the Feature 002 precedent; no assertion changed.
+  - **T035 seed key:** advances are found again by project, amount, and a fixed seed reference (`SEED-ADV-1` to `SEED-ADV-3`), not by `received_on`. The dates are relative to today and `npm run dev` reruns the seed, so a date key would add rows every day, against `data-model.md`'s "rerunnable without duplicates". Each seeded advance and reversal gets its `CREATED` or `REVERSED` history entry.
+  - **Seed check** (throwaway PostgreSQL on port 54331, never the dev database): run twice, 3 advances, 1 reversal, 4 history entries. After moving one seeded date back a day and running again, still 3 advances.
+  - **Full run:** API 35 files, 173 tests. Web 12 files, 25 passed, 1 skipped. Typecheck 0 errors. Lint exit 0.

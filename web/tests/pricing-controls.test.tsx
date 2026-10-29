@@ -50,6 +50,10 @@ function mockFetch() {
     if (url === '/api/projects/p1/timeline') {
       return json(200, { project: { id: 'p1', name: 'Lake House', archived: false }, items: [], archived_items: [], delays: [], coordination_issues: [] });
     }
+    if (url === '/api/auth/me') return json(200, { id: 'u1', name: 'Asha Admin', email: 'admin@example.com', role: 'ADMINISTRATOR' });
+    if (url === '/api/projects/p1/client-advances') {
+      return json(200, { project: { id: 'p1', name: 'Lake House', client_name: null, archived: false }, net_amount: '0.00', advances: [] });
+    }
     return json(200, []);
   });
   vi.stubGlobal('fetch', fetchMock);
