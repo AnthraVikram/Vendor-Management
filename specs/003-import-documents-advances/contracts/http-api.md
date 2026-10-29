@@ -27,12 +27,13 @@ Every route requires a session cookie for an active staff user, checked on the s
 | `code` | Meaning |
 | --- | --- |
 | `UNSUPPORTED_FORMAT` | (400) Not `.xlsx` or `.csv`, content does not match, `.xls`, or CSV not UTF-8 (FR-001) |
+| `FILE_TOO_LARGE` | (400) The upload is over 25 MB. `fields.file` names the route's limit: "The file must be 25 MB or smaller." for imports and documents (FR-003, FR-013). The Feature 001 costing-sheet upload keeps "10 MB" and gains this code |
 | `EMPTY_FILE` | (400) No heading row or no data rows (FR-003) |
 | `TOO_MANY_ROWS` | (400) More than 1,000 non-blank data rows (FR-003) |
 | `MISSING_HEADING` | (400) Name, Phone, or Categories heading missing. `extra.headings` lists them (FR-002) |
 | `REPEATED_HEADING` | (400) A heading appears twice. `extra.headings` lists them (FR-002) |
 | `PREVIEW_NOT_YOURS` | (403) The preview belongs to another person (FR-008d) |
-| `PREVIEW_EXPIRED` | (409) Created more than 30 minutes ago. Upload again (FR-008c) |
+| `PREVIEW_EXPIRED` | (409) Created more than 30 minutes ago. Returned by view, confirm, and cancel, with no rows. Upload again (FR-008c) |
 | `PREVIEW_CANCELLED` | (409) The preview was cancelled (FR-008b) |
 | `PREVIEW_CONFIRMED` | (409) Cancel was sent after confirmation |
 | `PARENT_ARCHIVED` | (409) The vendor or project is archived, so its documents are read-only (FR-015) |
@@ -49,7 +50,9 @@ Returns a blank file with the 16 headings of FR-002, as an attachment. In the `.
 
 ### `POST /vendor-imports/previews`, multipart
 
-Field `file`: one `.xlsx` or `.csv`, at most 25 MB. Creates nothing but the preview (US2-1).
+Field `file`: one `.xlsx` or `.csv`, at most 25 MB (FR-003). Creates nothing but the preview (US2-1). Before parsing, the route clears the rows of every expired `OPEN` preview (FR-008e).
+
+In-file matches compare only with earlier rows that are not rejected (FR-006, FR-007). In the example below, row 3 is rejected, so a later row with row 3's phone or GSTIN is not flagged because of it.
 
 `201`:
 
@@ -75,7 +78,11 @@ Each row also carries `cells`, the trimmed text of each recognised heading, so t
 
 ### `GET /vendor-imports/previews/:id`
 
-Returns the same body to the uploader. Another person gets 403 `PREVIEW_NOT_YOURS`. An expired preview returns its body with `"status": "OPEN"` and `"expired": true`, so the screen can ask for a new upload.
+Returns the same body to the uploader while the preview is `OPEN` and not expired.
+- Another person gets 403 `PREVIEW_NOT_YOURS`.
+- An expired preview gets 409 `PREVIEW_EXPIRED`, and its rows are cleared if they were not already.
+- A cancelled preview gets 409 `PREVIEW_CANCELLED`.
+- A confirmed preview returns `{ "status": "CONFIRMED", "run_id": "uuid" }` with no rows. The import summary is read from `GET /vendor-imports/:runId`.
 
 ### `POST /vendor-imports/previews/:id/confirm`
 
@@ -86,7 +93,9 @@ Returns the same body to the uploader. Another person gets 403 `PREVIEW_NOT_YOUR
 `approved_rows` lists the row numbers of possible duplicates the person chose to import. Any other number in it is ignored.
 
 - `201` on the first successful confirmation, or `200` when the preview was already confirmed. The original run is returned and nothing new is written (FR-008b, US2-10).
-- `403 PREVIEW_NOT_YOURS`, `409 PREVIEW_EXPIRED`, `409 PREVIEW_CANCELLED`, or `500 IMPORT_FAILED`. Nothing is saved in any of these cases (FR-008a, FR-008c).
+- `403 PREVIEW_NOT_YOURS`, `409 PREVIEW_EXPIRED`, `409 PREVIEW_CANCELLED`, or `500 IMPORT_FAILED`. Nothing is imported in any of these cases (FR-008a, FR-008c).
+- Rows rejected in the preview stay `REJECTED`. Each other row is rechecked against the directory (FR-008).
+- A successful confirmation clears the preview's rows in the same transaction (FR-008e).
 
 ```json
 {
@@ -109,7 +118,11 @@ Returns the same body to the uploader. Another person gets 403 `PREVIEW_NOT_YOUR
 
 ### `POST /vendor-imports/previews/:id/cancel`
 
-`200 { "status": "CANCELLED" }`. Only the uploader may cancel. Cancelling a confirmed preview is 409 `PREVIEW_CONFIRMED`. Cancelling a cancelled preview returns 200 again.
+`200 { "status": "CANCELLED" }`, and the preview's rows are cleared (FR-008e).
+- Only the uploader may cancel.
+- Cancelling a confirmed preview is 409 `PREVIEW_CONFIRMED`.
+- Cancelling an expired preview is 409 `PREVIEW_EXPIRED`.
+- Cancelling a cancelled preview returns 200 again.
 
 ### `GET /vendor-imports` and `GET /vendor-imports/:runId`
 
@@ -203,6 +216,14 @@ Any staff role may call it. It also works on archived projects (US1-7, US1-8).
 ```
 
 Advances are sorted by `received_on`, then `created_at`. `reversal` is `null` until the advance is reversed. The response is in date order with author and time (FR-021). `net_amount` is the sum of advances with `reversal: null`.
+
+The following all name one calculation: the sum of advances that have not been reversed, which equals advances minus reversals.
+- the spec's "net amount received" (FR-021)
+- this route's `net_amount`, for one project
+- the dashboard's `standing_total`, for all projects, archived included (FR-024)
+- the dashboard's `received_this_month`, for advances with `received_on` in the current month
+
+They differ only in which advances they cover.
 
 ### `POST /projects/:id/client-advances`
 

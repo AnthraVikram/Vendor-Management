@@ -26,6 +26,9 @@
 - Q: Which code baseline does Feature 003 build on? → A: The `002-timelines-delays` branch, which already includes Feature 001. Feature 003 is not merged into `main` as part of this work.
 - Q: How are phone duplicates matched in the vendor form and in the import? → A: The same way in both. Spaces and dashes are removed, and the new vendor's phone and alternate phone are compared with every existing vendor's phone and alternate phone. A match is a possible duplicate that requires explicit approval. A GSTIN match is still rejected.
 - Q: Can documents on an archived vendor or project be archived or restored? → A: No. Documents on an archived vendor or project are read-only: no upload, archive, or restore. Existing documents stay readable.
+- Q: Can a rejected import row make a later row a duplicate? → A: No. Duplicate checks within a file compare only against earlier rows that are not rejected. Eligible rows still cannot duplicate each other, and conflicts with existing vendors are still caught.
+- Q: Is there a size limit on the import file itself? → A: Yes. 25 MB, in addition to the 1,000-row limit.
+- Q: What happens to an expired preview's data? → A: An expired preview cannot be viewed, confirmed, or cancelled. The cell values of a preview are removed once it is confirmed, cancelled, or expired, with no background job. The import run and its row outcomes are kept as the audit record.
 - Q: What history do records that existed before Feature 003 show? → A: History begins when Feature 003 is deployed. No earlier events are created. Existing records keep their creation and update stamps.
 
 ## User Scenarios & Testing *(mandatory)*
@@ -54,7 +57,7 @@ An Administrator or Accountant opens a project and records an advance received f
 
 ### User Story 2 - Import vendors from a spreadsheet (Priority: P2)
 
-An authorized staff member uploads the firm's existing vendor spreadsheet in the import layout. Before anything is saved, the system shows a preview of every row with its outcome: ready to import, rejected with the reasons, or a possible duplicate. The staff member decides whether each possible duplicate is imported or skipped, then confirms within 30 minutes. The system rechecks the rows and creates the approved vendors in one step, or none if the system fails part way. It then shows a summary of how many rows were imported, skipped, and rejected, and why. Leaving the preview without confirming saves nothing.
+An authorized staff member uploads the firm's existing vendor spreadsheet using the template headings. Before anything is saved, the system shows a preview of every row with its outcome: ready to import, rejected with the reasons, or a possible duplicate. The staff member decides whether each possible duplicate is imported or skipped, then confirms within 30 minutes. The system rechecks the rows and creates the approved vendors in one step, or none if the system fails part way. It then shows a summary of how many rows were imported, skipped, and rejected, and why. Leaving the preview without confirming saves nothing.
 
 **Why this priority**: The firm's vendor list lives in spreadsheets today. Importing it is the fastest way to make the directory useful.
 
@@ -62,20 +65,22 @@ An authorized staff member uploads the firm's existing vendor spreadsheet in the
 
 **Acceptance Scenarios**:
 
-1. **Given** a file in a supported format and the import layout, **When** a staff member uploads it, **Then** the system shows a preview of every row with its outcome and creates no vendors yet.
+1. **Given** a file in a supported format with the template headings, **When** a staff member uploads it, **Then** the system shows a preview of every row with its outcome and creates no vendors yet.
 2. **Given** a row with no name, no phone number, or no category, or with any value the vendor form would refuse, **When** the preview is shown, **Then** that row is marked rejected with each reason and the row number, and it cannot be imported.
-3. **Given** a row whose GSTIN already belongs to a vendor, or appears on an earlier row in the same file, **When** the preview is shown, **Then** that row is rejected as a duplicate GSTIN.
-4. **Given** a row whose phone or alternate phone, after removing spaces and dashes, matches the phone or alternate phone of an existing vendor or an earlier row in the same file, **When** the preview is shown, **Then** that row is marked as a possible duplicate, names the matching vendor or row, and is skipped unless the staff member chooses to import it.
+3. **Given** a row whose GSTIN already belongs to a vendor, or appears on an earlier row in the same file that is not rejected, **When** the preview is shown, **Then** that row is rejected as a duplicate GSTIN.
+4. **Given** a row whose phone or alternate phone, after removing spaces and dashes, matches the phone or alternate phone of an existing vendor or of an earlier row in the same file that is not rejected, **When** the preview is shown, **Then** that row is marked as a possible duplicate, names the matching vendor or row, and is skipped unless the staff member chooses to import it.
 5. **Given** a preview, **When** the staff member confirms, **Then** the system creates one vendor for each ready row and each possible duplicate the staff member chose to import, and shows a summary with the number imported, skipped, and rejected, and the reason for each skipped and rejected row.
 6. **Given** a preview, **When** the staff member cancels or leaves without confirming, **Then** no vendor is created.
-7. **Given** a file in an unsupported format, a file with no data rows, a file over the row limit, or a file missing a required column heading, **When** the staff member uploads it, **Then** the system refuses the whole file and explains why.
+7. **Given** a file in an unsupported format, a file larger than 25 MB, a file with no data rows, a file over the row limit, or a file missing a required column heading, **When** the staff member uploads it, **Then** the system refuses the whole file and explains why.
 8. **Given** a row lists a category that does not exist, **When** the row is imported, **Then** the category is created once and reused by later rows that name it, ignoring differences in letter case and surrounding spaces.
 9. **Given** an import was confirmed, **When** a staff member opens the import history, **Then** they see who ran it, when, the file name, and the summary.
 10. **Given** a preview was confirmed, **When** the same confirmation is sent again, by a retry or a double-click, **Then** no further vendor is created and the original summary is returned.
-11. **Given** a preview created more than 30 minutes ago, or one that was cancelled, **When** the staff member tries to confirm it, **Then** the system refuses, creates nothing, and asks for the file to be uploaded again.
+11. **Given** a preview created more than 30 minutes ago, or one that was cancelled, **When** the staff member tries to view, confirm, or cancel it, **Then** the system refuses, shows none of its rows, creates nothing, and asks for the file to be uploaded again.
 12. **Given** a system or database failure part way through confirmation, **When** the failure occurs, **Then** no vendor from that batch is saved, no import is recorded as confirmed, and the staff member is told the import did not happen.
 13. **Given** a staff member enters a phone number on the vendor form, **When** it matches an existing vendor's phone or alternate phone after removing spaces and dashes, such as "98765-43210" against "98765 43210", **Then** the system warns of the possible duplicate and saves only after the person confirms.
 14. **Given** a preview uploaded by one staff member, **When** a different staff member tries to view, confirm, or cancel it, **Then** the system refuses and the preview is unchanged.
+15. **Given** an earlier row is rejected, for example for a missing name, and a later valid row has the same GSTIN or phone, **When** the preview is shown, **Then** the later row is ready, not rejected or a possible duplicate, because of the earlier row. Two rows that are not rejected and share a GSTIN still leave the later one rejected.
+16. **Given** a preview has been confirmed, cancelled, or has expired, **When** its stored data is examined, **Then** the cell values of its rows are gone, and for a confirmed preview the import run, its counts, and each row's number, outcome, and reasons remain.
 
 ---
 
@@ -142,13 +147,16 @@ Any active staff member opens the history of a vendor, a project, a document, an
 ### Edge Cases
 
 - The same phone number appears on two rows of one file and on no existing vendor. The first row is ready, and the second is a possible duplicate of the first.
+- Row 3 is rejected for a missing name and has GSTIN X. Row 7 is valid with GSTIN X. Row 7 is ready, because row 3 will never be imported. If row 9 also has GSTIN X, row 9 is rejected as a duplicate of row 7.
+- Row 4 is a possible duplicate and also has GSTIN Y. Row 8 has GSTIN Y. Row 8 is rejected in the preview as a duplicate of row 4, and stays rejected even if row 4 is not approved, because a row rejected in the preview is never imported.
+- A file is larger than 25 MB. It is refused as a whole before any row is read.
 - A row is ready in the preview, but another staff member saves a vendor with the same GSTIN before the import is confirmed. That row is rejected at confirmation and reported in the summary. Other rows still import.
 - A row is ready in the preview, but another staff member saves a vendor with the same phone before the import is confirmed. At confirmation that row becomes a possible duplicate the person has not approved, so it is skipped and reported in the summary.
 - The staff member double-clicks Confirm, or the connection drops and the browser retries. The vendors are created once, and every repeat returns the same summary.
-- A preview is left open for more than 30 minutes. Confirming it is refused and the file must be uploaded and previewed again. Nothing was saved from the expired preview.
+- A preview is left open for more than 30 minutes. Viewing, confirming, or cancelling it is refused and the file must be uploaded and previewed again. Nothing was saved from the expired preview, and its cell values are removed.
 - The database fails while the confirmed rows are being saved. None of the batch is saved, no import appears in the history, and the person may upload the file again.
 - Two staff members preview the same file. Each confirmation is checked against the directory at that moment, so a second confirmation reports GSTIN duplicates created by the first.
-- A row has extra columns that are not in the import layout. They are ignored and the preview says so once.
+- A row has extra columns that are not among the template headings. They are ignored and the preview says so once.
 - The file's columns are in a different order from the template, or a heading differs only in letter case or surrounding spaces, such as " phone " for "Phone". The file is read normally.
 - The same heading appears twice in one file. The whole file is refused and the message names the repeated heading.
 - Blank rows in the file are ignored and not counted as rejected.
@@ -179,16 +187,17 @@ Any active staff member opens the history of a vendor, a project, a document, an
 
 - **FR-001**: Every active Administrator, Accountant, and Office Team member, being allowed to create vendors under spec 001, MUST be able to upload a vendor spreadsheet as an Excel workbook (.xlsx) or a comma-separated file (.csv). Any other format, including older Excel (.xls), MUST be refused. The system MUST read the first sheet of a workbook.
 - **FR-002**: The import MUST use one published set of column headings taken from the Feature 001 vendor form. The headings MUST be exactly: Name, Phone, Categories, Contact person, Alternate phone, Email, Address, GST registered, GSTIN, GST legal name, Team size, Availability, Manpower note, Locations served, Services, and Materials. Categories, Locations served, Services, and Materials MAY hold several values separated by semicolons. GST registered MUST be Yes, No, or blank, and blank means No. Availability MUST be Available, Limited, Unavailable, or blank. Indicative rates, ratings, and notes MUST NOT be imported, and the import MUST NOT add any vendor field that the vendor form lacks. The system MUST recognise each heading in any column order, ignoring differences in letter case and surrounding spaces. The system MUST offer a blank template file with those headings. A file missing the name, phone, or category heading, or naming the same heading twice, MUST be refused as a whole. There is no step for mapping other column names to vendor fields.
-- **FR-003**: A file MUST hold no more than 1,000 data rows. A larger file, an empty file, or a file in an unsupported format MUST be refused as a whole with a reason.
+- **FR-003**: A file MUST be no larger than 25 MB and MUST hold no more than 1,000 data rows. A file over either limit, an empty file, or a file in an unsupported format MUST be refused as a whole with a reason, and no preview MUST be created.
 - **FR-004**: Before saving anything, the system MUST show a preview listing every non-blank row with its row number and one outcome: ready, rejected, or possible duplicate.
 - **FR-005**: A row MUST be rejected, with each reason listed, when it would be refused by the vendor form. That includes a missing name, phone number, or category, an invalid team size, availability, GST registered value, or GSTIN, GST registered without a GSTIN, and a GSTIN on a vendor that is not GST registered.
-- **FR-006**: A row MUST be rejected when its GSTIN already belongs to a vendor or appears on an earlier row of the same file.
-- **FR-007**: A row MUST be marked a possible duplicate when its phone or alternate phone matches, under the rule in FR-030, the phone or alternate phone of an existing vendor or of an earlier row of the same file. The preview MUST name the match. Each possible duplicate MUST be skipped unless the person chooses to import it.
-- **FR-008**: Confirming the preview MUST create one vendor for each ready row and each approved possible duplicate, rechecking every row against the directory at that moment. A row that has become invalid or a GSTIN duplicate since the preview MUST be rejected. A row that has newly become a possible duplicate MUST be skipped unless the person approved it. The other eligible rows MUST still import. A rejected row, and a possible duplicate the person did not choose to import, MUST NOT create a vendor. Cancelling or leaving the preview MUST create nothing.
+- **FR-006**: A row MUST be rejected when its GSTIN already belongs to a vendor or appears on an earlier row of the same file that is not rejected. A rejected row MUST NOT cause any later row to be rejected or marked a possible duplicate.
+- **FR-007**: A row MUST be marked a possible duplicate when its phone or alternate phone matches, under the rule in FR-030, the phone or alternate phone of an existing vendor or of an earlier row of the same file that is not rejected. The preview MUST name the match. Each possible duplicate MUST be skipped unless the person chooses to import it.
+- **FR-008**: Confirming the preview MUST create one vendor for each ready row and each approved possible duplicate, rechecking each of those rows against the directory at that moment. A row rejected in the preview MUST stay rejected. A row that has become invalid or a GSTIN duplicate since the preview MUST be rejected. A row that has newly become a possible duplicate MUST be skipped unless the person approved it. The other eligible rows MUST still import. A rejected row, and a possible duplicate the person did not choose to import, MUST NOT create a vendor. Cancelling or leaving the preview MUST create nothing.
 - **FR-008a**: All vendors from one confirmation, its new categories, and its import history entry MUST be saved together in one step. If a system or database failure occurs during that step, none of them MUST be saved, and the person MUST be told the import did not happen.
 - **FR-008b**: A preview MUST be confirmed at most once. Repeating the confirmation, by a retry or a double-click, MUST create no further vendor and MUST return the summary of the original confirmation. A cancelled preview MUST NOT be confirmable.
-- **FR-008c**: A preview MUST expire 30 minutes after it is created. Confirming an expired preview MUST be refused, MUST create nothing, and MUST tell the person to upload the file again.
+- **FR-008c**: A preview MUST expire 30 minutes after it is created. Viewing, confirming, or cancelling an expired preview MUST be refused, MUST show none of its rows, MUST create nothing, and MUST tell the person to upload the file again.
 - **FR-008d**: Only the staff member who uploaded the file MUST be able to view, confirm, or cancel its preview. Any other person MUST be refused, and the preview MUST stay unchanged.
+- **FR-008e**: The cell values held for a preview MUST be removed when it is confirmed or cancelled. For an expired preview they MUST be removed no later than the next request for that preview or the next preview upload by anyone. Removal MUST NOT need a scheduled job. The import run and its row outcomes MUST be kept as the audit record of a confirmed import.
 - **FR-009**: After confirmation the system MUST show a summary with the number of rows imported, skipped, and rejected, and the row number and reason for every skipped and rejected row.
 - **FR-010**: Each confirmed import MUST be kept in an import history with the person, the time, the file name, and its summary. Vendors created by an import MUST show which import created them.
 - **FR-011**: An import MUST only create vendors. It MUST NOT change, merge, or archive an existing vendor.
@@ -232,7 +241,7 @@ Any active staff member opens the history of a vendor, a project, a document, an
 
 ### Key Entities
 
-- **Import preview**: One uploaded file awaiting confirmation. The person, the file name, the time created, each row's preview outcome, and the person's choice for each possible duplicate. It expires 30 minutes after creation, can be confirmed once, and creates no vendor until confirmed.
+- **Import preview**: One uploaded file awaiting confirmation. The person, the file name, the time created, each row's preview outcome, and the person's choice for each possible duplicate. It expires 30 minutes after creation, can be confirmed once, and creates no vendor until confirmed. Its cell values are temporary and are removed once it is confirmed, cancelled, or expired. Its id, owner, status, and expiry remain so a later request can be refused with the right reason.
 - **Import run**: One confirmed spreadsheet import. Person, time, file name, row counts imported, skipped, and rejected, and each row's outcome and reason.
 - **Import row outcome**: One row of an import run. Row number, outcome (imported, skipped, rejected), reasons, the matching vendor or row for a possible duplicate, and the vendor created when imported.
 - **Document**: One file stored on one vendor or one project. Title, type, note, original file name, size, uploader, upload time, and an archive flag. It is never deleted.
@@ -254,8 +263,8 @@ Any active staff member opens the history of a vendor, a project, a document, an
 - **SC-007**: For any project, the net amount received equals the sum of its advances minus its reversals, to the paisa, in every test.
 - **SC-008**: Every client advance and reversal shows the person who made it and the time, and 100% of the records and reversals in a test run appear in the history.
 - **SC-009**: Each dashboard tile equals the count or amount worked out by hand from the same data, including after an advance is recorded or reversed, and including an older advance reversed in the current month.
-- **SC-011**: In every test, the vendor form and the import flag the same set of phone duplicates for the same numbers, including numbers written with spaces or dashes and matches between a phone and an alternate phone.
 - **SC-010**: In every test, an Office Team member is refused when recording or reversing an advance, and a signed-out or revoked person never receives an advance amount, on a project or on the dashboard.
+- **SC-011**: In every test, the vendor form and the import flag the same set of phone duplicates for the same numbers, including numbers written with spaces or dashes and matches between a phone and an alternate phone.
 
 ## Assumptions
 
@@ -270,7 +279,7 @@ Any active staff member opens the history of a vendor, a project, a document, an
 - The duplicate rules for the import and the vendor form are the same: a matching GSTIN is refused, and a matching phone number under FR-030 is a possible duplicate that the person may approve.
 - Resolved with the product owner on 2026-10-29: import confirmation saves the whole eligible batch or nothing, is idempotent, and works only on a preview less than 30 minutes old.
 - Import only creates vendors. Importing projects, schedules, or advances is out of scope.
-- The 1,000-row limit covers a typical firm vendor list. A larger list is split into several files.
+- The 1,000-row limit covers a typical firm vendor list. A larger list is split into several files. The 25 MB file limit matches the document limit. A 1,000-row vendor sheet is far smaller.
 - Documents cannot be deleted, so the seven-year retention requirement is met by keeping every document indefinitely. A later purge after seven years would need a PRD change. Backups and storage are covered in the implementation plan.
 - Document types are the short list in FR-012. More types arrive with Phase 2, as the PRD notes. Costing sheets on scheduled tasks stay as defined in spec 001 and are not part of this document list.
 - An advance stores the client by way of the project's client name. The PRD question of a separate client record stays open and outside this feature.

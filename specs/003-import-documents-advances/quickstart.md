@@ -41,8 +41,13 @@ CI runs the same three checks, and a red result blocks merge. `converge` must re
 Use `api/tests/fixtures/` for the import files. The test helpers build them, and they can also be written by hand:
 
 - `vendors-valid.xlsx`: 5 valid rows, with headings in a different order and mixed letter case.
-- `vendors-mixed.csv`: 1 valid row, 1 with no phone, 1 whose GSTIN belongs to a seeded vendor, 1 whose phone matches a seeded vendor written with dashes, 1 repeating an earlier row's phone, and 1 blank row.
+- `vendors-mixed.csv`: 1 valid row, 1 with no phone, 1 whose GSTIN belongs to a seeded vendor, 1 whose phone matches a seeded vendor written with dashes, 1 repeating the valid row's phone, and 1 blank row.
+- `vendors-rejected-then-valid.csv`:
+  - row 2: no name, GSTIN X, phone P
+  - row 3: valid, GSTIN X, phone P
+  - row 4: valid, GSTIN X
 - `vendors-1001.csv`: 1,001 data rows.
+- `vendors-over-25mb.csv`: a valid heading row padded with a long note column to 25 MB plus 1 byte.
 - `vendors-repeated-heading.csv`: two `Phone` headings.
 - `old.xls`: any legacy Excel file.
 
@@ -70,12 +75,26 @@ Sign in as `office@example.com` unless a step says otherwise.
    - the blank row is left out
 
    The vendor count is unchanged (US2-1 to US2-4, SC-002).
-10. Confirm with `approved_rows` naming only the dashed-phone row. The summary shows 2 imported, 1 skipped, and 2 rejected, and the reason for each skipped and rejected row. New categories in the file now exist once (US2-5, US2-8).
+10. Confirm with `approved_rows` naming only the dashed-phone row. The summary shows 2 imported, 1 skipped, and 2 rejected, and the reason for each skipped and rejected row. New categories in the file now exist once (US2-5, US2-8). The stored preview's `rows` is now empty, while the run and its row outcomes remain (US2-16, FR-008e).
+
+10a. Upload `vendors-rejected-then-valid.csv`:
+- Row 2 is `REJECTED` for the missing name.
+- Row 3 is `READY`, not flagged against row 2.
+- Row 4 is `REJECTED` as a GSTIN duplicate of row 3.
+
+Confirm. Only row 3 is imported (US2-15, FR-006, FR-007).
 11. Send the same confirmation twice more, once in parallel. Each response returns the same run, and the vendor count does not change again (US2-10, SC-003).
-12. Upload `vendors-valid.xlsx`, then cancel. Confirming afterwards returns 409 `PREVIEW_CANCELLED`, and no vendor is created (US2-6, US2-11).
-13. Upload again and move `expires_at` 31 minutes into the past through the database. Confirming returns 409 `PREVIEW_EXPIRED`, and no vendor is created (US2-11).
+12. Upload `vendors-valid.xlsx`, then cancel. The stored rows are cleared. Viewing or confirming afterwards returns 409 `PREVIEW_CANCELLED`, and no vendor is created (US2-6, US2-11, US2-16).
+13. Upload again and move `expires_at` 31 minutes into the past through the database. Viewing, confirming, and cancelling each return 409 `PREVIEW_EXPIRED` with no rows, the stored rows are cleared, and no vendor is created (US2-11, US2-16).
+13a. Make another expired preview the same way, then upload any file as `accountant@example.com`. The expired preview's stored rows are cleared by that upload (FR-008e).
 14. As `accountant@example.com`, open, confirm, or cancel a preview made by `office@example.com`. Each returns 403 `PREVIEW_NOT_YOURS`, and the preview is unchanged (US2-14).
-15. Upload `vendors-1001.csv`, `vendors-repeated-heading.csv`, `old.xls`, a file with only headings, and a file with no Phone heading. Each returns 400 with its `code`, and no preview is created (US2-7).
+15. Upload each of these. Each returns 400 with its `code` (`FILE_TOO_LARGE` for the first), and no preview is created (US2-7, FR-003):
+   - `vendors-over-25mb.csv`
+   - `vendors-1001.csv`
+   - `vendors-repeated-heading.csv`
+   - `old.xls`
+   - a file with only headings
+   - a file with no Phone heading
 16. The forced-failure test adds a temporary trigger that fails the run insert. Confirming returns 500 `IMPORT_FAILED`. There are zero new vendors and zero runs, and the preview is still `OPEN` (US2-12, FR-008a).
 17. Open `GET /vendor-imports`. Each confirmed run shows who ran it, when, the file name, and the counts. A vendor created by an import shows its run (US2-9, FR-010).
 18. On the vendor form, add a vendor whose phone is a seeded vendor's alternate phone written with spaces. The response is 409 `PHONE_IN_USE` naming that vendor. With `confirm_duplicate_phone: true`, it saves (US2-13, SC-011).

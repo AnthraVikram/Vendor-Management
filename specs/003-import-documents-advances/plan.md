@@ -9,7 +9,7 @@
 This feature adds five things:
 
 - **Client advances**: Administrators and Accountants record advances against a project and correct them only by full-amount reversals. All staff see each project's advances and its net amount.
-- **Vendor import**: staff import vendors from `.xlsx` or `.csv`. Every row gets a preview outcome, and the person who uploaded the file approves possible duplicates. Confirmation saves the whole eligible batch or nothing, and repeating it is safe. A preview expires after 30 minutes.
+- **Vendor import**: staff import vendors from `.xlsx` or `.csv` files of up to 25 MB and 1,000 rows. Every row gets a preview outcome, and a rejected row never blocks a later one. The person who uploaded the file approves possible duplicates. Confirmation saves the whole eligible batch or nothing, and repeating it is safe. A preview expires after 30 minutes, and its cell values are cleared once it is confirmed, cancelled, or expired, with no background job.
 - **Documents**: staff upload documents to vendors and projects. Documents are archived, never deleted, and served only to signed-in staff.
 - **Dashboard tiles**: counts of vendors and projects, plus money tiles for advances that still stand, with each reversal counted against the month its advance was received.
 - **History**: one append-only history covers the changes the spec names. It starts when this feature is deployed.
@@ -26,7 +26,7 @@ The web app adds an import page, an import history page, document, advance, and 
 
 **Language/Version**: TypeScript on Node.js 24 Active LTS, as in Features 001 and 002
 
-**Primary Dependencies**: The Feature 001 set: Express, React, Prisma, Zod, bcrypt, multer, and cors. One addition: `exceljs` 4.4.0, to read the first sheet of `.xlsx` files as a stream and to write the template (research.md). CSV is parsed in-house. No new dev dependency
+**Primary Dependencies**: The Feature 001 set: Express, React, Prisma, Zod, bcrypt, multer, and cors. One addition: `exceljs` 4.4.0, to read the first sheet of `.xlsx` files with `workbook.xlsx.load(buffer)`, after the 25 MB upload check, and to write the template (research.md). CSV is parsed in-house. No new dev dependency
 
 **Storage**: PostgreSQL 17 through Prisma, with seven new tables and one new nullable column on `vendors` in one migration. Documents go in the existing private `FILE_STORAGE_DIR`
 
@@ -50,7 +50,7 @@ The web app adds an import page, an import history page, document, advance, and 
 - Zod validates every request.
 - No background jobs, no notifications, and no object storage.
 
-**Scale/Scope**: One firm and three roles. The spec has five user stories, 34 functional requirements (FR-001 to FR-030, plus FR-008a to FR-008d), and 11 success criteria
+**Scale/Scope**: One firm and three roles. The spec has five user stories, 35 functional requirements (FR-001 to FR-030, plus FR-008a to FR-008e), and 11 success criteria
 
 ## Constitution Check
 
@@ -60,14 +60,14 @@ Constitution version 1.1.0, from the `002-timelines-delays` baseline.
 
 | Gate | Before research | After design |
 | --- | --- | --- |
-| I. Spec exists and lists FR-07, FR-08, FR-09, FR-15, FR-16. No `NEEDS CLARIFICATION`. Agent chose no product default | Pass. 13 product decisions are recorded in Clarifications. The last one, who may confirm a preview, was answered by the product owner when this command started | Pass. No product question is outstanding. One reading of the spec text is recorded under Unresolved items, item 1 |
+| I. Spec exists and lists FR-07, FR-08, FR-09, FR-15, FR-16. No `NEEDS CLARIFICATION`. Agent chose no product default | Pass. 16 product decisions are recorded in Clarifications, including the four made during planning | Pass. No product question is outstanding. The three items left open by the first draft were decided by the product owner on 2026-10-29 (Product decisions recorded during planning) |
 | II. Stack fixed. Each new runtime dependency has a one-line reason in research | Pass | Pass. `exceljs` only, with its reason in [research.md](./research.md) |
 | II. `api/` and `web/`, one start command that seeds | Pass | Pass. Root `npm run dev` unchanged, seed extended |
 | III. Audit columns on every table, database foreign keys, committed Prisma migrations, protected records archived | Pass | Pass. Every new table has the five audit columns. Polymorphic history uses one foreign key per target with a check constraint. Documents are archived, never deleted. See [data-model.md](./data-model.md) |
 | III. Money `DECIMAL(15,2)` in INR, append-only, corrections by reversing entry | Pass. FR-019 and FR-020 | Pass. Advances and reversals are insert-only, with check constraints `amount > 0`. "Reversed" is derived, never updated |
-| IV. Server checks auth and role on every route. Documents only through an authenticated route. Zod on all input | Pass | Pass. See [contracts/http-api.md](./contracts/http-api.md). Downloads are attachments with `nosniff`. Previews are owner-checked |
+| IV. Server checks auth and role on every route. Documents only through an authenticated route. Zod on all input | Pass | Pass. See [contracts/http-api.md](./contracts/http-api.md). Downloads are attachments with `nosniff`. Previews are owner-checked. Bodies, queries, path ids, and spreadsheet cells are validated with Zod |
 | V. Automated test for every acceptance scenario, business rules tested first, CI green, `converge` Converged | Pass | Pass. See Testing strategy and [quickstart.md](./quickstart.md) |
-| VI. Simplest design, responsive web only, no PRD Phase 2 or 3 | Pass. FR-029 excludes payments, invoices, allocation, exports, and version replacement | Pass. No job, queue, object store, or Phase 2 or 3 code. Expired previews are left in place rather than cleaned up by a job |
+| VI. Simplest design, responsive web only, no PRD Phase 2 or 3 | Pass. FR-029 excludes payments, invoices, allocation, exports, and version replacement | Pass. No job, queue, object store, or Phase 2 or 3 code. Preview data is cleared inside the requests that already exist (FR-008e) |
 
 No gate fails. Complexity Tracking is empty.
 
@@ -108,12 +108,13 @@ api/
 │   │   ├── + phone.ts                    # phoneKey, phoneMatches (FR-030)
 │   │   ├── + csv.ts                      # RFC 4180 parse, UTF-8 check
 │   │   ├── + import-headings.ts          # 16 headings, matching, missing and repeated
-│   │   ├── + import-rows.ts              # cell rules, same messages as the vendor form
+│   │   ├── + import-rows.ts              # Zod row schema plus vendor rules, same messages as the vendor form
 │   │   ├── + import-duplicates.ts        # GSTIN and phone, directory and earlier rows
-│   │   ├── + xlsx-read.ts                # exceljs stream, first sheet, stop after 1,001 rows
+│   │   ├── + xlsx-read.ts                # exceljs load(), first sheet, refuse over 1,000 rows
 │   │   ├── + document-content.ts         # extension and byte-signature agreement
 │   │   ├── + history.ts                  # diffFields, recordHistory(tx, …)
 │   │   ├── + permissions.ts              # ADVANCE_RECORDERS, ADVANCE_VIEWERS
+│   │   ├── + dashboard-summary.ts        # presentSummary(role, figures), FR-025 gate
 │   │   ├── + vendor-lock.ts              # pg_advisory_xact_lock(3001)
 │   │   ├── ~ india-date.ts               # currentMonthInIndia
 │   │   ├── ~ files.ts                    # per-route size limits
@@ -128,8 +129,10 @@ api/
 │       └── ~ projects/routes.ts          # history, status filter
 └── tests/
     ├── ~ helpers.ts                      # reset order, fixture builders
-    ├── + fixtures/                       # small hand-made .xls and renamed binaries
+    ├── + fixtures/files.ts               # in-memory CSV, XLSX, PDF, image, OLE, ZIP, and padded buffers
     ├── unit/
+    │   ├── + exceljs-smoke.test.ts       # dependency proof under Node 24
+    │   ├── + money.test.ts               # parsePositiveAmount
     │   ├── + phone.test.ts
     │   ├── + csv.test.ts
     │   ├── + import-headings.test.ts
@@ -137,6 +140,7 @@ api/
     │   ├── + import-duplicates.test.ts
     │   ├── + document-content.test.ts
     │   ├── + history-diff.test.ts
+    │   ├── + dashboard-summary.test.ts   # role outside ADVANCE_VIEWERS gets no money
     │   ├── ~ india-date.test.ts          # month bounds
     │   └── ~ append-only.test.ts         # new insert-only models, no document delete
     └── api/
@@ -197,20 +201,23 @@ Feature 001 changes:
 ### Import flow
 
 1. **Upload** (`POST /vendor-imports/previews`):
+   - Multer refuses a file over 25 MB with 400 `FILE_TOO_LARGE` (FR-003).
+   - Clear the rows of every expired `OPEN` preview with one `UPDATE` (FR-008e).
    - Check the format by extension and content: a ZIP containing `xl/workbook.xml` for `.xlsx`, and valid UTF-8 text for `.csv`. Refuse `.xls`.
    - Read the headings and refuse a missing or repeated required heading.
    - Read up to 1,001 non-blank data rows and refuse more than 1,000.
    - Validate each row with `import-rows.ts`.
-   - Load every vendor's phone, alternate phone, and GSTIN once, and run `import-duplicates.ts` over the directory and the earlier rows.
+   - Load every vendor's phone, alternate phone, and GSTIN once, and run `import-duplicates.ts` over the directory and the earlier rows that are not rejected (FR-006, FR-007).
    - Store the preview with `expires_at = now + 30 min`.
 2. **Confirm**: one transaction (research.md, "Confirmation is one database transaction"):
    - Lock the preview row and handle the confirmed, cancelled, and expired cases.
-   - Take the vendor-identity lock and recheck every row.
+   - Take the vendor-identity lock. Rows rejected in the preview stay rejected. Recheck every other row against the directory.
    - Reuse or create categories ignoring letter case, then create vendors with `import_run_id`, the run, the row outcomes, and history entries. Each vendor gets `CREATED` with `details.import_run_id`, and the run gets `CREATED`.
-   - Mark the preview `CONFIRMED`.
+   - Mark the preview `CONFIRMED` and clear its rows (FR-008e).
 
-   An unexpected error rolls everything back and returns 500 `IMPORT_FAILED`.
-3. **Cancel**: lock the preview row and set it to `CANCELLED` if it is `OPEN`.
+   An unexpected error rolls everything back, including the clearing, and returns 500 `IMPORT_FAILED`. The preview can be retried until it expires.
+3. **Cancel**: lock the preview row. If it is `OPEN` and not expired, set it to `CANCELLED` and clear its rows.
+4. **Expired preview**: view, confirm, and cancel each clear the rows if they are still there, and the clearing is committed before the 409 `PREVIEW_EXPIRED` response is sent. A route never throws the 409 from inside the transaction that does the clearing, because that would roll the clearing back (tasks T044, T045). The marker row (id, owner, status, expiry) stays, so the refusal is specific. The run and its row outcomes are the lasting audit record.
 
 ### Money
 
@@ -242,7 +249,7 @@ Tests cover every role against the record, reverse, and preview-ownership rules,
 
 Feature 001's `HttpError` and `errorMiddleware` are reused.
 - Zod failures return 400 with `fields`.
-- Whole-file import refusals return 400 with a `code`.
+- Whole-file import refusals return 400 with a `code`. Over-size uploads return 400 `FILE_TOO_LARGE`, with `fields.file` naming the limit of the route.
 - Rule refusals return 409 with the codes in the contract.
 - A unique violation on `client_advance_reversals.client_advance_id` is caught in the module and returned as 409 `ALREADY_REVERSED`. The generic Feature 001 `CONFLICT` is not used for it.
 - Confirmation wraps its transaction and turns any non-`HttpError` into 500 `IMPORT_FAILED`.
@@ -279,20 +286,28 @@ Write these unit tests first in `api/tests/unit`, and leave them failing until t
 - **import-duplicates**:
   - a GSTIN match with the directory or with an earlier row is rejected
   - phone matches with the directory and with an earlier row are possible duplicates naming the match
-  - an earlier rejected row still counts (research.md)
+  - an earlier rejected row never blocks a later row: a GSTIN or phone shared with an invalid earlier row leaves the later row `READY`
+  - eligible rows still collide: a GSTIN shared with an earlier `READY` or `POSSIBLE_DUPLICATE` row is rejected, and a shared phone is a possible duplicate
+  - a chain (rejected row 3, ready row 7, row 9) rejects row 9 against row 7
+  - a row rejected in the preview stays rejected at confirmation, even when the row it matched is not approved
   - a confirmation recheck with an approved set gives imported, skipped, and rejected, including a newly arising possible duplicate that was not approved, which is skipped
 - **document-content**:
   - each of the seven accepted kinds passes
   - a renamed `.exe`, `.xls` named `.doc`, `.docx` named `.xlsx`, a JPEG named `.png`, and an empty file are refused
 - **india-date**: `currentMonthInIndia` at 23:59 IST on the last day of a month and at 00:01 IST on the first day of the next.
 - **history-diff**: changed scalars, unchanged scalars left out, list changes compared ignoring order, and no entry for an edit that changes nothing.
+- **dashboard-summary** (`api/tests/unit/dashboard-summary.test.ts`): `presentSummary(role, figures)` includes `client_advances` for every role in `ADVANCE_VIEWERS`, and leaves out `client_advances` and every amount for a role outside it (FR-025).
 
 Then add Supertest cases in `api/tests/api` for every acceptance scenario in US1 to US5, using [contracts/http-api.md](./contracts/http-api.md), and these cases:
 
 - `vendor-import.test.ts`:
   - parallel confirmations with `Promise.all` give one run, the same body, and vendors created once
   - the temporary-trigger failure gives 500 `IMPORT_FAILED`, no vendors, no run, and a preview still `OPEN`
-  - expiry is tested by setting `expires_at` in the past through Prisma
+  - expiry is tested by setting `expires_at` in the past through Prisma. View, confirm, and cancel each give 409 `PREVIEW_EXPIRED`, with no rows in the body and the stored rows cleared
+  - after confirm and after cancel, the stored `rows` is empty, while the run, its counts, and its row outcomes remain (US2-16)
+  - a new upload by another user clears the rows of an expired preview
+  - a 25 MB plus 1 byte `.csv` gives 400 `FILE_TOO_LARGE` and creates no preview (US2-7)
+  - a rejected row followed by a valid row with the same GSTIN imports the valid row (US2-15)
   - another user's view, confirm, and cancel each give 403 and leave the preview unchanged
   - a vendor created between preview and confirmation with a row's GSTIN makes that row `REJECTED`, and with a row's phone makes it `SKIPPED`
   - extra headings are ignored and listed once
@@ -337,7 +352,7 @@ Phone and desktop layout and the timed criteria SC-001 and SC-004 are demonstrat
 
 The order is for `/speckit-tasks`. This command does not write application code.
 
-1. Confirm the `002-timelines-delays` baseline on this branch passes `npm run lint`, `npm run typecheck`, and `npm test` before any change. The spec is committed in 80f7f6f. Commit the FR-008d update and these plan documents with it.
+1. Confirm the `002-timelines-delays` baseline on this branch passes `npm run lint`, `npm run typecheck`, and `npm test` before any change. The spec is committed in 80f7f6f and the first plan in b008ad0. Later updates and `tasks.md` stay uncommitted until the user asks for a commit.
 2. Add `exceljs` and prove it reads a fixture under Node 24.
 3. Prisma schema, migration with the check constraints, test reset order, and seed.
 4. Unit tests, then `phone`, `csv`, `import-headings`, `import-rows`, `import-duplicates`, `document-content`, `history`, and `currentMonthInIndia`.
@@ -352,15 +367,19 @@ The order is for `/speckit-tasks`. This command does not write application code.
 
 ## Product decisions recorded during planning
 
-1. **Only the uploader may view, confirm, or cancel an import preview.** Decided by the product owner on 2026-10-29 at the start of this command. It is recorded in the spec as FR-008d and US2-14.
+All four were decided by the product owner on 2026-10-29 and are recorded in the spec.
+
+1. **Only the uploader may view, confirm, or cancel an import preview** (FR-008d, US2-14). Decided at the start of this command.
+2. **A rejected row never blocks a later row** (FR-006, FR-007, US2-15). In-file matches compare only with earlier rows that are not rejected. Eligible rows still cannot share a GSTIN, and conflicts with existing vendors are still caught. A row rejected in the preview stays rejected at confirmation.
+3. **The import file limit is 25 MB** (FR-003, US2-7), as well as 1,000 rows.
+4. **Expired previews are unusable and preview data is temporary** (FR-008c, FR-008e, US2-11, US2-16):
+   - View, confirm, and cancel refuse an expired preview.
+   - Cell values are cleared on confirm, on cancel, on any request after expiry, and at every upload, so no job is needed.
+   - The run and its row outcomes stay as the audit record.
 
 ## Unresolved items
 
-No product decision is outstanding. These items record how the plan reads the spec, so implementation does not invent a second rule.
-
-1. **Matches within a file compare against every earlier non-blank row, rejected ones included.** FR-006 and FR-007 say "an earlier row" without qualification, so a later row can be flagged against an earlier row that will not be imported. If the product owner wants rejected rows ignored, the change is confined to `import-duplicates.ts` and its tests.
-2. **Size limit for spreadsheet uploads.** The spec limits rows (1,000), not bytes. The upload accepts up to the 25 MB already approved for documents. The streaming reader stops after 1,001 rows, so the work stays bounded.
-3. **An expired preview is kept, not deleted.** No cleanup job is added (Constitution VI). Its rows hold only cell text from the uploaded file.
+None. No product decision is outstanding, and no reading of the spec is left to implementation.
 
 ## Complexity Tracking
 

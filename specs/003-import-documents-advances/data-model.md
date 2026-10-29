@@ -47,8 +47,15 @@ One uploaded file waiting for confirmation (Key Entity: Import preview).
 Rules:
 - Only `created_by` may read, confirm, or cancel the preview (FR-008d).
 - `OPEN` may become `CONFIRMED` or `CANCELLED`. Neither of those changes again.
-- A preview past `expires_at` is treated as expired on every request. It is not deleted.
+- A preview past `expires_at` is treated as expired on every request. It cannot be viewed, confirmed, or cancelled (FR-008c).
 - The raw file is not stored.
+- `rows` is set to `[]` and `ignored_headings` to `{}` (FR-008e):
+  - in the confirm transaction, after the run and row outcomes are written
+  - in the cancel request
+  - on any request for the preview after it expires
+  - at the start of every preview upload, for every expired `OPEN` preview
+
+  The row itself stays as a marker of id, owner, status, and expiry, so later requests get the right refusal. It is never deleted, and no job is involved. Each clearing sets `updated_by` to the signed-in person whose request did it, including when an upload clears someone else's expired preview.
 
 ## vendor_import_runs
 
@@ -77,9 +84,13 @@ The final outcome of one row of a run (Key Entity: Import row outcome). Insert-o
 
 Unique: `(run_id, row_number)`.
 
+Run and row outcomes are the lasting audit record of an import (FR-010, FR-008e). They keep row numbers, outcomes, reasons, and matches, not the cell values of skipped or rejected rows.
+
+Preview outcome within the file (FR-006, FR-007): rows are compared only with earlier rows that are not rejected. A rejected row is never added to the GSTIN or phone index (research.md).
+
 Outcome at confirmation (FR-008):
 - **`IMPORTED`:** a row that is still valid and has no GSTIN duplicate, and is either not a possible duplicate or is a possible duplicate the person approved.
-- **`REJECTED`:** any validation reason, or a GSTIN duplicate.
+- **`REJECTED`:** any row rejected in the preview, which stays rejected, or a row that now fails validation or has a GSTIN duplicate in the directory.
 - **`SKIPPED`:** a possible duplicate that was not approved, including one that first became a possible duplicate at confirmation.
 
 ## documents

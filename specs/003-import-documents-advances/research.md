@@ -14,14 +14,21 @@ No item in the Technical Context of [plan.md](./plan.md) was left as `NEEDS CLAR
 
 **Rationale** (the one-line reason for Constitution Principle II): `.xlsx` is a zipped XML format that Node cannot read without a library, and FR-001 requires it.
 
-- **Streaming read:** `exceljs` has a streaming `WorkbookReader`. The importer reads only the first worksheet and stops once it has seen the header and 1,001 non-blank rows. Work on a hostile or oversized workbook is therefore bounded, even though the upload limit is 25 MB.
+- **Whole-workbook read:** the importer loads the uploaded buffer with `workbook.xlsx.load(buffer)` and reads only the first worksheet.
+  - **Size:** the 25 MB upload limit (FR-003) is checked by multer before the workbook is loaded, so memory and work stay bounded by that limit.
+  - **Rows:** non-blank data rows are counted after loading. A file with more than 1,000 is refused as a whole with `TOO_MANY_ROWS`. The import never keeps the first 1,000 rows and drops the rest.
+- **Streaming reader not used (found in T003, 2026-10-29):** `exceljs`'s streaming `WorkbookReader` was the first choice, because it could stop after 1,001 rows. A workbook written by `exceljs` itself made it throw `TypeError: Cannot read properties of undefined (reading 'sheets')` in `WorkbookReader._parseWorksheet`.
+  - **Cause:** the streaming reader needs the `xl/workbook.xml` part before the worksheet parts. `exceljs` writes that part last, after `xl/worksheets/sheet1.xml`.
+  - **Why it matters:** the `.xlsx` format does not fix the order of parts. So the streaming reader would fail on our own template and on other tools that order parts the same way.
+  - **Fix:** `workbook.xlsx.load(buffer)` read the same file correctly, phone leading zero included.
 - **Template:** the same package writes the blank `.xlsx` template (FR-002), with the phone columns formatted as text so leading zeros survive.
 - **Licence:** MIT.
 - **First task:** prove that the package installs and reads a fixture under Node 24 before any importer code depends on it.
 
 **Alternatives considered**:
 - **SheetJS `xlsx`:** rejected. The npm registry copy is no longer updated; current releases come from the vendor's own CDN.
-- **`read-excel-file`:** rejected. It loads the whole sheet before returning, so the 1,000-row stop cannot cut work short.
+- **`read-excel-file`:** rejected. It is read-only, so writing the template would still need a second package.
+- **Keeping the `exceljs` streaming reader and refusing files whose workbook part comes late:** rejected. It would refuse valid files, including our own template.
 - **Hand-written unzip plus XML parsing:** rejected. It means more code and more risk than one well-used package.
 
 ## Decision: Parse CSV with a small in-house parser
@@ -50,9 +57,18 @@ A pure function of about 40 lines in `api/src/lib/csv.ts`, written test-first, a
   - a status of `OPEN`, `CONFIRMED`, or `CANCELLED`
 - **Raw file:** not kept.
 - **Ownership:** every preview route compares `created_by` with the session user. A different user gets 403 `PREVIEW_NOT_YOURS` and the row is not touched (FR-008d).
-- **Expiry:** checked against the server clock on each request. Expired previews are not deleted. No cleanup job is added (Constitution VI). The rows are small, and expiry is enforced on read.
+- **Expiry:** checked against the server clock on each request. An expired preview cannot be viewed, confirmed, or cancelled (FR-008c).
+- **Cleanup without a job (FR-008e):** a preview row stays as a small marker (id, owner, status, `expires_at`) so a later request still gets the right refusal, `PREVIEW_EXPIRED` or `PREVIEW_CANCELLED`, instead of a bare 404. Its `rows` and `ignored_headings` are set to empty:
+  - inside the confirm transaction, after the run and its row outcomes hold the audit record
+  - inside the cancel request
+  - on any request for that preview once it has expired
+  - at the start of every preview upload, with one `UPDATE … SET rows = '[]' WHERE status = 'OPEN' AND expires_at < now() AND rows <> '[]'` covering everyone's expired previews
+
+  The empty markers are kept rather than deleted. They hold no vendor data, and deleting them would turn a clear refusal into a 404.
 
 **Alternatives considered**:
+- **Keeping expired preview data until a job deletes it:** rejected. A job or timer is new infrastructure (Constitution VI), and opportunistic clearing meets FR-008e.
+- **Deleting preview rows outright:** rejected. A later confirm on that id would return 404, not the expired or cancelled message FR-008c asks for.
 - **Previews in server memory:** rejected. They would be lost on restart and cannot be locked across concurrent requests.
 - **Signed tokens carrying the rows:** rejected. A 1,000-row token is large, and it cannot be marked as used, so FR-008b would fail.
 
@@ -85,11 +101,25 @@ The Feature 001 `assertPhone` changes from an exact SQL match to loading `id, na
 - **A stored normalized phone column:** rejected. It would add a backfill migration and a second source of truth for little gain at this volume.
 - **`regexp_replace` in SQL:** workable, but it would put the rule in two languages.
 
-## Decision: Duplicate checks within a file compare against every earlier non-blank row
+## Decision: Duplicate checks within a file compare only against earlier rows that are not rejected
 
-**Rationale**: FR-006 and FR-007 say "an earlier row of the same file" without qualification. The plan follows the text exactly: a later row matches an earlier row even when the earlier row was rejected for another reason. Two rows that collide therefore always show on the preview, and the person fixes the file once.
+**Rationale**: FR-006 and FR-007, as clarified on 2026-10-29, say a rejected row never blocks a later row. `import-duplicates.ts` walks the rows in file order:
 
-**Alternatives considered**: Ignoring earlier rows that were rejected. Not chosen, because the spec does not say so. If the product owner prefers it, it is a one-line change in `import-duplicates.ts`.
+1. **Validation:** a row that fails validation (FR-005) is rejected and added to no index.
+2. **GSTIN check:** it is checked against the directory's GSTINs and against an index of GSTINs from earlier rows that are not rejected. A hit rejects the row, which is then added to no index.
+3. **Phone check:** the row's phone keys are checked against the directory and against an index of phone keys from earlier rows that are not rejected. A hit makes it a possible duplicate naming the match.
+4. **Indexing:** the row is added to both indexes. A possible duplicate is added too, because it may still be imported.
+
+So two eligible rows can never share a GSTIN, and a phone shared by eligible rows is always shown as a possible duplicate.
+
+At confirmation:
+- **Rows rejected in the preview** stay rejected, whatever happens to the rows around them (FR-008).
+- **Every other row** is rechecked against the directory as it is then.
+- **Within the file**, nothing changes at confirmation, because the file's contents are fixed.
+
+**Alternatives considered**:
+- **Comparing against every earlier row, rejected ones included:** the first draft. Rejected by the product owner, because a row that will never be imported should not block a valid one.
+- **Re-deriving file matches at confirmation from approvals:** for example, letting row 8 import because the row 4 it duplicated was not approved. Rejected. It would import a row the person saw as rejected, against FR-008.
 
 ## Decision: Import headings and cell rules
 
@@ -98,7 +128,7 @@ The Feature 001 `assertPhone` changes from an exact SQL match to loading `id, na
 - **Unknown headings:** ignored, and the preview lists them once.
 - **Refused files:** a repeated heading refuses the file. So does a missing Name, Phone, or Categories heading.
 
-Cell rules mirror the Feature 001 form exactly, with the same messages:
+Cell rules mirror the Feature 001 form exactly, with the same messages. Cells are validated by a Zod row schema plus the Feature 001 GSTIN helpers, because Constitution IV requires a schema library for all input, file contents included:
 
 | Cells | Rule |
 | --- | --- |
@@ -135,7 +165,7 @@ The marker searches are plain byte searches on the uploaded buffer. They tell `.
 
 **Sizes:**
 - The size limit becomes per route. Documents allow 25 MB. Costing sheets keep 10 MB.
-- The import accepts up to the same 25 MB already approved for documents. The real limit is the 1,000-row rule.
+- The import limit is 25 MB (FR-003). Multer refuses a larger file before the workbook is loaded or any row is read. A file over 1,000 non-blank data rows is refused as a whole after reading, with nothing imported.
 - The Feature 001 error middleware's fixed "10 MB" message is replaced by a message carrying each route's own limit.
 
 **Write order:** the file is written before the database row. If the row insert fails, the file is unlinked as a best effort. No document row ever points at a missing file, which covers the edge case "nothing partial is stored".
