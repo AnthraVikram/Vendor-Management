@@ -1,6 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
-import multer from 'multer';
 import { Prisma } from '@prisma/client';
 import { HttpError } from '../lib/http';
 
@@ -12,13 +11,6 @@ export function errorMiddleware(err: unknown, _req: Request, res: Response, _nex
       if (!fields[key]) fields[key] = issue.message;
     }
     res.status(400).json({ message: 'Check the highlighted fields.', fields });
-    return;
-  }
-  if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
-    res.status(400).json({
-      message: 'Check the highlighted fields.',
-      fields: { file: 'The file must be 10 MB or smaller.' },
-    });
     return;
   }
   if (err instanceof HttpError) {

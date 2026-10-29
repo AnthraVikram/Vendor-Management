@@ -228,25 +228,25 @@ Write each listed test so it fails, then implement the task that makes it pass.
 
 ### Business-rule helpers
 
-- [ ] T018 [P] Implement `phoneKey(text)` and `phoneMatches(candidate, others)` in `api/src/lib/phone.ts`. `phoneKey` removes every whitespace character and every `-`. An empty key never matches. There are no Prisma or HTTP imports. Makes T008 pass
-- [ ] T019 [P] Implement `parseCsv(bytes)` in `api/src/lib/csv.ts`: RFC 4180, `TextDecoder('utf-8', { fatal: true })`, BOM dropped, every value kept as text. Makes T009 pass
-- [ ] T020 [P] Implement `IMPORT_HEADINGS` (the 16 FR-002 headings in template order) and `matchHeadings(row)` in `api/src/lib/import-headings.ts`. Makes T010 pass
-- [ ] T021 [P] Implement `validateRow(cells)` in `api/src/lib/import-rows.ts`. Validate the cells with a Zod `importRowSchema` that turns the text cells into the Feature 001 vendor field types: name and phone are trimmed and required, categories need at least one, team size is a whole number of zero or more, and availability and GST registered map to their enums. Collect every Zod issue as a reason. Then apply `gstinProblem` and `normalizeGstin` from `api/src/lib/vendor-rules.ts`. Use the exact Feature 001 messages (Constitution IV). Semicolon lists are trimmed, empty parts dropped, and duplicates removed ignoring letter case. Makes T011 pass
-- [ ] T022 [P] Implement `previewOutcomes` and `confirmOutcomes` in `api/src/lib/import-duplicates.ts`, following `research.md` "Duplicate checks within a file compare only against earlier rows that are not rejected":
+- [X] T018 [P] Implement `phoneKey(text)` and `phoneMatches(candidate, others)` in `api/src/lib/phone.ts`. `phoneKey` removes every whitespace character and every `-`. An empty key never matches. There are no Prisma or HTTP imports. Makes T008 pass
+- [X] T019 [P] Implement `parseCsv(bytes)` in `api/src/lib/csv.ts`: RFC 4180, `TextDecoder('utf-8', { fatal: true })`, BOM dropped, every value kept as text. Makes T009 pass
+- [X] T020 [P] Implement `IMPORT_HEADINGS` (the 16 FR-002 headings in template order) and `matchHeadings(row)` in `api/src/lib/import-headings.ts`. Makes T010 pass
+- [X] T021 [P] Implement `validateRow(cells)` in `api/src/lib/import-rows.ts`. Validate the cells with a Zod `importRowSchema` that turns the text cells into the Feature 001 vendor field types: name and phone are trimmed and required, categories need at least one, team size is a whole number of zero or more, and availability and GST registered map to their enums. Collect every Zod issue as a reason. Then apply `gstinProblem` and `normalizeGstin` from `api/src/lib/vendor-rules.ts`. Use the exact Feature 001 messages (Constitution IV). Semicolon lists are trimmed, empty parts dropped, and duplicates removed ignoring letter case. Makes T011 pass
+- [X] T022 [P] Implement `previewOutcomes` and `confirmOutcomes` in `api/src/lib/import-duplicates.ts`, following `research.md` "Duplicate checks within a file compare only against earlier rows that are not rejected":
   - one pass in file order
   - rejected rows are added to no index
   - possible duplicates are indexed
   - preview-rejected rows stay rejected at confirmation
 
   Depends on T018 and T021. Makes T012 pass
-- [ ] T023 [P] Implement `checkDocumentContent(originalName, bytes)` in `api/src/lib/document-content.ts` using the signature table in `research.md`, with plain byte searches for `word/document.xml`, `xl/workbook.xml`, and the UTF-16LE stream names. Makes T013 pass
-- [ ] T024 [P] Implement `diffFields(before, after, fields)` and `recordHistory(tx, { target, action, actorId, changes?, details? })` in `api/src/lib/history.ts`. `target` is exactly one of `vendorId`, `projectId`, `documentId`, `importRunId`, or `clientAdvanceId`. `recordHistory` sets both audit stamps to the actor. Makes T014 pass
-- [ ] T025 [P] Add `currentMonthInIndia(now = new Date())` to `api/src/lib/india-date.ts`, built on `todayInIndia`. Makes T015 pass
-- [ ] T026 [P] Add `parsePositiveAmount(input, field = 'amount')` to `api/src/lib/money.ts`: the Feature 001 decimal pattern, greater than zero, at most `9999999999999.99`, and the message "Amount must be greater than zero with at most two decimal places." Makes T016 pass
-- [ ] T027 [P] Create two files:
+- [X] T023 [P] Implement `checkDocumentContent(originalName, bytes)` in `api/src/lib/document-content.ts` using the signature table in `research.md`, with plain byte searches for `word/document.xml`, `xl/workbook.xml`, and the UTF-16LE stream names. Makes T013 pass
+- [X] T024 [P] Implement `diffFields(before, after, fields)` and `recordHistory(tx, { target, action, actorId, changes?, details? })` in `api/src/lib/history.ts`. `target` is exactly one of `vendorId`, `projectId`, `documentId`, `importRunId`, or `clientAdvanceId`. `recordHistory` sets both audit stamps to the actor. Makes T014 pass
+- [X] T025 [P] Add `currentMonthInIndia(now = new Date())` to `api/src/lib/india-date.ts`, built on `todayInIndia`. Makes T015 pass
+- [X] T026 [P] Add `parsePositiveAmount(input, field = 'amount')` to `api/src/lib/money.ts`: the Feature 001 decimal pattern, greater than zero, at most `9999999999999.99`, and the message "Amount must be greater than zero with at most two decimal places." Makes T016 pass
+- [X] T027 [P] Create two files:
   - `api/src/lib/permissions.ts`, exporting `ADVANCE_RECORDERS = ['ADMINISTRATOR', 'ACCOUNTANT']` and `ADVANCE_VIEWERS = ['ADMINISTRATOR', 'ACCOUNTANT', 'OFFICE_TEAM']`
   - `api/src/lib/vendor-lock.ts`, exporting `vendorIdentityLock(tx)`, which runs `SELECT pg_advisory_xact_lock(3001)`
-- [ ] T028 Change `api/src/lib/files.ts` and `api/src/middleware/error.ts` so the upload size limit belongs to each route:
+- [X] T028 Change `api/src/lib/files.ts` and `api/src/middleware/error.ts` so the upload size limit belongs to each route:
   - Add `singleUpload(field, maxBytes, label)`, which wraps multer memory storage and turns `LIMIT_FILE_SIZE` into `HttpError(400, 'Check the highlighted fields.', { code: 'FILE_TOO_LARGE', fields: { file: 'The file must be <label> or smaller.' } })`.
   - Switch the Feature 001 costing-sheet route in `api/src/modules/files/routes.ts` to `singleUpload('file', MAX_FILE_BYTES, '10 MB')`, so its message stays "The file must be 10 MB or smaller."
   - Remove the fixed "10 MB" branch from `errorMiddleware`.
@@ -747,3 +747,13 @@ Each story keeps the earlier stories' tests and the Feature 001 and Feature 002 
     - `checkDocumentContent` refuses with `fields.file`, as Feature 001's `inspectUpload` does
   - **Messages not fixed by the spec:** where the spec gives no exact message, as for invalid availability, a bad "GST registered" value, or an unaccepted document type, the tests check that the reason names the field rather than inventing wording.
   - **Whole suites:** API 9 files failing as above, 25 passing, 108 tests passing. Web 11 files, 21 passed, 1 skipped. Lint is clean.
+- T018–T028 (2026-10-29), rule helpers: all 9 rule-test files now pass, with no test changed.
+  - **New wording:** where the spec gave none, the helpers use:
+    - "Availability must be Available, Limited, Unavailable, or blank."
+    - "GST registered must be Yes, No, or blank."
+    - "This GSTIN is already on row N."
+    - "The file must be a PDF, JPG, PNG, Word, or Excel file."
+  - **`vendorIdentityLock`** uses `$executeRaw`, because `pg_advisory_xact_lock` returns `void`, which `$queryRaw` cannot read.
+  - **Temporary check** (3 tests, deleted after the run): two transactions taking the lock ran one after the other, and an oversized costing sheet now returns `code: 'FILE_TOO_LARGE'` with the unchanged message "The file must be 10 MB or smaller."
+  - **`recordHistory`** has no caller yet. Its first use is T032, whose API tests exercise it.
+  - **Full run:** API 34 files, 161 tests passed. Web 11 files, 21 passed, 1 skipped. Typecheck 0 errors. Lint clean.
