@@ -2,22 +2,19 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { Router } from 'express';
-import multer from 'multer';
 import { prisma } from '../../db';
 import { loadConfig } from '../../config';
 import { stampCreate, stampUpdate } from '../../lib/audit';
-import { inspectUpload, MAX_FILE_BYTES } from '../../lib/files';
+import { inspectUpload, MAX_FILE_BYTES, singleUpload } from '../../lib/files';
 import { HttpError } from '../../lib/http';
 import { asyncRoute } from '../async-route';
 import { lockSchedule, presentSchedule } from '../schedules/routes';
-
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_FILE_BYTES } });
 
 export const fileRouter = Router();
 
 fileRouter.post(
   '/schedules/:id/costing-sheet',
-  upload.single('file'),
+  singleUpload('file', MAX_FILE_BYTES, '10 MB'),
   asyncRoute(async (req, res) => {
     const file = req.file;
     if (!file) {

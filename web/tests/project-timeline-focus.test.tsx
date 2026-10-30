@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { ProjectTimeline } from '../src/pages/project-timeline';
 
 function item(id: string, name: string, archived = false) {
@@ -46,7 +46,8 @@ describe('opening a project at a timeline item (US5-6)', () => {
     const target = await screen.findByRole('article', { name: 'Timeline item Wiring' });
     expect(target).toHaveClass('highlighted');
     expect(screen.getByRole('article', { name: 'Timeline item Joinery' })).not.toHaveClass('highlighted');
-    expect(scrollIntoView).toHaveBeenCalled();
+    // The scroll runs in an effect after the article appears; under load that effect can trail the DOM.
+    await waitFor(() => expect(scrollIntoView).toHaveBeenCalled());
     expect(scrollIntoView.mock.contexts[0]).toBe(target);
   });
 

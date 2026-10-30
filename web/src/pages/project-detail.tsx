@@ -1,6 +1,10 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api } from '../api/client';
+import { AdvancesSection } from './advances-section';
+import { DocumentsSection } from './documents-section';
+import { HistoryPanel } from './history-panel';
 import { ProjectTimeline } from './project-timeline';
+import { ArchivedBadge, ProjectStatusBadge } from '../badges';
 
 interface LinkRow {
   id: string;
@@ -72,28 +76,30 @@ function SchedulePricing({ scheduleId, version, onChanged }: { scheduleId: strin
     }
   }
 
-  if (!pricing) return <p>{error || 'Loading pricing'}</p>;
+  if (!pricing) return <p className={error ? 'error' : 'meta'}>{error || 'Loading pricing'}</p>;
   return (
-    <div className="grid">
-      {pricing.current_price ? <p>Fixed price: {pricing.current_price.amount}</p> : null}
-      {pricing.current_file ? (
-        <p>
-          Costing sheet: {pricing.current_file.original_filename}{' '}
-          <a href={`/api/schedules/${scheduleId}/costing-sheets/${pricing.current_file.id}`}>Open costing sheet</a>
-        </p>
-      ) : null}
-      {!pricing.current_price && !pricing.current_file ? <p>Unpriced</p> : null}
-      {pricing.pricing_mode === 'FIXED' ? <button type="button" className="secondary" onClick={() => clear('price/clear')}>Clear price</button> : null}
-      {pricing.pricing_mode === 'FILE' ? <button type="button" className="secondary" onClick={() => clear('costing-sheet/clear')}>Clear costing sheet</button> : null}
+    <div className="grid schedule-pricing">
+      <div className="pricing-current">
+        {pricing.current_price ? <p className="pricing-value">Fixed price: {pricing.current_price.amount}</p> : null}
+        {pricing.current_file ? (
+          <p className="pricing-value">
+            Costing sheet: {pricing.current_file.original_filename}{' '}
+            <a href={`/api/schedules/${scheduleId}/costing-sheets/${pricing.current_file.id}`}>Open costing sheet</a>
+          </p>
+        ) : null}
+        {!pricing.current_price && !pricing.current_file ? <span className="status-badge status-muted">Unpriced</span> : null}
+        {pricing.pricing_mode === 'FIXED' ? <button type="button" className="secondary small" onClick={() => clear('price/clear')}>Clear price</button> : null}
+        {pricing.pricing_mode === 'FILE' ? <button type="button" className="secondary small" onClick={() => clear('costing-sheet/clear')}>Clear costing sheet</button> : null}
+      </div>
       {pricing.price_history.length > 0 ? (
-        <ul aria-label="Price history">
+        <ul className="records meta pricing-history" aria-label="Price history">
           {pricing.price_history.map((entry) => (
             <li key={entry.id}>{entry.amount} · {entry.kind.toLowerCase()} · {entry.author.name} · {day(entry.created_at)}</li>
           ))}
         </ul>
       ) : null}
       {pricing.file_history.length > 0 ? (
-        <ul aria-label="Costing sheet history">
+        <ul className="records meta pricing-history" aria-label="Costing sheet history">
           {pricing.file_history.map((file) => (
             <li key={file.id}>
               <a href={`/api/schedules/${scheduleId}/costing-sheets/${file.id}`}>{file.original_filename}</a> · {file.author.name} · {day(file.created_at)}
@@ -102,7 +108,7 @@ function SchedulePricing({ scheduleId, version, onChanged }: { scheduleId: strin
           ))}
         </ul>
       ) : null}
-      {error ? <p className="error">{error}</p> : null}
+      {error ? <p className="error form-error" role="alert">{error}</p> : null}
     </div>
   );
 }
@@ -134,8 +140,8 @@ export function ScheduleForm({ projectId, vendors, onSaved }: { projectId: strin
   }
 
   return (
-    <form className="card grid" aria-label="Schedule form" onSubmit={submit}>
-      <h2>Schedule work</h2>
+    <form className="card form-2col" aria-label="Schedule form" onSubmit={submit}>
+      <h3 className="span-2">Schedule work</h3>
       <label>
         Vendor
         <select value={vendorId} onChange={(event) => setVendorId(event.target.value)}>
@@ -146,9 +152,11 @@ export function ScheduleForm({ projectId, vendors, onSaved }: { projectId: strin
       <label>Date<input aria-label="Date" type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label>
       <label>Start<input aria-label="Start" value={start} onChange={(event) => setStart(event.target.value)} /></label>
       <label>End<input aria-label="End" value={end} onChange={(event) => setEnd(event.target.value)} /></label>
-      <label>Team size<input aria-label="Team size" value={teamSize} onChange={(event) => setTeamSize(event.target.value)} /></label>
-      <button type="submit">Save schedule</button>
-      {message ? <p>{message}</p> : null}
+      <label>Team size<input aria-label="Team size" inputMode="numeric" value={teamSize} onChange={(event) => setTeamSize(event.target.value)} /></label>
+      <div className="form-actions">
+        <button type="submit">Save schedule</button>
+        {message ? <p role="status">{message}</p> : null}
+      </div>
     </form>
   );
 }
@@ -206,68 +214,137 @@ export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
     load();
   }
 
-  if (!project) return <p>{error || 'Loading project'}</p>;
+  if (!project) return <p className={error ? 'error' : 'meta'}>{error || 'Loading project'}</p>;
+  const vendorName = (vendorIdOfSchedule: string) => project.links.find((link) => link.vendor_id === vendorIdOfSchedule)?.vendor_name;
   return (
     <section className="grid">
-      <h1>{project.name}</h1>
-      <p>{project.status}</p>
-      <button type="button" className="secondary" onClick={async () => {
-        await api(`/api/projects/${id}/${project.archived ? 'restore' : 'archive'}`, { method: 'POST' });
-        load();
-      }}>{project.archived ? 'Restore project' : 'Archive project'}</button>
-      <h2>Links</h2>
-      {project.links.map((link) => (
-        <article className="card" key={link.id}>
-          <p>{link.vendor_name}</p>
-          <p>{link.role_on_project} {link.scope_of_work} {link.note}</p>
-          <button type="button" className="secondary" onClick={() => removeLink(link.id)}>Remove link</button>
-        </article>
-      ))}
-      <form className="card grid" onSubmit={addLink}>
-        <label>
-          Vendor
-          <select value={vendorId} onChange={(event) => setVendorId(event.target.value)}>
-            <option value="">Choose</option>
-            {vendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}
-          </select>
-        </label>
-        <label>Role<input value={role} onChange={(event) => setRole(event.target.value)} /></label>
-        <label>Scope<input value={scope} onChange={(event) => setScope(event.target.value)} /></label>
-        <label>Note<input value={note} onChange={(event) => setNote(event.target.value)} /></label>
-        <button type="submit">Link vendor</button>
-      </form>
-      <h2>Schedules</h2>
-      {project.schedules.map((schedule) => (
-        <article className="card" key={schedule.id} aria-label={`Schedule ${schedule.task}`}>
-          <p>{schedule.task} {schedule.work_date} {schedule.start_time}-{schedule.end_time} team {schedule.required_team_size}</p>
-          {schedule.conflicts.length > 0 ? <p>Conflicts with {schedule.conflicts.map((conflict) => `${conflict.task} (${conflict.project_name})`).join(', ')}</p> : null}
-          <SchedulePricing scheduleId={schedule.id} version={version} onChanged={load} />
-        </article>
-      ))}
-      <ScheduleForm projectId={id} vendors={project.links.map((link) => ({ id: link.vendor_id, name: link.vendor_name }))} onSaved={load} />
-      <form className="card grid" onSubmit={savePrice}>
-        <h2>Fixed price</h2>
-        <label>
-          Schedule
-          <select value={scheduleId} onChange={(event) => setScheduleId(event.target.value)}>
-            {project.schedules.map((schedule) => <option key={schedule.id} value={schedule.id}>{schedule.task}</option>)}
-          </select>
-        </label>
-        <label>Amount<input value={price} onChange={(event) => setPrice(event.target.value)} /></label>
-        <button type="submit">Save price</button>
-      </form>
-      <form className="card grid" onSubmit={upload}>
-        <h2>Costing sheet</h2>
-        <input name="file" type="file" />
-        <button type="submit">Attach file</button>
-      </form>
+      <header className="page-header">
+        <div className="page-title">
+          <p className="eyebrow">Project</p>
+          <h1>{project.name}</h1>
+          <div className="page-meta">
+            <ProjectStatusBadge status={project.status} />
+            {project.archived ? <ArchivedBadge /> : null}
+          </div>
+        </div>
+        <div className="page-actions">
+          <button type="button" className={project.archived ? 'secondary' : 'danger'} onClick={async () => {
+            await api(`/api/projects/${id}/${project.archived ? 'restore' : 'archive'}`, { method: 'POST' });
+            load();
+          }}>{project.archived ? 'Restore project' : 'Archive project'}</button>
+        </div>
+      </header>
+
+      <div className="section">
+        <div className="section-heading">
+          <div>
+            <h2>Links</h2>
+            <span className="count-badge">{project.links.length}</span>
+          </div>
+          <p>Vendors working on this project</p>
+        </div>
+        {project.links.length > 0 ? (
+          <div className="card-list">
+            {project.links.map((link) => (
+              <article className="card grid link-card" key={link.id}>
+                <div className="card-heading">
+                  <p><strong>{link.vendor_name}</strong></p>
+                  {link.vendor_archived ? <ArchivedBadge /> : null}
+                </div>
+                {link.role_on_project || link.scope_of_work || link.note ? (
+                  <p className="meta">{[link.role_on_project, link.scope_of_work, link.note].filter(Boolean).join(' · ')}</p>
+                ) : null}
+                <button type="button" className="danger small" onClick={() => removeLink(link.id)}>Remove link</button>
+              </article>
+            ))}
+          </div>
+        ) : <p className="empty">No vendors linked yet.</p>}
+        <form className="card form-2col" onSubmit={addLink} aria-label="Link a vendor">
+          <h3 className="span-2">Link a vendor</h3>
+          <label>
+            Vendor
+            <select value={vendorId} onChange={(event) => setVendorId(event.target.value)}>
+              <option value="">Choose</option>
+              {vendors.map((vendor) => <option key={vendor.id} value={vendor.id}>{vendor.name}</option>)}
+            </select>
+          </label>
+          <label>Role<input value={role} onChange={(event) => setRole(event.target.value)} /></label>
+          <label>Scope<input value={scope} onChange={(event) => setScope(event.target.value)} /></label>
+          <label>Note<input value={note} onChange={(event) => setNote(event.target.value)} /></label>
+          <div className="form-actions">
+            <button type="submit">Link vendor</button>
+          </div>
+        </form>
+      </div>
+
+      <div className="section">
+        <div className="section-heading">
+          <div>
+            <h2>Schedules</h2>
+            <span className="count-badge">{project.schedules.length}</span>
+          </div>
+          <p>Booked work and how each task is priced</p>
+        </div>
+        {project.schedules.length > 0 ? (
+          <div className="card-list">
+            {project.schedules.map((schedule) => (
+              <article className={`card grid schedule-card${schedule.conflicts.length > 0 ? ' has-conflict' : ''}`} key={schedule.id} aria-label={`Schedule ${schedule.task}`}>
+                <div className="schedule-head">
+                  <h3>{schedule.task}</h3>
+                  {vendorName(schedule.vendor_id) ? <p className="meta">{vendorName(schedule.vendor_id)}</p> : null}
+                </div>
+                <ul className="schedule-facts" aria-label="When">
+                  <li>{schedule.work_date}</li>
+                  <li>{schedule.start_time}-{schedule.end_time}</li>
+                  <li>team {schedule.required_team_size}</li>
+                </ul>
+                {schedule.conflicts.length > 0 ? <p className="notice notice-conflict">Conflicts with {schedule.conflicts.map((conflict) => `${conflict.task} (${conflict.project_name})`).join(', ')}</p> : null}
+                <SchedulePricing scheduleId={schedule.id} version={version} onChanged={load} />
+              </article>
+            ))}
+          </div>
+        ) : <p className="empty">No schedules yet.</p>}
+        <ScheduleForm projectId={id} vendors={project.links.map((link) => ({ id: link.vendor_id, name: link.vendor_name }))} onSaved={load} />
+        <div className="two-up">
+          <form className="card grid" onSubmit={savePrice} aria-label="Fixed price">
+            <h3>Fixed price</h3>
+            <label>
+              Schedule
+              <select value={scheduleId} onChange={(event) => setScheduleId(event.target.value)}>
+                {project.schedules.map((schedule) => <option key={schedule.id} value={schedule.id}>{schedule.task}</option>)}
+              </select>
+            </label>
+            <label>Amount<input inputMode="decimal" value={price} onChange={(event) => setPrice(event.target.value)} /></label>
+            <div className="form-actions"><button type="submit">Save price</button></div>
+          </form>
+          <form className="card grid" onSubmit={upload} aria-label="Costing sheet">
+            <h3>Costing sheet</h3>
+            <p className="meta">Attach a spreadsheet or PDF to the schedule chosen under Fixed price.</p>
+            <label className="dropzone">
+              <span>Spreadsheet or PDF</span>
+              <input name="file" type="file" aria-label="Costing sheet file" />
+            </label>
+            <div className="form-actions"><button type="submit">Attach file</button></div>
+          </form>
+        </div>
+      </div>
+      <AdvancesSection projectId={id} version={version} />
+      <DocumentsSection parent="projects" parentId={id} parentArchived={project.archived} />
       <ProjectTimeline
         projectId={id}
         linkedVendors={project.links.map((link) => ({ id: link.vendor_id, name: link.vendor_name, archived: link.vendor_archived }))}
         version={version}
         itemId={itemId}
       />
-      {error ? <p className="error">{error}</p> : null}
+      {/* Last, as on the vendor page: the record's own history sits below everything it describes. */}
+      <div className="section">
+        <div className="section-heading">
+          <div><h2>History</h2></div>
+          <p>Who created and changed this project</p>
+        </div>
+        <HistoryPanel target="project_id" id={id} label="Project history" />
+      </div>
+      {error ? <p className="error form-error" role="alert">{error}</p> : null}
     </section>
   );
 }

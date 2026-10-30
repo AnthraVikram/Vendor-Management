@@ -71,6 +71,42 @@ enum ResponsibleChangeCause {
   LINK_REMOVED
 }
 
+enum ImportPreviewStatus {
+  OPEN
+  CONFIRMED
+  CANCELLED
+}
+
+enum ImportRowOutcome {
+  IMPORTED
+  SKIPPED
+  REJECTED
+}
+
+enum DocumentType {
+  AGREEMENT
+  DRAWING
+  REGISTRATION_CERTIFICATE
+  PHOTO
+  OTHER
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CHEQUE
+  UPI
+  OTHER
+}
+
+enum HistoryAction {
+  CREATED
+  EDITED
+  ARCHIVED
+  RESTORED
+  REVERSED
+}
+
 model StaffUser {
   id           String    @id @default(uuid()) @db.Uuid
   name         String
@@ -134,6 +170,20 @@ model StaffUser {
   issuesUpdated CoordinationIssue[] @relation("IssueUpdatedBy")
   issueVendorsCreated CoordinationIssueVendor[] @relation("IssueVendorCreatedBy")
   issueVendorsUpdated CoordinationIssueVendor[] @relation("IssueVendorUpdatedBy")
+  importPreviewsCreated VendorImportPreview[] @relation("ImportPreviewCreatedBy")
+  importPreviewsUpdated VendorImportPreview[] @relation("ImportPreviewUpdatedBy")
+  importRunsCreated VendorImportRun[] @relation("ImportRunCreatedBy")
+  importRunsUpdated VendorImportRun[] @relation("ImportRunUpdatedBy")
+  importRowsCreated VendorImportRow[] @relation("ImportRowCreatedBy")
+  importRowsUpdated VendorImportRow[] @relation("ImportRowUpdatedBy")
+  documentsCreated Document[] @relation("DocumentCreatedBy")
+  documentsUpdated Document[] @relation("DocumentUpdatedBy")
+  advancesCreated ClientAdvance[] @relation("AdvanceCreatedBy")
+  advancesUpdated ClientAdvance[] @relation("AdvanceUpdatedBy")
+  reversalsCreated ClientAdvanceReversal[] @relation("ReversalCreatedBy")
+  reversalsUpdated ClientAdvanceReversal[] @relation("ReversalUpdatedBy")
+  historyCreated HistoryEntry[] @relation("HistoryCreatedBy")
+  historyUpdated HistoryEntry[] @relation("HistoryUpdatedBy")
 
   @@map("staff_users")
 }
@@ -185,11 +235,13 @@ model Vendor {
   availability   Availability?
   manpowerNote   String?       @map("manpower_note")
   archived       Boolean       @default(false)
+  importRunId    String?       @map("import_run_id") @db.Uuid
   createdAt      DateTime      @default(now()) @map("created_at")
   createdById    String        @map("created_by") @db.Uuid
   updatedAt      DateTime      @updatedAt @map("updated_at")
   updatedById    String        @map("updated_by") @db.Uuid
 
+  importRun  VendorImportRun? @relation("VendorImportedBy", fields: [importRunId], references: [id], onDelete: Restrict)
   createdBy  StaffUser @relation("VendorCreatedBy", fields: [createdById], references: [id])
   updatedBy  StaffUser @relation("VendorUpdatedBy", fields: [updatedById], references: [id])
   categories VendorCategory[]
@@ -205,6 +257,9 @@ model Vendor {
   responsibleChangesOld TimelineResponsibleChange[] @relation("ResponsibleChangeOldVendor")
   responsibleChangesNew TimelineResponsibleChange[] @relation("ResponsibleChangeNewVendor")
   coordinationIssues    CoordinationIssueVendor[]
+  importRows            VendorImportRow[]
+  documents             Document[]
+  historyEntries        HistoryEntry[]
 
   @@map("vendors")
 }
@@ -350,6 +405,9 @@ model Project {
   timelineItems      TimelineItem[]
   delays             Delay[]
   coordinationIssues CoordinationIssue[]
+  documents          Document[]
+  clientAdvances     ClientAdvance[]
+  historyEntries     HistoryEntry[]
 
   @@map("projects")
 }
@@ -584,4 +642,168 @@ model CoordinationIssueVendor {
 
   @@unique([coordinationIssueId, vendorId])
   @@map("coordination_issue_vendors")
+}
+
+model VendorImportPreview {
+  id              String              @id @default(uuid()) @db.Uuid
+  fileName        String              @map("file_name")
+  fileFormat      String              @map("file_format")
+  status          ImportPreviewStatus @default(OPEN)
+  expiresAt       DateTime            @map("expires_at")
+  rows            Json
+  ignoredHeadings String[]            @default([]) @map("ignored_headings")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  createdById     String              @map("created_by") @db.Uuid
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  updatedById     String              @map("updated_by") @db.Uuid
+
+  run       VendorImportRun?
+  createdBy StaffUser        @relation("ImportPreviewCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy StaffUser        @relation("ImportPreviewUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@map("vendor_import_previews")
+}
+
+model VendorImportRun {
+  id            String   @id @default(uuid()) @db.Uuid
+  previewId     String   @unique @map("preview_id") @db.Uuid
+  fileName      String   @map("file_name")
+  importedCount Int      @map("imported_count")
+  skippedCount  Int      @map("skipped_count")
+  rejectedCount Int      @map("rejected_count")
+  createdAt     DateTime @default(now()) @map("created_at")
+  createdById   String   @map("created_by") @db.Uuid
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  updatedById   String   @map("updated_by") @db.Uuid
+
+  preview        VendorImportPreview @relation(fields: [previewId], references: [id], onDelete: Restrict)
+  rows           VendorImportRow[]
+  vendors        Vendor[]            @relation("VendorImportedBy")
+  historyEntries HistoryEntry[]
+  createdBy      StaffUser           @relation("ImportRunCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      StaffUser           @relation("ImportRunUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@map("vendor_import_runs")
+}
+
+model VendorImportRow {
+  id          String           @id @default(uuid()) @db.Uuid
+  runId       String           @map("run_id") @db.Uuid
+  rowNumber   Int              @map("row_number")
+  outcome     ImportRowOutcome
+  reasons     String[]         @default([])
+  matches     Json             @default("[]")
+  vendorId    String?          @map("vendor_id") @db.Uuid
+  createdAt   DateTime         @default(now()) @map("created_at")
+  createdById String           @map("created_by") @db.Uuid
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  updatedById String           @map("updated_by") @db.Uuid
+
+  run       VendorImportRun @relation(fields: [runId], references: [id], onDelete: Restrict)
+  vendor    Vendor?         @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  createdBy StaffUser       @relation("ImportRowCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy StaffUser       @relation("ImportRowUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@unique([runId, rowNumber])
+  @@map("vendor_import_rows")
+}
+
+model Document {
+  id               String       @id @default(uuid()) @db.Uuid
+  vendorId         String?      @map("vendor_id") @db.Uuid
+  projectId        String?      @map("project_id") @db.Uuid
+  title            String
+  documentType     DocumentType @map("document_type")
+  note             String?
+  originalFilename String       @map("original_filename")
+  mediaType        String       @map("media_type")
+  byteSize         Int          @map("byte_size")
+  storageKey       String       @unique @map("storage_key")
+  archived         Boolean      @default(false)
+  createdAt        DateTime     @default(now()) @map("created_at")
+  createdById      String       @map("created_by") @db.Uuid
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+  updatedById      String       @map("updated_by") @db.Uuid
+
+  vendor         Vendor?        @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  project        Project?       @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  historyEntries HistoryEntry[]
+  createdBy      StaffUser      @relation("DocumentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      StaffUser      @relation("DocumentUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@index([vendorId, archived, createdAt])
+  @@index([projectId, archived, createdAt])
+  @@map("documents")
+}
+
+model ClientAdvance {
+  id            String         @id @default(uuid()) @db.Uuid
+  projectId     String         @map("project_id") @db.Uuid
+  amount        Decimal        @db.Decimal(15, 2)
+  receivedOn    DateTime       @map("received_on") @db.Date
+  paymentMethod PaymentMethod? @map("payment_method")
+  reference     String?
+  note          String?
+  createdAt     DateTime       @default(now()) @map("created_at")
+  createdById   String         @map("created_by") @db.Uuid
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  updatedById   String         @map("updated_by") @db.Uuid
+
+  project        Project                @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  reversal       ClientAdvanceReversal?
+  historyEntries HistoryEntry[]
+  createdBy      StaffUser              @relation("AdvanceCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy      StaffUser              @relation("AdvanceUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@index([projectId, receivedOn])
+  @@index([receivedOn])
+  @@map("client_advances")
+}
+
+model ClientAdvanceReversal {
+  id              String   @id @default(uuid()) @db.Uuid
+  clientAdvanceId String   @unique @map("client_advance_id") @db.Uuid
+  amount          Decimal  @db.Decimal(15, 2)
+  reason          String
+  createdAt       DateTime @default(now()) @map("created_at")
+  createdById     String   @map("created_by") @db.Uuid
+  updatedAt       DateTime @updatedAt @map("updated_at")
+  updatedById     String   @map("updated_by") @db.Uuid
+
+  clientAdvance ClientAdvance @relation(fields: [clientAdvanceId], references: [id], onDelete: Restrict)
+  createdBy     StaffUser     @relation("ReversalCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy     StaffUser     @relation("ReversalUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@map("client_advance_reversals")
+}
+
+model HistoryEntry {
+  id                String        @id @default(uuid()) @db.Uuid
+  vendorId          String?       @map("vendor_id") @db.Uuid
+  projectId         String?       @map("project_id") @db.Uuid
+  documentId        String?       @map("document_id") @db.Uuid
+  vendorImportRunId String?       @map("vendor_import_run_id") @db.Uuid
+  clientAdvanceId   String?       @map("client_advance_id") @db.Uuid
+  action            HistoryAction
+  changes           Json          @default("{}")
+  details           Json          @default("{}")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  createdById       String        @map("created_by") @db.Uuid
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+  updatedById       String        @map("updated_by") @db.Uuid
+
+  vendor          Vendor?          @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  project         Project?         @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  document        Document?        @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  vendorImportRun VendorImportRun? @relation(fields: [vendorImportRunId], references: [id], onDelete: Restrict)
+  clientAdvance   ClientAdvance?   @relation(fields: [clientAdvanceId], references: [id], onDelete: Restrict)
+  createdBy       StaffUser        @relation("HistoryCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy       StaffUser        @relation("HistoryUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@index([vendorId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([documentId, createdAt])
+  @@index([vendorImportRunId, createdAt])
+  @@index([clientAdvanceId, createdAt])
+  @@map("history_entries")
 }

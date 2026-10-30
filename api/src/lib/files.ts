@@ -1,4 +1,6 @@
 import path from 'node:path';
+import type { RequestHandler } from 'express';
+import multer from 'multer';
 import { HttpError } from './http';
 
 export const MAX_FILE_BYTES = 10 * 1024 * 1024;
@@ -9,6 +11,25 @@ const MEDIA: Record<string, string> = {
   '.xls': 'application/vnd.ms-excel',
   '.csv': 'text/csv',
 };
+
+// One uploaded file held in memory, with this route's own size limit and message.
+export function singleUpload(field: string, maxBytes: number, label: string): RequestHandler {
+  const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: maxBytes } }).single(field);
+  return (req, res, next) => {
+    upload(req, res, (error: unknown) => {
+      if (error instanceof multer.MulterError && error.code === 'LIMIT_FILE_SIZE') {
+        next(
+          new HttpError(400, 'Check the highlighted fields.', {
+            code: 'FILE_TOO_LARGE',
+            fields: { file: `The file must be ${label} or smaller.` },
+          }),
+        );
+        return;
+      }
+      next(error);
+    });
+  };
+}
 
 export function inspectUpload(originalName: string, bytes: Buffer): { ext: string; mediaType: string } {
   if (bytes.length === 0) {

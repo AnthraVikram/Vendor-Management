@@ -1,7 +1,11 @@
 import { randomUUID } from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import request from 'supertest';
 import type { ResponsibleKind, StaffRole, TimelineItemType, TimelineStatus } from '@prisma/client';
 import { createApp } from '../src/app';
+import { loadConfig, resetConfigForTests } from '../src/config';
 import { prisma } from '../src/db';
 import { hashPassword } from '../src/lib/passwords';
 import { addDays, todayInIndia } from '../src/lib/india-date';
@@ -9,6 +13,14 @@ import { addDays, todayInIndia } from '../src/lib/india-date';
 export const app = createApp();
 
 export async function resetDatabase(): Promise<void> {
+  await prisma.historyEntry.deleteMany();
+  await prisma.clientAdvanceReversal.deleteMany();
+  await prisma.clientAdvance.deleteMany();
+  await prisma.document.deleteMany();
+  await prisma.vendorImportRow.deleteMany();
+  await prisma.vendor.updateMany({ data: { importRunId: null } });
+  await prisma.vendorImportRun.deleteMany();
+  await prisma.vendorImportPreview.deleteMany();
   await prisma.coordinationIssueVendor.deleteMany();
   await prisma.coordinationIssue.deleteMany();
   await prisma.delay.deleteMany();
@@ -152,4 +164,73 @@ export async function insertProgressUpdate(input: {
 
 export function indiaNoon(date: string): Date {
   return new Date(`${date}T06:30:00Z`);
+}
+
+// A fresh, empty FILE_STORAGE_DIR for the next test; the previous one is removed.
+let testStorageDir: string | undefined;
+export function resetFileStorage(): string {
+  if (testStorageDir) fs.rmSync(testStorageDir, { recursive: true, force: true });
+  testStorageDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vendor-management-test-files-'));
+  process.env.FILE_STORAGE_DIR = testStorageDir;
+  resetConfigForTests();
+  return testStorageDir;
+}
+
+// The 15th of the month n months away from the current India Standard Time month.
+export function monthOffset(months: number): string {
+  const [year, month] = todayInIndia().split('-').map(Number);
+  const index = year * 12 + (month - 1) + months;
+  const y = Math.floor(index / 12);
+  const m = (index % 12) + 1;
+  return `${y}-${String(m).padStart(2, '0')}-15`;
+}
+
+export async function createAdvance(input: { projectId: string; amount: string; receivedOn: string; actorId: string }) {
+  return prisma.clientAdvance.create({
+    data: {
+      projectId: input.projectId,
+      amount: input.amount,
+      receivedOn: new Date(`${input.receivedOn}T00:00:00Z`),
+      createdById: input.actorId,
+      updatedById: input.actorId,
+    },
+  });
+}
+
+export async function reverseAdvance(input: { advanceId: string; reason: string; actorId: string; createdAt?: Date }) {
+  const advance = await prisma.clientAdvance.findUniqueOrThrow({ where: { id: input.advanceId } });
+  return prisma.clientAdvanceReversal.create({
+    data: {
+      clientAdvanceId: advance.id,
+      amount: advance.amount,
+      reason: input.reason,
+      createdAt: input.createdAt,
+      createdById: input.actorId,
+      updatedById: input.actorId,
+    },
+  });
+}
+
+// Inserts a document row and writes its bytes under FILE_STORAGE_DIR, so the row never points at a missing file.
+export async function createDocument(input: { actorId: string; vendorId?: string; projectId?: string; archived?: boolean }) {
+  const bytes = Buffer.from('%PDF-1.4\n% test document\n');
+  const storageKey = `${randomUUID()}.pdf`;
+  const directory = path.resolve(loadConfig().FILE_STORAGE_DIR);
+  fs.mkdirSync(directory, { recursive: true });
+  fs.writeFileSync(path.join(directory, storageKey), bytes);
+  return prisma.document.create({
+    data: {
+      vendorId: input.vendorId ?? null,
+      projectId: input.projectId ?? null,
+      title: 'Test document',
+      documentType: 'OTHER',
+      originalFilename: 'test.pdf',
+      mediaType: 'application/pdf',
+      byteSize: bytes.length,
+      storageKey,
+      archived: input.archived ?? false,
+      createdById: input.actorId,
+      updatedById: input.actorId,
+    },
+  });
 }

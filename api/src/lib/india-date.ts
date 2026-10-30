@@ -31,6 +31,14 @@ export function toDateColumn(date: string): Date {
   return new Date(`${date}T00:00:00Z`);
 }
 
+// The current India Standard Time calendar month as [start, end): first day of this month to first day of next.
+export function currentMonthInIndia(now: Date = new Date()): { start: string; end: string; label: string } {
+  const [year, month] = todayInIndia(now).split('-').map(Number);
+  const next = month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
+  const label = `${year}-${String(month).padStart(2, '0')}`;
+  return { start: `${label}-01`, end: `${next.year}-${String(next.month).padStart(2, '0')}-01`, label };
+}
+
 export function fromDateColumn(value: Date): string {
   return value.toISOString().slice(0, 10);
 }

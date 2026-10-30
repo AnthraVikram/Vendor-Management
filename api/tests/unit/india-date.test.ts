@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addDays, daysBetween, indiaDateOf, todayInIndia } from '../../src/lib/india-date';
+import { addDays, currentMonthInIndia, daysBetween, indiaDateOf, todayInIndia } from '../../src/lib/india-date';
 
 describe('india date', () => {
   it('rolls over to the next date at midnight India Standard Time', () => {
@@ -18,5 +18,10 @@ describe('india date', () => {
     expect(daysBetween('2026-10-25', '2026-10-28')).toBe(3);
     expect(daysBetween('2026-10-30', '2026-11-02')).toBe(3);
     expect(daysBetween('2026-11-02', '2026-10-30')).toBe(-3);
+  });
+
+  it('gives the current India Standard Time month as a half-open date range', () => {
+    expect(currentMonthInIndia(new Date('2026-10-31T18:29:00Z'))).toEqual({ start: '2026-10-01', end: '2026-11-01', label: '2026-10' });
+    expect(currentMonthInIndia(new Date('2026-10-31T18:31:00Z'))).toEqual({ start: '2026-11-01', end: '2026-12-01', label: '2026-11' });
   });
 });

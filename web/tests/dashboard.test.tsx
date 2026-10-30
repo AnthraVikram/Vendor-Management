@@ -1,13 +1,16 @@
 import { render, screen, within } from '@testing-library/react';
 import { Dashboard } from '../src/pages/dashboard';
 
+// Feature 003 added the summary tiles, which ask for /api/dashboard/summary; every other URL gets `body`.
+const summary = { vendors: { active: 0 }, projects: { PLANNED: 0, ACTIVE: 0, ON_HOLD: 0, COMPLETED: 0 } };
+
 function respond(body: unknown) {
-  return vi.fn().mockResolvedValue({
+  return vi.fn(async (input: RequestInfo) => ({
     ok: true,
     status: 200,
     headers: { get: () => 'application/json' },
-    json: async () => body,
-  });
+    json: async () => (String(input) === '/api/dashboard/summary' ? summary : body),
+  }));
 }
 
 const project = { id: 'p1', name: 'Lake House' };

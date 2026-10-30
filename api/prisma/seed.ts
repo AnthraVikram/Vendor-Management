@@ -4,7 +4,8 @@ import path from 'node:path';
 import { PrismaClient, type StaffRole } from '@prisma/client';
 import { hashPassword } from '../src/lib/passwords';
 import { stampCreate } from '../src/lib/audit';
-import { addDays, toDateColumn, todayInIndia } from '../src/lib/india-date';
+import { recordHistory } from '../src/lib/history';
+import { addDays, currentMonthInIndia, toDateColumn, todayInIndia } from '../src/lib/india-date';
 
 const prisma = new PrismaClient();
 
@@ -45,7 +46,7 @@ async function main() {
   }
   const admin = await staff('admin@example.com', 'Asha Admin', 'ADMINISTRATOR', adminPassword);
   const office = await staff('office@example.com', 'Omar Office', 'OFFICE_TEAM', officePassword, admin.id);
-  await staff('accountant@example.com', 'Anil Accountant', 'ACCOUNTANT', accountantPassword, admin.id);
+  const accountant = await staff('accountant@example.com', 'Anil Accountant', 'ACCOUNTANT', accountantPassword, admin.id);
 
   const carpentry = await category('Carpentry', admin.id);
   const electrical = await category('Electrical', admin.id);
@@ -255,6 +256,70 @@ async function main() {
       },
     });
   }
+
+  // Client advances (data-model.md, Seed additions). Found again by project, amount, and a fixed seed
+  // reference, so rerunning the seed on a later day does not add rows even though dates are relative.
+  const lastMonth = addDays(currentMonthInIndia().start, -10);
+  async function advance(input: {
+    projectId: string;
+    amount: string;
+    receivedOn: string;
+    reference: string;
+    paymentMethod: 'BANK_TRANSFER' | 'UPI' | 'CHEQUE';
+    reversalReason?: string;
+  }) {
+    let row = await prisma.clientAdvance.findFirst({
+      where: { projectId: input.projectId, amount: input.amount, reference: input.reference },
+      include: { reversal: true },
+    });
+    if (!row) {
+      row = await prisma.$transaction(async (tx) => {
+        const created = await tx.clientAdvance.create({
+          data: {
+            projectId: input.projectId,
+            amount: input.amount,
+            receivedOn: toDateColumn(input.receivedOn),
+            paymentMethod: input.paymentMethod,
+            reference: input.reference,
+            ...stampCreate(accountant.id),
+          },
+          include: { reversal: true },
+        });
+        await recordHistory(tx, {
+          target: { clientAdvanceId: created.id },
+          action: 'CREATED',
+          actorId: accountant.id,
+          details: { amount: input.amount, received_on: input.receivedOn },
+        });
+        return created;
+      });
+    }
+    if (input.reversalReason && !row.reversal) {
+      const reason = input.reversalReason;
+      const advanceId = row.id;
+      await prisma.$transaction(async (tx) => {
+        await tx.clientAdvanceReversal.create({
+          data: { clientAdvanceId: advanceId, amount: input.amount, reason, ...stampCreate(accountant.id) },
+        });
+        await recordHistory(tx, {
+          target: { clientAdvanceId: advanceId },
+          action: 'REVERSED',
+          actorId: accountant.id,
+          details: { amount: input.amount, reason },
+        });
+      });
+    }
+  }
+  await advance({ projectId: lake.id, amount: '150000.00', receivedOn: today, reference: 'SEED-ADV-1', paymentMethod: 'UPI' });
+  await advance({
+    projectId: lake.id,
+    amount: '100000.00',
+    receivedOn: lastMonth,
+    reference: 'SEED-ADV-2',
+    paymentMethod: 'BANK_TRANSFER',
+    reversalReason: 'Entered against the wrong project.',
+  });
+  await advance({ projectId: studio.id, amount: '75000.00', receivedOn: lastMonth, reference: 'SEED-ADV-3', paymentMethod: 'CHEQUE' });
 }
 
 main()
