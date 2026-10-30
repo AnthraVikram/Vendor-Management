@@ -14,6 +14,8 @@ describe('vendor filters', () => {
     vi.stubGlobal('fetch', fetchMock);
     render(<Vendors openVendor={() => undefined} />);
     const filters = await screen.findByRole('form', { name: 'Vendor filters' });
+    // The form renders at once, but its category options arrive with a separate request.
+    await within(filters).findByRole('option', { name: 'Carpentry' });
     await userEvent.selectOptions(within(filters).getByRole('combobox', { name: 'Category' }), 'cat-1');
     await userEvent.type(within(filters).getByRole('textbox', { name: 'Location' }), 'Chennai');
     await userEvent.click(screen.getByRole('button', { name: 'Apply filters' }));

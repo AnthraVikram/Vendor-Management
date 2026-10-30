@@ -209,4 +209,44 @@ describe('vendors', () => {
     expect((await session.client.post(`/api/vendors/${vendor.id}/notes`).send({ note_type: 'GENERAL', body: '   ' })).status).toBe(400);
     expect((await session.client.get(`/api/vendors/${vendor.id}`)).body.rating_history).toHaveLength(2);
   });
+
+  it('matches phones ignoring spaces and dashes, across phone and alternate phone (FR-030, US2-13, SC-011)', async () => {
+    await createUser({ email: 'admin@example.com' });
+    const session = await signIn('admin@example.com');
+    const category = await session.client.post('/api/categories').send({ name: 'Tiles' });
+    const vendor = (body: Record<string, unknown>): Record<string, unknown> => ({ category_ids: [category.body.id], ...body });
+
+    const spaced = await session.client.post('/api/vendors').send(vendor({ name: 'Spaced', phone: '98765 43210' }));
+    expect(spaced.status).toBe(201);
+    const withAlternate = await session.client.post('/api/vendors').send(vendor({ name: 'Alternate', phone: '90000 00001', alternate_phone: '91111 22222' }));
+    expect(withAlternate.status).toBe(201);
+    const plain = await session.client.post('/api/vendors').send(vendor({ name: 'Plain', phone: '93333 44444' }));
+    expect(plain.status).toBe(201);
+
+    const clashes = [
+      { body: vendor({ name: 'Dashed', phone: '98765-43210' }), matched: spaced.body },
+      { body: vendor({ name: 'Phone is their alternate', phone: '91111-22222' }), matched: withAlternate.body },
+      { body: vendor({ name: 'Alternate is their phone', phone: '95555 00000', alternate_phone: '93333-44444' }), matched: plain.body },
+    ];
+    for (const { body, matched } of clashes) {
+      const refused = await session.client.post('/api/vendors').send(body);
+      expect(refused.status, String(body.name)).toBe(409);
+      expect(refused.body.code).toBe('PHONE_IN_USE');
+      expect(refused.body.matches).toEqual([{ id: matched.id, name: matched.name }]);
+      const confirmed = await session.client.post('/api/vendors').send({ ...body, confirm_duplicate_phone: true });
+      expect(confirmed.status, String(body.name)).toBe(201);
+    }
+
+    const editClash = vendor({ name: 'Plain', phone: '98765-43210' });
+    const editRefused = await session.client.patch(`/api/vendors/${plain.body.id}`).send(editClash);
+    expect(editRefused.status).toBe(409);
+    expect(editRefused.body.code).toBe('PHONE_IN_USE');
+    expect(editRefused.body.matches).toContainEqual({ id: spaced.body.id, name: 'Spaced' });
+    expect((await session.client.patch(`/api/vendors/${plain.body.id}`).send({ ...editClash, confirm_duplicate_phone: true })).status).toBe(200);
+
+    const ownPair = await session.client.post('/api/vendors').send(vendor({ name: 'Own pair', phone: '97777 88888', alternate_phone: '97777-88888' }));
+    expect(ownPair.status).toBe(201);
+    const ownEdit = await session.client.patch(`/api/vendors/${ownPair.body.id}`).send(vendor({ name: 'Own pair', phone: '97777-88888', alternate_phone: '97777 88888' }));
+    expect(ownEdit.status).toBe(200);
+  });
 });

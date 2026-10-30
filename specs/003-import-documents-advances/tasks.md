@@ -323,7 +323,7 @@ Write each listed test so it fails, then implement the task that makes it pass.
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T036 [P] [US2] Change `api/tests/api/vendors.test.ts` to add FR-030 cases (US2-13, SC-011). The existing duplicate-phone tests must still pass unchanged.
+- [X] T036 [P] [US2] Change `api/tests/api/vendors.test.ts` to add FR-030 cases (US2-13, SC-011). The existing duplicate-phone tests must still pass unchanged.
   - **Gives 409 `PHONE_IN_USE` naming the vendor:**
     - create with `"98765-43210"` when a vendor has `"98765 43210"`
     - create whose phone equals another vendor's alternate phone written with spaces
@@ -331,7 +331,7 @@ Write each listed test so it fails, then implement the task that makes it pass.
     - an edit that introduces a match
   - **Saves:** the same requests with `confirm_duplicate_phone: true`.
   - **No match:** a vendor whose own phone and alternate phone match each other
-- [ ] T037 [US2] Write the preview cases in `api/tests/api/vendor-import.test.ts` (US2-1 to US2-4, US2-7, US2-15):
+- [X] T037 [US2] Write the preview cases in `api/tests/api/vendor-import.test.ts` (US2-1 to US2-4, US2-7, US2-15):
   - **Templates:** both templates return the 16 headings, and the `.xlsx` Phone column is text.
   - **Mixed file:** `vendors-mixed.csv` gives the outcomes listed in quickstart step 9, with row numbers and named matches, and the vendor count is unchanged.
   - **`vendors-rejected-then-valid.csv`:** row 2 `REJECTED`, row 3 `READY`, and row 4 `REJECTED` against row 3.
@@ -348,7 +348,7 @@ Write each listed test so it fails, then implement the task that makes it pass.
     - an invalid UTF-8 CSV gives `UNSUPPORTED_FORMAT`
   - **Blank rows:** they are not listed and not counted
   - **Same rule as the form:** the phone pairs used in T036 give `POSSIBLE_DUPLICATE` here, naming the same vendor, so the form and the import flag the same duplicates (SC-011)
-- [ ] T038 [US2] Add the confirmation cases to `api/tests/api/vendor-import.test.ts` (US2-5, US2-6, US2-8, US2-9, US2-10, US2-12; FR-008 to FR-008b, FR-010, FR-011):
+- [X] T038 [US2] Add the confirmation cases to `api/tests/api/vendor-import.test.ts` (US2-5, US2-6, US2-8, US2-9, US2-10, US2-12; FR-008 to FR-008b, FR-010, FR-011):
   - **Mixed-file confirmation:** confirming the mixed file with only the dashed-phone row in `approved_rows` gives 201 with 2 imported, 1 skipped, and 2 rejected, each with its reason. New categories exist once, matched ignoring letter case and spaces. Each imported vendor has `import_run_id`. Each gets one `CREATED` history row with `details.import_run_id`, and the run gets one `CREATED` row.
   - **Repeat confirmation:** a second sequential confirmation gives 200 with the same run id and body. Two parallel confirmations via `Promise.all` give one run and one set of vendors.
   - **Recheck at confirmation:**
@@ -358,14 +358,14 @@ Write each listed test so it fails, then implement the task that makes it pass.
   - **Forced failure:** a temporary trigger that `RAISE`s on insert into `vendor_import_runs`, created and dropped in the test, gives 500 `IMPORT_FAILED` with "The import did not happen. Nothing was saved.", zero new vendors, zero runs, and a preview still `OPEN` with its rows intact.
   - **No changes to existing vendors:** existing vendors are never changed.
   - **History:** `GET /vendor-imports` lists the run with who, when, file name, and counts, and `GET /vendor-imports/:runId` returns the row outcomes
-- [ ] T039 [US2] Add the lifecycle cases to `api/tests/api/vendor-import.test.ts` (US2-6, US2-11, US2-14, US2-16; FR-008c to FR-008e):
+- [X] T039 [US2] Add the lifecycle cases to `api/tests/api/vendor-import.test.ts` (US2-6, US2-11, US2-14, US2-16; FR-008c to FR-008e):
   - **Cancel:** gives 200 and clears the stored `rows` to `[]`. Afterwards, view and confirm give 409 `PREVIEW_CANCELLED`, and no vendor is created.
   - **Expiry:** with `expires_at` set 31 minutes in the past through Prisma, view, confirm, and cancel each give 409 `PREVIEW_EXPIRED`, return no rows in the body, and leave the stored `rows` empty.
   - **Clearing on upload:** another expired preview owned by someone else has its stored `rows` cleared when a new upload by a different user arrives.
   - **After confirmation:** the stored `rows` is `[]`, while `vendor_import_runs` and `vendor_import_rows` keep counts, numbers, outcomes, and reasons.
   - **Ownership:** an Accountant viewing, confirming, or cancelling an Office Team member's preview gets 403 `PREVIEW_NOT_YOURS`, and the preview row is byte-for-byte unchanged.
   - **Signed out:** 401 on every import route
-- [ ] T040 [P] [US2] Write `web/tests/vendor-import.test.tsx`:
+- [X] T040 [P] [US2] Write `web/tests/vendor-import.test.tsx`:
   - the preview table shows outcome badges, reasons, and named matches
   - checkboxes appear only on `POSSIBLE_DUPLICATE` rows
   - confirm posts `approved_rows` with the ticked row numbers
@@ -375,18 +375,18 @@ Write each listed test so it fails, then implement the task that makes it pass.
 
 ### Implementation for User Story 2
 
-- [ ] T041 [US2] Change `api/src/modules/vendors/routes.ts`. Request and response shapes stay unchanged.
+- [X] T041 [US2] Change `api/src/modules/vendors/routes.ts`. Request and response shapes stay unchanged.
   - `assertPhone` loads `id, name, phone, alternate_phone` for all vendors (archived included), then calls `phoneMatches` for both the submitted phone and alternate phone.
   - Vendor create and `PATCH` run in one `prisma.$transaction` that first calls `vendorIdentityLock(tx)`, then the GSTIN and phone checks, then the write.
   - `presentVendor` adds `import_run: { id, file_name, created_at } | null` (FR-010).
 
   Makes T036 pass
-- [ ] T042 [P] [US2] Create `api/src/lib/xlsx-read.ts`, exporting `readImportFile(originalName, bytes)`, which returns `{ format, headingRow, rows: [{ row_number, cells }] }`:
+- [X] T042 [P] [US2] Create `api/src/lib/xlsx-read.ts`, exporting `readImportFile(originalName, bytes)`, which returns `{ format, headingRow, rows: [{ row_number, cells }] }`:
   - **`.xlsx`:** the bytes must start with `PK` and contain `xl/workbook.xml`. The 25 MB limit has already been checked by the upload route (T043) before this function is called. Load the buffer with `new ExcelJS.Workbook().xlsx.load(bytes)`, not the streaming `WorkbookReader` (research.md), and read only the first worksheet. A whole numeric cell becomes its integer text. A file that fails to load gives 400 `UNSUPPORTED_FORMAT`.
   - **`.csv`:** use `parseCsv`.
   - **Refusals:** `.xls` or any other extension gives 400 `UNSUPPORTED_FORMAT`. A missing heading row or zero data rows gives `EMPTY_FILE`. More than 1,000 non-blank data rows gives `TOO_MANY_ROWS`, for `.xlsx` and `.csv` alike. The whole file is refused and no rows are returned; the first 1,000 are never kept and the rest dropped.
   - **Row numbers** count the heading row as row 1
-- [ ] T043 [US2] Create `api/src/modules/vendor-imports/routes.ts` with:
+- [X] T043 [US2] Create `api/src/modules/vendor-imports/routes.ts` with:
   - **`GET /vendor-imports/template?format=xlsx|csv`:** the `IMPORT_HEADINGS`, sent as an attachment. In the `.xlsx` template, Phone and Alternate phone are formatted as text.
   - **`POST /vendor-imports/previews`:**
     - `singleUpload('file', 25 * 1024 * 1024, '25 MB')` (FR-003)
@@ -395,7 +395,7 @@ Write each listed test so it fails, then implement the task that makes it pass.
     - one query for every vendor's `id, name, phone, alternate_phone, gstin`, then `previewOutcomes`
     - store the preview with `expires_at = now + 30 minutes`
     - return 201 in the contract shape, with `counts`, `ignored_headings`, and `rows` including `cells`
-- [ ] T044 [US2] Add to `api/src/modules/vendor-imports/routes.ts`.
+- [X] T044 [US2] Add to `api/src/modules/vendor-imports/routes.ts`.
 
   **Expiry rule for every preview route (FR-008e):** clearing an expired preview is a write of its own, and it must be committed before the 409 `PREVIEW_EXPIRED` response is sent.
   - Never throw the 409 from inside a transaction that also does the clearing, because the throw would roll the clearing back.
@@ -414,7 +414,7 @@ Write each listed test so it fails, then implement the task that makes it pass.
     - expired: clear `rows` and `ignored_headings` if not empty, leave `status` as `OPEN`, return `EXPIRED` without throwing, and give 409 `PREVIEW_EXPIRED` with no rows after the transaction commits
     - `CONFIRMED`: 409 `PREVIEW_CONFIRMED`, with no write
     - already `CANCELLED`: 200, with no write
-- [ ] T045 [US2] Add `POST /vendor-imports/previews/:id/confirm` to `api/src/modules/vendor-imports/routes.ts`. Zod body: `approved_rows`, an array of positive integers. Steps:
+- [X] T045 [US2] Add `POST /vendor-imports/previews/:id/confirm` to `api/src/modules/vendor-imports/routes.ts`. Zod body: `approved_rows`, an array of positive integers. Steps:
   1. Owner check, giving 403 `PREVIEW_NOT_YOURS`.
   2. One `prisma.$transaction` with `{ timeout: 60_000, maxWait: 10_000 }`:
      - `SELECT … FOR UPDATE` on the preview
@@ -431,8 +431,8 @@ Write each listed test so it fails, then implement the task that makes it pass.
   3. Return 201.
 
   Wrap the transaction so any non-`HttpError` becomes 500 `IMPORT_FAILED`. Never update an existing vendor (FR-011)
-- [ ] T046 [US2] Add `GET /vendor-imports` (newest first) and `GET /vendor-imports/:runId` (`{ run, rows }`) to `api/src/modules/vendor-imports/routes.ts`. Mount `vendorImportRouter` under `/api` in `api/src/app.ts`. Makes T037, T038, and T039 pass
-- [ ] T047 [US2] Create `web/src/pages/vendor-import.tsx`:
+- [X] T046 [US2] Add `GET /vendor-imports` (newest first) and `GET /vendor-imports/:runId` (`{ run, rows }`) to `api/src/modules/vendor-imports/routes.ts`. Mount `vendorImportRouter` under `/api` in `api/src/app.ts`. Makes T037, T038, and T039 pass
+- [X] T047 [US2] Create `web/src/pages/vendor-import.tsx`:
   - template download links and a file upload
   - a preview table with row number, name, badge, reasons, and matches, with a checkbox only on possible duplicates
   - a line "Confirm before <expires_at local time> or upload again"
@@ -441,7 +441,7 @@ Write each listed test so it fails, then implement the task that makes it pass.
   - a message for each refusal code
 
   Makes T040 pass
-- [ ] T048 [US2] Create `web/src/pages/vendor-imports.tsx`, a run list with who, when, file, and counts, plus a run detail with row outcomes. Change `web/src/main.tsx` to add routes `#/vendors/import` and `#/vendor-imports` and an "Import vendors" link on the vendors page. Change `web/src/pages/vendor-detail.tsx` to show "Imported in <file> on <date>" when `import_run` is set
+- [X] T048 [US2] Create `web/src/pages/vendor-imports.tsx`, a run list with who, when, file, and counts, plus a run detail with row outcomes. Change `web/src/main.tsx` to add routes `#/vendors/import` and `#/vendor-imports` and an "Import vendors" link on the vendors page. Change `web/src/pages/vendor-detail.tsx` to show "Imported in <file> on <date>" when `import_run` is set
 
 **Checkpoint**: US2 works alone. Quickstart API steps 8–18 pass.
 
@@ -457,7 +457,7 @@ Write each listed test so it fails, then implement the task that makes it pass.
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T049 [P] [US3] Write `api/tests/api/documents.test.ts` covering US3-1 to US3-7:
+- [X] T049 [P] [US3] Write `api/tests/api/documents.test.ts` covering US3-1 to US3-7:
   - **Upload and download:**
     - upload a PDF to a vendor and a JPEG to a project with a title and `document_type`, and get 201 in the contract shape
     - download gives bytes equal to the upload, with `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`
@@ -470,7 +470,7 @@ Write each listed test so it fails, then implement the task that makes it pass.
     - upload, archive, and restore each give 409 `PARENT_ARCHIVED`
     - a document archived before its parent was archived stays archived and readable
   - **History:** upload, archive, and restore each write one history row (`CREATED`, `ARCHIVED`, `RESTORED`) with `document_id`
-- [ ] T050 [P] [US3] Write `web/tests/documents-section.test.tsx`:
+- [X] T050 [P] [US3] Write `web/tests/documents-section.test.tsx`:
   - the list shows title, type, file name, size, uploader, and time
   - the "Show archived" toggle adds `include_archived=true`
   - each 400 field message appears beside its field
@@ -479,7 +479,7 @@ Write each listed test so it fails, then implement the task that makes it pass.
 
 ### Implementation for User Story 3
 
-- [ ] T051 [US3] Create `api/src/modules/documents/routes.ts`:
+- [X] T051 [US3] Create `api/src/modules/documents/routes.ts`:
   - **Upload, `POST /vendors/:id/documents` and `POST /projects/:id/documents`:**
     - `singleUpload('file', 25 * 1024 * 1024, '25 MB')`
     - Zod for `title` "Required. Trimmed, at least 1 character", `document_type` (`DocumentType`), and `note` optional
@@ -492,8 +492,8 @@ Write each listed test so it fails, then implement the task that makes it pass.
   - **No delete route**
 
   Makes T049 pass
-- [ ] T052 [US3] Change `api/src/app.ts` to mount `documentRouter` under `/api`
-- [ ] T053 [US3] Create `web/src/pages/documents-section.tsx`, with an upload form (file, title, type, note), a list with download links, a "Show archived" toggle, and archive and restore buttons hidden when the parent is archived. Change `web/src/pages/vendor-detail.tsx` and `web/src/pages/project-detail.tsx` to render it. Makes T050 pass
+- [X] T052 [US3] Change `api/src/app.ts` to mount `documentRouter` under `/api`
+- [X] T053 [US3] Create `web/src/pages/documents-section.tsx`, with an upload form (file, title, type, note), a list with download links, a "Show archived" toggle, and archive and restore buttons hidden when the parent is archived. Change `web/src/pages/vendor-detail.tsx` and `web/src/pages/project-detail.tsx` to render it. Makes T050 pass
 
 **Checkpoint**: US3 works alone. Quickstart API steps 19–24 pass.
 
@@ -509,7 +509,7 @@ Write each listed test so it fails, then implement the task that makes it pass.
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T054 [P] [US4] Write `api/tests/api/dashboard-summary.test.ts` covering US4-1 to US4-8. Seed the data with factories.
+- [X] T054 [P] [US4] Write `api/tests/api/dashboard-summary.test.ts` covering US4-1 to US4-8. Seed the data with factories.
   - **Counts:**
     - `vendors.active` excludes archived vendors
     - `projects` counts non-archived projects for each of `PLANNED`, `ACTIVE`, `ON_HOLD`, and `COMPLETED`
@@ -530,23 +530,23 @@ Write each listed test so it fails, then implement the task that makes it pass.
   Also write `api/tests/unit/dashboard-summary.test.ts` for the pure `presentSummary(role, figures)`:
   - for each role in `ADVANCE_VIEWERS`, the result includes `client_advances`
   - for a role outside `ADVANCE_VIEWERS` (a test-only value cast to `StaffRole`), the result has no `client_advances` key and no amount anywhere in it (FR-025)
-- [ ] T055 [P] [US4] Write `web/tests/dashboard-tiles.test.tsx`:
+- [X] T055 [P] [US4] Write `web/tests/dashboard-tiles.test.tsx`:
   - the tiles render the counts, the money as rupees with two decimals, and each label
   - the links go to `#/vendors`, `#/projects?status=<STATUS>`, `#/client-advances?scope=all`, and `#/client-advances?scope=month`
   - the Feature 002 lists still render below
 
 ### Implementation for User Story 4
 
-- [ ] T056 [US4] Create `api/src/lib/dashboard-summary.ts` exporting the pure `presentSummary(role, figures)`, which adds `client_advances` only when `role` is in `ADVANCE_VIEWERS`. Change `api/src/modules/dashboard/routes.ts` to add `GET /dashboard/summary`, which gathers the figures and returns `presentSummary(req.staff.role, figures)`. The figures are:
+- [X] T056 [US4] Create `api/src/lib/dashboard-summary.ts` exporting the pure `presentSummary(role, figures)`, which adds `client_advances` only when `role` is in `ADVANCE_VIEWERS`. Change `api/src/modules/dashboard/routes.ts` to add `GET /dashboard/summary`, which gathers the figures and returns `presentSummary(req.staff.role, figures)`. The figures are:
   - `vendor.count({ archived: false })`
   - `project.groupBy(status)` where `archived: false`, filling missing statuses with 0
   - for roles in `ADVANCE_VIEWERS` only, `clientAdvance.aggregate` with `reversal: null`, once over all advances and once with `received_on` in `[start, end)` from `currentMonthInIndia()`
   - the label strings from the contract, with the month name in English
 
   Leave `GET /dashboard` untouched
-- [ ] T057 [P] [US4] Add `GET /client-advances?scope=all|month` to `api/src/modules/client-advances/routes.ts`, creating the router file and its mount if US1 is not done yet. It returns unreversed advances with `project { id, name, client_name, archived }`, newest `received_on` first, for `ADVANCE_VIEWERS` only
-- [ ] T058 [P] [US4] Change `api/src/modules/projects/routes.ts` so `GET /projects` accepts an optional Zod `status` of `PLANNED`, `ACTIVE`, `ON_HOLD`, or `COMPLETED`, combined with the existing archived filter. Makes T054 pass together with T056 and T057
-- [ ] T059 [US4] Make these web changes. Makes T055 pass
+- [X] T057 [P] [US4] Add `GET /client-advances?scope=all|month` to `api/src/modules/client-advances/routes.ts`, creating the router file and its mount if US1 is not done yet. It returns unreversed advances with `project { id, name, client_name, archived }`, newest `received_on` first, for `ADVANCE_VIEWERS` only
+- [X] T058 [P] [US4] Change `api/src/modules/projects/routes.ts` so `GET /projects` accepts an optional Zod `status` of `PLANNED`, `ACTIVE`, `ON_HOLD`, or `COMPLETED`, combined with the existing archived filter. Makes T054 pass together with T056 and T057
+- [X] T059 [US4] Make these web changes. Makes T055 pass
   - Change `web/src/pages/dashboard.tsx` to render tiles from `GET /api/dashboard/summary` above the Feature 002 lists.
   - Create `web/src/pages/client-advances.tsx`, a list for `scope=all|month`.
   - Change `web/src/pages/projects.tsx` to read `status` from the hash query and pass it to the API.
@@ -566,7 +566,7 @@ Write each listed test so it fails, then implement the task that makes it pass.
 
 ### Tests for User Story 5 ⚠️
 
-- [ ] T060 [P] [US5] Write `api/tests/api/history.test.ts` covering US5-1 to US5-6:
+- [X] T060 [P] [US5] Write `api/tests/api/history.test.ts` covering US5-1 to US5-6:
   - **Vendors:**
     - a vendor create gives `CREATED`
     - a `PATCH` changing phone and categories gives one `EDITED` entry, with `changes.phone { from, to }` and `changes.categories { from, to }`
@@ -582,15 +582,15 @@ Write each listed test so it fails, then implement the task that makes it pass.
 
 ### Implementation for User Story 5
 
-- [ ] T061 [US5] Change `api/src/modules/vendors/routes.ts`. Rating and note routes are unchanged.
+- [X] T061 [US5] Change `api/src/modules/vendors/routes.ts`. Rating and note routes are unchanged.
   - **Create:** inside the transaction from T041, call `recordHistory(CREATED)`.
   - **`PATCH`:** load the vendor before the change, compute `diffFields` over the field list in `data-model.md` "Fields compared for vendor `EDITED`", and record `EDITED` only when the diff is not empty.
   - **Archive and restore:** wrap them in a transaction with `ARCHIVED` or `RESTORED`
-- [ ] T062 [US5] Change `api/src/modules/projects/routes.ts`:
+- [X] T062 [US5] Change `api/src/modules/projects/routes.ts`:
   - create, `PATCH`, archive, and restore each write history in the same transaction
   - `PATCH` compares name, client name, site location, description, and status, and writes nothing for an empty diff
-- [ ] T063 [US5] Create `api/src/modules/history/routes.ts` with `GET /history`. Zod requires exactly one of `vendor_id`, `project_id`, `document_id`, `import_run_id`, or `client_advance_id`, as a UUID. The response is `record`, the target's `created_*` and `updated_*` stamps with names, plus `entries` newest first in the contract shape, or 404 when the target does not exist. Mount `historyRouter` under `/api` in `api/src/app.ts`. Makes T060 pass
-- [ ] T064 [US5] Create `web/src/pages/history-panel.tsx`, a collapsible list showing "Created by … on …", "Last updated by … on …", and then each entry with its action, person, time, and changed fields. Render it from `web/src/pages/vendor-detail.tsx`, `web/src/pages/project-detail.tsx`, each document row in `documents-section.tsx`, each run in `vendor-imports.tsx`, and each advance in `advances-section.tsx`
+- [X] T063 [US5] Create `api/src/modules/history/routes.ts` with `GET /history`. Zod requires exactly one of `vendor_id`, `project_id`, `document_id`, `import_run_id`, or `client_advance_id`, as a UUID. The response is `record`, the target's `created_*` and `updated_*` stamps with names, plus `entries` newest first in the contract shape, or 404 when the target does not exist. Mount `historyRouter` under `/api` in `api/src/app.ts`. Makes T060 pass
+- [X] T064 [US5] Create `web/src/pages/history-panel.tsx`, a collapsible list showing "Created by … on …", "Last updated by … on …", and then each entry with its action, person, time, and changed fields. Render it from `web/src/pages/vendor-detail.tsx`, `web/src/pages/project-detail.tsx`, each document row in `documents-section.tsx`, each run in `vendor-imports.tsx`, and each advance in `advances-section.tsx`
 
 **Checkpoint**: All five stories work. Quickstart API steps 29–32 pass.
 
@@ -600,18 +600,18 @@ Write each listed test so it fails, then implement the task that makes it pass.
 
 **Purpose**: Layout, operations note, full checks, demonstration, and converge
 
-- [ ] T065 [P] Change `web/src/styles.css` so the following stay usable at 390 px width with no horizontal page scroll:
+- [X] T065 [P] Change `web/src/styles.css` so the following stay usable at 390 px width with no horizontal page scroll:
   - dashboard tiles in a responsive grid
   - outcome badges `READY`, `REJECTED`, and `POSSIBLE_DUPLICATE`
   - the preview, document, and advance tables, which stack into cards at phone width
-- [ ] T066 [P] A documentation-only task under Constitution V. Add a "Backups" section to `README.md` stating that production backups must include the PostgreSQL database and `FILE_STORAGE_DIR`, and that documents must stay recoverable for at least seven years (FR-016, Constitution Product Boundaries). Record review and approval on this task before marking it done
-- [ ] T067 Run `npm run lint`, `npm run typecheck`, and `npm test` from the root and confirm all pass. Record the file and test counts under Notes, and compare them with the baseline from T001
-- [ ] T068 Run every API scenario in `quickstart.md` (steps 1–32, 10a, 13a), then the web demonstration at desktop width and at 390 px. Time SC-001 (a 500-row import from upload to summary, under 10 minutes) and SC-004 (document upload and reopen, under 1 minute). On the local database, also time the plan's Performance Goals:
+- [X] T066 [P] A documentation-only task under Constitution V. Add a "Backups" section to `README.md` stating that production backups must include the PostgreSQL database and `FILE_STORAGE_DIR`, and that documents must stay recoverable for at least seven years (FR-016, Constitution Product Boundaries). Record review and approval on this task before marking it done
+- [X] T067 Run `npm run lint`, `npm run typecheck`, and `npm test` from the root and confirm all pass. Record the file and test counts under Notes, and compare them with the baseline from T001
+- [X] T068 Run every API scenario in `quickstart.md` (steps 1–32, 10a, 13a), then the web demonstration at desktop width and at 390 px. Time SC-001 (a 500-row import from upload to summary, under 10 minutes) and SC-004 (document upload and reopen, under 1 minute). On the local database, also time the plan's Performance Goals:
   - `POST /vendor-imports/previews` with a 1,000-row file, under 5 seconds
   - `GET /dashboard/summary`, `GET /client-advances?scope=all`, `GET /client-advances?scope=month`, and `GET /projects/:id/client-advances`, each under 1 second at the seeded volume
 
   Record the results and any failures under Notes
-- [ ] T069 Run `/speckit-converge` and resolve any remaining gaps until it reports Converged. Do not open a pull request, commit, or push unless the user asks
+- [X] T069 Run `/speckit-converge` and resolve any remaining gaps until it reports Converged. Do not open a pull request, commit, or push unless the user asks
 
 ---
 
@@ -722,7 +722,7 @@ Each story keeps the earlier stories' tests and the Feature 001 and Feature 002 
 - A task is done when its tests pass and its acceptance scenario is demonstrated (Constitution Principle V). A passing typecheck alone does not finish a task. T066 is documentation-only and follows the documentation rule in Principle V.
 - Do not commit or push unless the user asks. One feature, one branch, one pull request.
 - Baseline from T001 (2026-10-29, Node 24.21.0, npm 11.19.0, branch at `b008ad0`): `npm install` left `package-lock.json` unchanged. Lint and typecheck are clean. API: 25 files, 106 tests passed. Web: 11 files, 21 passed and 1 skipped (pre-existing). No pre-existing failures. The `ECONNRESET` / "Connection terminated unexpectedly" lines after the API run are the embedded PostgreSQL shutting down, as noted for Feature 002. npm 11 reports install scripts it did not run (bcrypt, esbuild, prisma); the already-built `node_modules` works.
-- Quickstart results from T068: not run yet.
+- Quickstart results from T068: run 2026-10-30; all API steps, both web widths, and all timings passed. See the T068 note below.
 - T004 (2026-10-29): `prisma validate` passes. The Prisma CLI needs `DATABASE_URL` in the environment when run from `api/`; any well-formed URL works, since validate and generate do not connect. `prisma generate` wrote the new client code, and all seven new models are present, but it could not replace `query_engine-windows.dll.node` (Windows EPERM) while the local `npm run dev` API server held it. That engine is the same 6.19.3 binary. Rerun `prisma generate` with the dev server stopped before T005's migration. Typecheck is clean. Rules the database does not enforce, such as `byte_size` 1 to 26,214,400 and run counts of zero or more, are left to the API, as `data-model.md` lists them as rules and T005 adds only the five named check constraints.
 - T005 (2026-10-29): with the dev server stopped, `prisma generate` completed, engine included. The migration was created with `prisma migrate dev --create-only` against a throwaway embedded PostgreSQL on port 54331, created in the scratchpad and deleted afterwards. The dev database (Docker, 5432) and the test cluster were not used for this. Prisma named the folder `20261029063307_…`; it was renamed to `20261029120000_import_documents_advances` before being applied anywhere. The five check constraints were appended by hand, and the file was saved with CRLF like the other migrations. On a second empty throwaway database:
   - `prisma migrate deploy` applied all three migrations, and `prisma migrate status` reported up to date
@@ -769,3 +769,469 @@ Each story keeps the earlier stories' tests and the Feature 001 and Feature 002 
   - **T035 seed key:** advances are found again by project, amount, and a fixed seed reference (`SEED-ADV-1` to `SEED-ADV-3`), not by `received_on`. The dates are relative to today and `npm run dev` reruns the seed, so a date key would add rows every day, against `data-model.md`'s "rerunnable without duplicates". Each seeded advance and reversal gets its `CREATED` or `REVERSED` history entry.
   - **Seed check** (throwaway PostgreSQL on port 54331, never the dev database): run twice, 3 advances, 1 reversal, 4 history entries. After moving one seeded date back a day and running again, still 3 advances.
   - **Full run:** API 35 files, 173 tests. Web 12 files, 25 passed, 1 skipped. Typecheck 0 errors. Lint exit 0.
+- T036–T040 (2026-10-29), US2 tests written first:
+  - **Failing as intended:**
+    - `vendors.test.ts` new FR-030 test: `"98765-43210"` is accepted with 201, because the form still compares exact text (T041).
+    - `vendor-import.test.ts`: 17 of 18 tests fail on 404, or on its knock-on effect (no preview body or id), because the routes do not exist yet (T043–T046).
+    - `web/tests/vendor-import.test.tsx`: fails only on the missing module (T047).
+  - **Passing now and after:** the 5 existing vendor tests, unchanged, and the import test that every route refuses a signed-out caller, through the Feature 001 session middleware.
+  - **Response names:** the tests assert the contract's snake_case match fields (`vendor_id`, `vendor_name`, `row_number`); the T022 helper's camelCase is mapped in T043.
+  - **UI names fixed by T040** for T047 to implement:
+    - links "Download Excel template" and "Download CSV template"
+    - input "Spreadsheet file", buttons "Preview" and "Confirm import"
+    - a table named "Preview", with badges "Ready", "Rejected", and "Possible duplicate"
+    - checkboxes "Import row N anyway"
+    - a region "Import summary" with "Imported N", "Skipped N", "Rejected N", and "Row N: reason"
+  - **Directory for the import tests** is inserted through Prisma rather than `POST /vendors`, so the preview tests do not depend on the T041 phone rule. The recheck test adds vendors through `POST /vendors` on purpose, as the task says.
+  - **Typecheck:** API 0 errors. Web 1 error, the missing `vendor-import` module. Two test typing slips (the supertest binary parser's parameter type, and the `vendor()` helper's return type) were fixed before ticking.
+  - **Whole suites:** API 2 files, 18 tests failing as above, 34 files and 174 tests passing. Web 1 file failing (missing module), 12 files, 25 passed, 1 skipped. Lint exit 0.
+- T041 (2026-10-29), vendor form phone rule and vendor identity lock:
+  - **Phone rule:** `assertPhone` now takes the transaction client and the candidate's phone and alternate phone together. It loads `id, name, phone, alternatePhone` of every other vendor, archived included, and calls `phoneMatches` (FR-030). Stored phone values are unchanged. The 409 `PHONE_IN_USE` body still carries `matches: [{ id, name }]`, now listing each matching vendor once across both numbers.
+  - **Lock:** create and `PATCH` each run one `prisma.$transaction` that calls `vendorIdentityLock(tx)` first, then `assertPhone`, then `assertGstinUnique` (now also on `tx`), then the write.
+    - Field validation that needs no directory read (Zod, GSTIN format, category ids) still runs before the transaction, so bad input never waits for the lock.
+    - `vendor-lock.ts` is unchanged; this is its first caller.
+  - **`presentVendor`** adds `import_run: { id, file_name, created_at } | null` (FR-010).
+  - **Checks:**
+    - `vendors.test.ts`: 6/6, so T036 now passes and the 5 existing tests pass unchanged.
+    - A temporary race check (3 tests, deleted after the run): two simultaneous creates with the same phone, written differently; two with the same GSTIN; and an edit racing a create to one phone. With the lock, exactly one write wins each time and the other gets `PHONE_IN_USE` or `GSTIN_IN_USE`. In a control run with the lock briefly disabled, all three failed: `[201, 201]`, the generic `CONFLICT`, and both writes winning. The lock was restored, and `vendor-lock.ts` is identical to HEAD.
+    - Full run: API 17 failing, all in `vendor-import.test.ts` awaiting T042–T046; 175 passing. Web: the `vendor-import` page test awaits T047; 25 passed, 1 skipped. Typecheck: API 0, web 1 (missing page module). Lint exit 0.
+- T042 (2026-10-29), import file reader `api/src/lib/xlsx-read.ts`:
+  - **Shape:** `readImportFile(name, bytes)` returns `{ format, headingRow, rows: [{ row_number, cells }] }`, where `headingRow` and `cells` are text in column order.
+  - **`.xlsx`:** must start with a ZIP signature and contain `xl/workbook.xml`. It is loaded with `workbook.xlsx.load()`, not the streaming reader, and only the first worksheet is read. Every cell becomes text: a whole number becomes its integer text, rich text and formula results become their text, and an empty cell becomes `''`. A load failure is `UNSUPPORTED_FORMAT`.
+  - **`.csv`:** reuses `parseCsv`. The extension check ignores letter case, and any other extension is `UNSUPPORTED_FORMAT`.
+  - **Rows:** blank rows are left out of `rows` but keep their place in the numbering.
+  - **Refusals:**
+    - a blank heading row, or no non-blank data rows: `EMPTY_FILE`
+    - more than 1,000 non-blank data rows: `TOO_MANY_ROWS`, refusing the whole file with nothing truncated
+  - **Deviations:**
+    1. T042 lists no test. Because the routes do not exist until T043, a unit test `api/tests/unit/xlsx-read.test.ts` (11 tests) was written first and seen failing on the missing module. It covers CSV and xlsx reading, leading zeros, numeric cells, first sheet only, blank-row numbering, the 1,000/1,001 boundary for both formats, empty files, and seven unsupported or mismatched files.
+    2. The reader also refuses over 25 MB with `FILE_TOO_LARGE` and "The file must be 25 MB or smaller.", as a guard for any caller; the upload route stays the first check. `MAX_IMPORT_BYTES` is exported for T043.
+  - **New wording:** "Upload the vendor list as an .xlsx or .csv file.", "The file needs a heading row and at least one vendor row.", and "The file has N vendor rows. Upload at most 1,000 rows at a time."
+  - **Checks:** reader 11/11, and related unit tests 47/47 (csv, headings, rows, duplicates, exceljs smoke, append-only). Full API run: 186 passing, with the same 17 import-route tests failing as they await T043–T046. Web unchanged (25 passed, 1 skipped; the page test awaits T047). Typecheck: API 0, web 1 (missing page). Lint exit 0. No later task started.
+- T043 (2026-10-29), template and upload-and-preview routes in `api/src/modules/vendor-imports/routes.ts`:
+  - **Template:** `GET /vendor-imports/template?format=` with a Zod-checked `xlsx` or `csv` sends an attachment.
+    - CSV: the 16 headings and a CRLF.
+    - xlsx: sheet `Vendors`, Phone and Alternate phone columns formatted `@`.
+  - **`POST /vendor-imports/previews`:**
+    - `singleUpload('file', MAX_IMPORT_BYTES, '25 MB')`; a missing file gives 400 `fields.file` "Choose an .xlsx or .csv file."
+    - one `updateMany` that clears `rows` and `ignored_headings` and sets `updated_by` on every expired `OPEN` preview whose rows are not already `[]` (FR-008e)
+    - then `readImportFile`, `matchHeadings`, `validateRow` per row, one directory query, and `previewOutcomes`
+    - the preview is stored with `expires_at = now + 30 minutes`
+  - **Stored rows:** `rows` holds exactly the rows returned: `{ row_number, outcome, name, reasons, matches, cells }`. Matches are in the contract's snake_case (`vendor_id`, `vendor_name`, `row_number`), mapped from the helper's camelCase. `cells` holds only recognised headings, trimmed, so T045 can rebuild each draft with `validateRow`.
+  - **Mount:** `vendorImportRouter` was mounted in `app.ts` now, because the T043 tests cannot reach unmounted routes; T046 still adds the list and detail routes.
+  - **Test-data fix:** in `vendor-import.test.ts` `setup()`, the directory vendor "Alternate Holder" had main phone `90000 00001`, the same number as `vendorsValid()` row 2, so the xlsx test's all-`READY` expectation could not hold. Its main phone is now `90000 07771`; its alternate phone `91111 33333`, which the SC-011 test uses, is unchanged. No assertion changed.
+  - **Checks:**
+    - all 7 preview tests (T037) pass, as do "clears another person's expired preview when a new file is uploaded" and "refuses a signed-out caller"
+    - related unit tests 46/46
+    - full API: 194 passing, 9 failing, all needing the view, confirm, cancel, or list routes of T044–T046
+    - web unchanged (page test awaits T047)
+    - typecheck API 0; lint exit 0
+- T044 (2026-10-29), view and cancel a preview:
+  - **Shared helpers:** `loadOwnPreview` (UUID check, 404, then 403 `PREVIEW_NOT_YOURS` before any write), `isExpired`, `clearRows`, and `presentPreview`, which the upload route now also uses.
+  - **`GET /vendor-imports/previews/:id`:** `CANCELLED` gives 409 `PREVIEW_CANCELLED`; `CONFIRMED` gives `{ status, run_id }`; an expired `OPEN` preview has its rows cleared by an awaited update, then gives 409 `PREVIEW_EXPIRED`; otherwise the upload body.
+  - **`POST …/cancel`:** owner check, then a transaction with `SELECT … FOR UPDATE`:
+    - `CONFIRMED`: 409 `PREVIEW_CONFIRMED`, no write
+    - `CANCELLED`: 200, no write
+    - expired: clear the rows if any, return `EXPIRED` without throwing, and send the 409 after commit
+    - otherwise: set `CANCELLED` and clear the rows
+  - **Reading of the spec:** expiry applies only to previews still `OPEN`. T044 lists "expired" before `CONFIRMED` for `GET`, but `data-model.md` says `CONFIRMED` and `CANCELLED` never change again, the contract says a confirmed preview returns `{ status, run_id }`, and T045 checks `CONFIRMED` before expiry. So a confirmed preview viewed after 30 minutes still returns its run id. Every case T044 lists behaves as written.
+  - **New wording:** "This preview has expired. Upload the file again.", "This preview was cancelled. Upload the file again.", "This preview has already been confirmed.", "Only the person who uploaded this file can use its preview.", "Import preview not found."
+  - **Checks:**
+    - the three lifecycle tests that use view and cancel (cancel, expiry, uploader only) now pass those steps and stop only at their confirm request (404, T045)
+    - a temporary check (7 tests, deleted after the run) covered every T044 branch: an open view equal to the upload body; 403 on view and cancel with the row unchanged; expired view and expired cancel giving 409 with the stored rows and headings empty afterwards, proving the clearing committed, and status still `OPEN`; cancel then repeat cancel with no write and view `PREVIEW_CANCELLED`; a confirmed preview giving `{ status, run_id }` even after expiry and cancel giving `PREVIEW_CONFIRMED` with no write; 404 for an unknown id and 400 for a malformed one
+    - full API: 194 passing, 9 failing, all needing T045's confirm or T046's list. Web unchanged. Typecheck API 0; lint exit 0.
+- T045 (2026-10-29), confirm an import (`POST /vendor-imports/previews/:id/confirm`):
+  - **Before the transaction:** `loadOwnPreview` (403 or 404), then Zod `approved_rows: number[]` of positive integers.
+  - **One `prisma.$transaction`** `{ timeout: 60_000, maxWait: 10_000 }`:
+    - `SELECT … FOR UPDATE` on the preview
+    - `CONFIRMED`: return the stored run (200)
+    - `CANCELLED`: 409 `PREVIEW_CANCELLED`
+    - expired `OPEN`: clear the rows and return `EXPIRED` without throwing; the 409 is sent after commit
+    - then `vendorIdentityLock(tx)`, the directory reloaded, and `confirmOutcomes` over the stored rows, with each draft rebuilt by `validateRow(cells)` and matches converted back to camelCase
+    - categories reused via `reuseCategory` or created once
+    - the run created, then each `IMPORTED` vendor with its category, location, service, and material rows and `import_run_id`, plus one `CREATED` history entry with `details.import_run_id`
+    - `vendor_import_rows` via `createMany`, the run's `CREATED` history entry with the counts, and the preview set to `CONFIRMED` with its rows cleared
+  - **After the transaction:** any non-`HttpError` from it becomes 500 `IMPORT_FAILED`. The response is `presentRun()`: 201 the first time, 200 when already confirmed.
+  - **Deviation from the listed order:** the run is created before the vendors, because each vendor's `import_run_id` is a foreign key to it. The counts are already known from `confirmOutcomes`. It is all one transaction, so the result is the same.
+  - **Locking:** confirmation holds the preview row lock, then the vendor identity lock. Vendor create and edit take only the vendor lock, and cancel takes only the row lock, so no two operations wait on each other in opposite order. A second confirmation waits on the row lock, then sees `CONFIRMED` and returns the same run.
+  - **Checks:**
+    - `vendor-import.test.ts` 17/18; the only failure is the run-list test, which needs T046's `GET /vendor-imports`
+    - covered: mixed confirmation, sequential and parallel repeat, recheck, forced failure at the run insert, cancel, expiry on all three routes, rows cleared after confirm, uploader only, signed out
+    - a temporary check (2 tests, deleted after the run):
+      1. a forced failure at the **last** insert (`vendor_import_rows`), after categories, the run, vendors, and history were written, left all four counts unchanged and the preview `OPEN` with its rows; a retry then gave 201
+      2. a confirmation racing a `POST /vendors` with the same phone as a `READY` row, over 6 rounds: both orders occurred, the loser got `PHONE_IN_USE` or the row was `SKIPPED`, and there was never more than one vendor with that phone. A control run with the lock briefly disabled failed (form 201 and row `IMPORTED`, a duplicate). The lock was restored, and `vendor-lock.ts` is identical to HEAD.
+    - full API: 202 passing, 1 failing (T046). Web unchanged (page test awaits T047). Typecheck API 0; lint exit 0.
+- T046 (2026-10-29), import history:
+  - **`GET /vendor-imports`:** every run, newest first (`created_at` descending, then `id`), each in the contract's `run` shape.
+  - **`GET /vendor-imports/:runId`:** a UUID-checked id (400 if malformed); returns `{ run, rows }` with rows by row number, or 404 "Import run not found."
+  - **Shared helpers:** `presentRunSummary` was split out of `presentRun`, so the list, the detail, and confirmation return one identical `run` shape. `presentRun` now gives 404 instead of Prisma's not-found error.
+  - **Access:** any active staff member, through the session middleware.
+  - **Mount:** the mount T046 lists was already done in T043.
+  - **Checks:**
+    - `vendor-import.test.ts` 18/18, including the run list and detail test, whose detail must equal the confirmation body
+    - a temporary check (1 test, deleted after the run): an empty list is `[]`, two runs come back newest first with exactly the 7 `run` fields, an unknown id gives 404, a malformed id gives 400, and `/vendor-imports/template` still reaches the template route
+    - full API 37 files and 203 tests, all passing. Web: the `vendor-import` page test awaits T047; 25 passed, 1 skipped. Typecheck API 0; lint exit 0.
+- T047–T048 (2026-10-29), import pages:
+  - **Tests first:** written and seen failing on the missing modules before the pages existed.
+    - `web/tests/vendor-import.test.tsx` gained 3 tests: cancel clears the preview and says nothing was imported; a 409 `PREVIEW_CANCELLED` on confirm shows its message; Confirm is disabled while in flight, so a second click sends nothing. The 6 T040 tests are unchanged.
+    - New `web/tests/vendor-imports.test.tsx` (5 tests): the run list; opening a run, with outcomes, reasons, and an "Open vendor" link only on imported rows; opening a run by id; the vendor page's "Imported in <file> on <date>" line, and its absence for a hand-added vendor.
+    - New `web/tests/import-routes.test.tsx` (1 test): through the real `main.tsx`, `#/vendors/import`, `#/vendor-imports?run=…`, and the "Import vendors" link on `#/vendors` work, and `/api/vendors/import` is never requested. A control run with the route guard removed failed (VendorDetail opened for the id "import" and crashed); the guard was restored.
+  - **`vendor-import.tsx` (T047):**
+    - template links, plus a link to the history
+    - a "Spreadsheet file" input and a "Preview" button posting `FormData`
+    - counts, ignored columns, and "Confirm before <local time> or upload again."
+    - a "Preview" table with row, name, outcome badge, reasons, and matches (vendor name or "Row N"), and an "Import row N anyway" checkbox only on `POSSIBLE_DUPLICATE`
+    - "Confirm import" posts `{ approved_rows }` sorted; it and "Cancel preview" are disabled while any request is in flight
+    - an "Import summary" region with "Imported N", "Skipped N", "Rejected N", and "Row N: reason" for every row not imported, plus a link to the run in the history
+    - **messages:** expired, cancelled, and failed imports use fixed page wording; every other refusal (`FILE_TOO_LARGE`, `UNSUPPORTED_FORMAT`, `EMPTY_FILE`, `TOO_MANY_ROWS`, `MISSING_HEADING`, `REPEATED_HEADING`, `PREVIEW_NOT_YOURS`) shows the server's `fields.file` or message. An expired or cancelled preview is cleared from the page.
+  - **`vendor-imports.tsx` (T048):** an "Import runs" table (when, by, file, counts, and a "View <file>" button) and a run's "Run rows" table. It accepts `runId` for `#/vendor-imports?run=<id>`.
+  - **`vendor-detail.tsx`:** adds "Imported in <file> on <date>", linked to the run.
+  - **`main.tsx`:**
+    - routes for `/vendors/import` and `/vendor-imports`, with `?run=` read like the existing `?item=`
+    - `/vendors/import` excluded from the vendor-id route
+    - an "Import vendors" link above the vendors list; the nav is unchanged
+  - **Not done here:** no viewer-role lookup, because every role may import and uploader-only is enforced by the server. No new CSS: the badges reuse `.flag`, and the outcome-badge colours and phone-width tables belong to T065.
+  - **Checks:** web 15 files, 40 passed, 1 skipped (pre-existing). API 37 files, 203 tests. Typecheck 0 errors; lint exit 0.
+- T049 (2026-10-29), US3 API tests written first in `api/tests/api/documents.test.ts` (10 tests):
+  - **Upload:** a PDF to a vendor by Office Team and a JPEG to a project by an Accountant, checking the full contract shape (trimmed title, note, `media_type`, `byte_size`, author). Lists are newest first.
+  - **Download:** byte-identical, with `Content-Type`, an `attachment` disposition naming the file, and `nosniff`.
+  - **401:** signed out and revoked, on download, list, and upload.
+  - **Six refused uploads:** a renamed `.exe`, an `.xls` named `.doc`, a `.txt`, 25 MB + 1 byte (`FILE_TOO_LARGE`), a missing title, and a blank title. After each, the per-test storage folder is empty and there are no rows.
+  - **Archive and restore:** a repeated archive is unchanged; archived documents still download.
+  - **DELETE:** 404, with the row and file kept.
+  - **Archived vendor and archived project:** documents listed and downloadable, including one archived before its parent; upload, archive, and restore give 409 `PARENT_ARCHIVED` with no change.
+  - **Not found and bad input:** 404 for an unknown parent or document, and 400 for an unknown `document_type`.
+  - **History:** `CREATED`, `ARCHIVED`, `RESTORED`, by the actor.
+  - **Additions beyond the task text:** newest-first ordering, the blank-title and bad `document_type` cases, unknown ids, and a repeated archive. Each comes from the contract.
+  - **Failing as intended:** all 10 fail only because the routes do not exist (T051–T052): 404 where 200, 201, 400, or 409 is expected, or its knock-on effects (no list, no row, an empty storage folder, no history). The four 404 checks in the unknown-id test pass only for that reason now and become real checks after T051.
+  - **Checks:** typecheck API 0; lint exit 0. Full API: 37 files and 203 tests still passing, plus these 10 failing.
+- T050 (2026-10-29), US3 web tests written first in `web/tests/documents-section.test.tsx` (9 tests):
+  - **Interface fixed for T053:** `DocumentsSection({ parent: 'vendors' | 'projects', parentId, parentArchived })` loads `GET /api/{parent}/{id}/documents`, plus `?include_archived=true` when "Show archived" is ticked.
+    - a "Documents" list
+    - each item shows title, type label, file name, size in KB or MB to one decimal, uploader, date, and note, with a "Download <file>" link to `/api/documents/:id/file`
+    - an "Archived" marker on archived items
+    - "Archive" and "Restore" buttons
+    - upload form fields "File", "Title", "Document type", and "Note", with an "Upload document" button that posts `FormData`
+    - "No documents yet." when empty
+  - **Covered:**
+    - the list fields
+    - the toggle's query, archived marking, and restore
+    - archive and restore POST URLs
+    - the upload `FormData` (file, title, type, note) to the project route
+    - each 400 field message beside its field with `aria-invalid` (file, title, type)
+    - the 25 MB message
+    - on an archived parent, upload, archive, and restore hidden with downloads kept
+    - no delete control in all four combinations of active or archived parent and default or archived list
+    - the empty state
+  - **Additions beyond the task text:** the archive and restore POSTs, the upload `FormData`, the 25 MB message, and the empty state. The parent's archived state comes in as a prop because both detail pages already load it; T053 passes `vendor.archived` and `project.archived`.
+  - **Failing as intended:** only the missing `documents-section` module. Web typecheck shows just that TS2307. The other 15 web files still pass (40 passed, 1 skipped). Lint exit 0.
+- T051 (2026-10-29), document routes in `api/src/modules/documents/routes.ts`:
+  - **Upload:**
+    - order: multer (25 MB, `FILE_TOO_LARGE`), then the Zod fields and `checkDocumentContent` together, so one 400 names every bad field, then 404 for a missing parent and 409 `PARENT_ARCHIVED`
+    - a missing file gives `fields.file` "Choose a file to upload."; a bad `document_type` gives "Choose a document type."
+    - the file is written as `randomUUID() + ext`, then one transaction re-reads the parent `FOR SHARE` (so a parent archived in between still gives 409), creates the row and writes `CREATED` history. Any failure unlinks the file and rethrows
+  - **List:** `include_archived=true` as in vendors and projects; newest first (`created_at desc, id desc`); 404 for an unknown parent; works on archived parents.
+  - **Download:** `res.attachment` with the name stripped of quotes, CR, and LF, then `Content-Type` from `media_type` and `X-Content-Type-Options: nosniff`. `sendFile` reads from `FILE_STORAGE_DIR`.
+  - **Archive and restore:**
+    - one transaction: the document `FOR UPDATE`, its parent `FOR SHARE`, 409 `PARENT_ARCHIVED` while the parent is archived
+    - a repeat returns the document unchanged and writes no history; otherwise `ARCHIVED` or `RESTORED` history with empty `changes`, per data-model
+  - **No delete route.** Path ids are Zod uuids (400 when malformed).
+  - **Beyond the task text:** the parent share lock and combined 400 messages. `res.attachment` also gives non-ASCII names a `filename*` form, so such names cannot break the header.
+  - **Checks:**
+    - `documents.test.ts` 10/10
+    - a temporary forced-insert-failure test (trigger on `documents`) gave 500 with no file, row, or history left; it was deleted after the run
+- T052 (2026-10-29), `api/src/app.ts` mounts `documentRouter` under `/api` after the import router.
+  - **Checks:** full API 38 files, 213 tests passing; typecheck API 0; lint exit 0. The `ECONNRESET` printed after each run is the embedded Postgres shutting down and also appears on an unrelated unit file.
+- T053 (2026-10-29), `web/src/pages/documents-section.tsx`, rendered on `vendor-detail.tsx` (`vendor.archived`) and `project-detail.tsx` (`project.archived`), after the advances section on projects:
+  - **List:** title, type label, "Archived" marker, file name, size (B, or KB/MB to one decimal), uploader, date, note, and a "Download <file>" link to `/api/documents/:id/file`. "Show archived" reloads with `include_archived=true`; "No documents yet." when empty.
+  - **Upload form:** "File" (with an `accept` list of the eight extensions), "Title", "Document type" (starts at "Choose", so a missing type gets the server's message), and "Note". It posts `FormData`, shows each 400 field message beside its field with `aria-invalid`, and clears and reloads after a 201.
+  - **25 MB:** a larger file is refused in the browser with the server's wording, without sending it. No `required` attributes, so every check stays on the server.
+  - **Archived parent:** no upload form and no Archive or Restore buttons; the list, toggle, and downloads remain. Other errors such as 409 `PARENT_ARCHIVED` show the server message.
+  - **No delete control.**
+  - **Checks:**
+    - `documents-section.test.tsx` 9/9
+    - full web 16 files, 49 passed and 1 skipped (as before), with no existing test changed
+    - full API 38 files, 213 tests
+    - typecheck web and API 0; lint exit 0
+- T054 (2026-10-29), US4 API tests written first:
+  - **`api/tests/api/dashboard-summary.test.ts` (10 tests), fixtures:**
+    - 3 active vendors and 1 archived
+    - projects in all four statuses plus an archived Active and an archived On hold, so On hold fills with 0
+    - advances: today, the IST month start (on an archived project), `monthOffset(-1)`, and the day before the month start, as a boundary
+  - **Covered:**
+    - counts; both sums (166000.50 and 125000.50)
+    - an older reversal changes only the total, and a this-month reversal changes both
+    - an advance recorded through the API shows at once
+    - identical bodies for the three roles; 401 for signed out and revoked, with no amount in the body
+    - zero tiles on an empty database
+    - `scope=all|month` lists that match the tile sums, with `project`; 400 for an unknown scope
+    - `GET /projects?status=` alone and with `include_archived`; unchanged without `status`; 400 for an unknown status
+    - Feature 002 `GET /dashboard` keys unchanged
+  - **`api/tests/unit/dashboard-summary.test.ts` (5 tests):**
+    - the contract example for each `ADVANCE_VIEWERS` role
+    - January and December month names
+    - an outside role (cast) gets no `client_advances` and no amount
+    - **Interface fixed for T056:** `presentSummary(role, { vendorsActive, projects, advances: { standingTotal, receivedThisMonth, month } | null })`
+  - **Failing as intended before T056–T058:** 9 API tests (404, or `status` ignored) and the unit file's missing module. The Feature 002 keys test passed throughout.
+- T055 (2026-10-29), `web/tests/dashboard-tiles.test.tsx` (8 tests):
+  - **Tiles:** inside the "At a glance" region, each is a link holding its value and label:
+    - "Vendors not archived" → `#/vendors`
+    - "<Status> projects, not archived" → `#/projects?status=<STATUS>`
+    - the two money tiles show `₹` with two decimals and the API label, → `#/client-advances?scope=all|month`
+  - **Without `client_advances`:** no money tile and no `₹`.
+  - **Feature 002:** the lists still render after the tiles.
+  - **Additions beyond the task text, fixing T059's interfaces:**
+    - `ClientAdvances({ scope })` lists project link, date, and amount, or "No client advances to show."
+    - `Projects({ openProject, status })` fetches `/api/projects?status=…`
+    - the app shell opens `#/client-advances?scope=all` and `#/projects?status=ON_HOLD`
+  - Failing as intended before T059: the missing `client-advances` module.
+- T056 (2026-10-29), `api/src/lib/dashboard-summary.ts` and `GET /dashboard/summary` in `api/src/modules/dashboard/routes.ts`:
+  - `presentSummary` adds `client_advances` only when the figures exist and the role is in `ADVANCE_VIEWERS`, with English month names from a fixed list (no locale dependence)
+  - the route counts with `vendor.count` and `project.groupBy` (0-filled) and, for viewers only, runs two `aggregate`s with `reversal: { is: null }`, the second limited to `[start, end)` of `currentMonthInIndia()`
+  - `GET /dashboard` is untouched
+- T057 (2026-10-29), `GET /client-advances?scope=all|month`:
+  - Zod scope, 400 otherwise; `ADVANCE_VIEWERS` only
+  - lists unreversed advances, the month scope by `received_on` in the IST month
+  - each item is `presentAdvance` plus `project { id, name, client_name, archived }`, ordered `received_on desc, created_at desc`
+- T058 (2026-10-29), `GET /projects` takes an optional Zod `status`, ANDed with the existing `include_archived` filter. Without it the query is unchanged.
+- T059 (2026-10-29), web changes:
+  - **`dashboard.tsx`:**
+    - the "At a glance" tiles load from `/api/dashboard/summary` independently of the Feature 002 lists, so a failure in one does not hide the other
+    - the page heading is now "Dashboard" and the "Today" line says the archive note applies to the lists below
+    - no new `h2`, so the Feature 002 heading order is unchanged
+  - **New page:** `client-advances.tsx`.
+  - **`projects.tsx`:** takes `status`, sends it with `include_archived`, and shows "Showing <Status> projects only" with a link back to all projects.
+  - **`main.tsx`:**
+    - routes `#/client-advances?scope=…`
+    - passes `status` to Projects, keyed on it, matching on the path without its query
+  - **`styles.css`:** an auto-fit `.dashboard-tiles` grid.
+  - **`web/tests/dashboard.test.tsx`:** the mock now answers `/api/dashboard/summary` with a counts-only body; its assertions are unchanged (as with `pricing-controls` in T034).
+- **US4 checks (2026-10-29):**
+  - focused API 33/33
+  - full API 40 files, 228 tests
+  - full web 17 files, 57 passed and 1 skipped (as before)
+  - typecheck API and web 0; lint exit 0
+  - **Flake:** `project-timeline-focus.test.tsx` ("highlights and scrolls…", the `scrollIntoView` context check) failed once in five full web runs. It passed in the other four and 3/3 alone. It renders only `ProjectTimeline`, which US4 does not touch. Recorded as an existing flake, not fixed.
+  - **Not run:** quickstart API steps 25–28 (US4 checkpoint), and steps 19–24 from US3. Both remain on T068's list.
+- T060 (2026-10-29), US5 tests written first.
+  - **`api/tests/api/history.test.ts` (7 tests), covering:**
+    - **Vendors:** create, then one `EDITED` with exactly `phone` and `categories` (category names, sorted), then nothing for an unchanged save, then archive and restore, newest first, all by the acting person.
+    - **Projects:** the same sequence; the edit covers name, site location, description, and status, with an unchanged client name left out.
+    - **Other targets:** document `CREATED`/`ARCHIVED`/`RESTORED`; the import run's `CREATED` with counts, and the imported vendor's `CREATED` with `details.import_run_id`; the advance's `CREATED` (amount, date) and `REVERSED` (amount, reason).
+    - **Pre-existing vendor:** one inserted through Prisma with 2025 stamps returns `record` with both names and `entries: []`.
+    - **Bad queries:** 400 for zero targets, two targets, a non-UUID, or an unknown key; 404 for each of the five targets when unknown.
+    - **Roles:** Office Team and Accountant read; 401 signed out and revoked.
+    - **No writes:** `POST`, `PATCH`, and `DELETE` give 404 with the entries unchanged.
+  - **Before T061–T063:** all 7 failed (404 route; no vendor entry).
+  - **Test-setup fix during T063:** the stamp was first set with a raw-SQL `UPDATE` of a JS `Date`, which the IST session shifted by 5:30. It now uses `prisma.vendor.update({ updatedAt })`, stored in UTC like the app's own stamps; the assertion is unchanged.
+  - **`web/tests/history-panel.test.tsx` (8 tests), added because T064 has no test task:**
+    - **Interface:** `HistoryPanel({ target, id, label? })`.
+    - **Behaviour:**
+      - closed with no request until "Show history"
+      - the stamps and each entry: action, person, IST time, `Field: from → to` with "(blank)", Yes/No, and joined lists
+      - advance amount (₹) and reason; a "From an import" link
+      - an empty message; no edit or delete control
+    - **Opening from each page:** a document row, an advance, an import run, the vendor page ("Vendor history"), and the project page ("Project history") each request the right `/api/history?…` query.
+- T061 (2026-10-29), `api/src/modules/vendors/routes.ts`:
+  - **Create:** `CREATED` inside the T041 transaction.
+  - **`PATCH`:** under the lock, re-reads the vendor, diffs a snapshot before and after over the 17 data-model fields, and writes `EDITED` only for a non-empty diff.
+    - The snapshot is taken from the saved rows, not the request body, because fields left out of the body stay unchanged in Prisma.
+    - Field keys use the API names; categories are names, and rates read "label: amount / unit".
+  - **Archive and restore:** one transaction that locks the row (`FOR UPDATE`) and writes `ARCHIVED` or `RESTORED` only when the flag changes. A repeat still updates the stamps as before but writes no entry, as for documents.
+  - Rating and note routes are unchanged.
+- T062 (2026-10-29), `api/src/modules/projects/routes.ts`:
+  - create, `PATCH`, archive, and restore each write history in the same transaction
+  - `PATCH` and archive/restore lock the row first
+  - `PATCH` diffs name, client name, site location, description, and status
+  - repeats and empty diffs write nothing
+- T063 (2026-10-29), `api/src/modules/history/routes.ts` (`GET /history`), mounted in `app.ts` after the document router:
+  - **Query:** a strict Zod object allowing exactly one of the five keys, as a UUID, otherwise 400.
+  - **`record`:** the target's own four stamps, with names looked up from `staff_users`.
+  - **`entries`:** newest first (`created_at desc, id desc`) in the contract shape.
+  - 404 when the target does not exist. There are no write routes.
+- T064 (2026-10-29), `web/src/pages/history-panel.tsx`:
+  - **Behaviour:**
+    - a "Show history"/"Hide history" button with `aria-expanded`, which fetches on each open, so pages make no extra request until asked
+    - times in IST
+    - a link for `details.import_run_id`
+  - **Rendered on:** `vendor-detail.tsx`, `project-detail.tsx`, each document row, each advance, and the opened import run.
+  - Existing page tests needed no mock changes.
+- **US5 checks (2026-10-29):**
+  - focused history API 7/7, web 8/8
+  - full API 41 files, 235 tests
+  - full web 18 files, 65 passed and 1 skipped (as before), in 5 of 5 full runs; the `project-timeline-focus` flake did not recur this time and stays recorded under T059
+  - typecheck API and web 0; lint exit 0
+  - **Lock order** stays acyclic:
+    - vendor `PATCH` takes the advisory lock, then the vendor row
+    - vendor archive and restore take the row only
+    - document upload takes the row `FOR SHARE` only
+    - import confirm takes the preview row, then the advisory lock, and creates new rows
+  - **Not run:** quickstart API steps 29–32 (US5 checkpoint), together with 19–28. All remain on T068's list.
+- **Carried to T065–T069:**
+  - **T068:** the quickstart walkthrough and timings, including US3 steps 19–24, US4 steps 25–28, and US5 steps 29–32
+  - **Import coverage gaps, revisited where the task text permits:**
+    - imported vendor fields beyond categories
+    - case-variant category reuse across rows
+    - permanent confirm-versus-form race and late-failure tests (proven so far only by temporary checks)
+    - a 1,000-row confirm
+- T065 (2026-10-30), phone-width layout:
+  - **`web/src/styles.css`:**
+    - rules for the classes the import pages already used but had no CSS for: `.table-wrap` (a wide table scrolls inside its box) and the outcome badges `.outcome-ready`, `.outcome-rejected`, and `.outcome-duplicate`
+    - `.card` wraps long words
+    - `ul.grid` card lists drop bullets and indent
+  - **At 700 px and below:**
+    - the dashboard tiles use two columns, and the money tiles (`.tile-wide`) take a full row so an amount up to ₹9999999999999.99 stays on one line
+    - each `.table-wrap` row becomes a card, with each cell labelled from `data-label`
+    - the `thead` is kept for screen readers but clipped as a block, because `overflow` does not clip a table row group
+  - **Markup:**
+    - `data-label` on the preview, import-runs, and run-rows cells
+    - `Tile wide` for the money tiles in `dashboard.tsx`
+    - "Show archived" in `documents-section.tsx` now uses the existing `label.check`
+  - **Documents and advances:** these were built as card lists, not tables (T053, T034), so they need no table stacking.
+  - **Test:** `web/tests/phone-layout.test.tsx` (2 tests): every cell's `data-label` equals its column heading in all three tables, and each outcome has its badge class.
+  - **Width check:**
+    - **Setup:** a temporary test (deleted after use) rendered the real pages in filled states with long names, a 23 MB file name, the largest amount, and an open history. The HTML went to the scratchpad with the real stylesheet. Headless Edge loaded each page in a 390 px iframe, since headless windows will not go below about 477 px.
+    - **Pages:** dashboard, import preview, import history with a run and its history, documents with history, advances with a reversal and the record form, and the client-advances list.
+    - **Result:** all six fit their viewport with no horizontal scroll and nothing past the right edge. The viewport was 375 px for the five pages with a scrollbar and 390 px for the client-advances list.
+    - One false alarm (558 px) was the probe's own output line and was excluded.
+    - Screenshots of the preview, documents, and dashboard were inspected.
+  - **Left for T068:** the live web demonstration at 390 px with the real app.
+- T066 (2026-10-30), `README.md` "Backups" section written. It states:
+  - the application does not back itself up
+  - production backups must include the `DATABASE_URL` PostgreSQL database and the `FILE_STORAGE_DIR` folder, taken and restored together
+  - documents are archived, never deleted, and must stay recoverable for at least seven years (FR-016)
+  - uploaded import spreadsheets are not stored
+  - the `docker-compose.yml` database is for development and is not a backup
+  - **Not ticked:** the task requires recorded review and approval, which is pending with the user.
+  - **Review and approval (2026-10-30):** reviewed against Constitution V and Product Boundaries, FR-016, research.md "Backups", and the code.
+    - **Code checked:**
+      - `api/src/modules/documents/routes.ts` and `files/routes.ts` write each file before its row commits
+      - the only `unlink` removes the file of a failed upload whose row was never saved
+      - no route deletes a document or a stored file
+      - import previews keep cell values in `vendor_import_previews.rows` until confirm, cancel, or expiry clearing
+    - **Wording corrected (Backups section only):**
+      - "at the same point in time", which cannot be done across a database and a folder, became an ordered pair: database first, folder second, with the reason
+      - restoring only one is now stated not to be a recovery
+      - "documents are archived" became "no way to delete; archiving only hides"
+      - seven years is now framed as the project's requirement "from upload", subject to law and firm policy, not a reviewed legal requirement
+      - "import spreadsheets are not stored" became "the file is never stored; open-preview cell values are held until cleared, so a backup can contain them"
+    - No backup automation, retention control, or recovery guarantee is claimed.
+    - **Approval:** given by the user in the 2026-10-30 instruction, on the condition that the section accurately reflects the system and policy, which this review confirmed. It covers this README section only.
+- **Import regression coverage (2026-10-30)**, `api/tests/api/vendor-import-regression.test.ts` (5 tests), extending T038/T041/T045 coverage:
+  - **All 16 template fields:** saved on the imported vendor and read back through `GET /vendors/:id`.
+  - **Category reuse:** "Marble"/" MARBLE ", "Granite"/"granite", and "tiles"/"TILES" against a directory "Tiles" give exactly three categories, with "Tiles" keeping its id.
+  - **Confirm against a simultaneous form save:**
+    - 4 rounds of `Promise.all`; either the form gets 409 `PHONE_IN_USE` and the row is `IMPORTED`, or the form gets 201 and the row is `SKIPPED`
+    - exactly one vendor holds the phone each round
+    - **Control:** with `vendorIdentityLock` briefly disabled the test failed in round 2 (both saved); the lock was restored and `vendor-lock.ts` is identical to HEAD
+  - **Failure at the last insert (`vendor_import_rows`):** 500 `IMPORT_FAILED`; vendors, categories, runs, run rows, and history counts unchanged; the preview stays `OPEN` with its rows; a retry gives 201.
+  - **A 1,000-row file:**
+    - previews as 1,000 ready and confirms in one step: 1,000 vendors, 1,000 run rows, 1,000 vendor `CREATED` entries
+    - **Timings:** preview 108–127 ms, confirm 1.7–2.2 s on the embedded test database (logged per run)
+    - this is not the T068 timing, which uses the local database
+- T067 (2026-10-30), root checks:
+  - **Results:**
+    - `npm run lint` exit 0; `npm run typecheck` exit 0 (API and web)
+    - `npm test`: API 42 files, 240 tests passed; web 19 files, 67 passed and 1 skipped
+    - **Against the T001 baseline:** API was 25 files and 106 tests (+17 files, +134 tests); web was 11 files, 21 passed and 1 skipped (+8 files, +46 tests, same skipped test)
+  - **Flakes:**
+    - **Seen:** across 16 recorded full web runs before the fix (T059, T064, and here), 2 failed:
+      - `project-timeline-focus` at its `toHaveBeenCalled` check, both times (line 49 in T059 too)
+      - once alongside it, the Feature 001 `vendor-filters` test with "Value "cat-1" not found in options"
+    - **Cause:** both tests checked asynchronous work right after a `findBy…` resolved:
+      - the scroll runs in a `useEffect` that can trail the DOM commit
+      - the category options arrive with a second request after the form renders
+    - **Fixed in the tests only, assertions unchanged:**
+      - `await waitFor(() => expect(scrollIntoView).toHaveBeenCalled())`
+      - `await findByRole('option', { name: 'Carpentry' })` before selecting
+    - **After the fix:** 10 of 10 full web runs passed, followed by the clean root run above. Ten runs cannot prove the flake is gone entirely; the cause and fix are both specific.
+- T068 (2026-10-30), quickstart and acceptance on the running app:
+  - **Environment:**
+    - **Database:** a disposable embedded PostgreSQL 17 cluster created for this task on 127.0.0.1:54331, database `vendor_t068`, data in the session scratchpad. The Docker development database (5432) was not running and was not touched.
+    - **App:** the API ran through `tsx` from the working tree on :4100 with `FILE_STORAGE_DIR` in the scratchpad; the web ran on Vite :5174, proxying `/api`.
+    - **Setup:** migrations through `prisma migrate deploy` and the seed through `prisma db seed`, as `npm run dev` does.
+    - **Results:** the runner scripts and JSON results are in the scratchpad `t068/` folder.
+  - **API steps 1–32, 10a, 13a: 34/34 passed** on a freshly migrated and seeded database. The runner refuses any `DATABASE_URL` other than the disposable one.
+    - **Setup the quickstart assumed:** a directory vendor with a GSTIN (29AAAAA0000A1Z5) and an alternate phone, created through the vendor form API before step 9. The seed has none.
+    - **Expiry setup (steps 13 and 13a):** `expires_at` was moved 31 minutes back in UTC through Prisma.
+    - **First run:** 32/34. Steps 13 and 13a failed because the runner first used SQL `now() - 31 min`. The cluster's session time zone is Asia/Calcutta and the column holds UTC, so the preview was really expiring 4 h 59 min ahead (confirmed with `SHOW TimeZone`). This was a test-procedure fault, not an app fault. The database was dropped and recreated, and the full rerun passed 34/34.
+    - **Coverage:** steps 19–24 (documents), 25–28 (dashboard, with each figure recomputed from the lists), and 29–32 (history) all passed against the real app.
+  - **`quickstart.md` corrected (wording only):**
+    - the GSTIN and alternate-phone vendor is now a directory vendor added before step 9, not a "seeded vendor"
+    - step 13 now notes that the column is UTC
+    - the seed and the requirements are unchanged
+  - **Web demonstration, all 5 steps:**
+    - **Browser:** Chrome 156 (headless) driven over the DevTools protocol, with real mouse clicks (desktop) or touch taps (mobile), typed input, and real file inputs.
+    - **Viewports:** desktop 1280×900 (1265 px wide with the scrollbar), and mobile 390×844 at device scale 3.
+    - **Result:** 7/7 checks passed at each width:
+      - the mixed import: preview, row 5 ticked, 2/1/2 summary
+      - the 500-row import
+      - document upload and reopen with identical bytes
+      - the Accountant records and reverses, and the Office Team has no record or reverse controls but sees the amounts
+      - the dashboard tiles sit above the Feature 002 lists, each states what it counts, and all 7 open their lists
+      - the vendor history panel
+    - **Page checks:**
+      - all 9 page checks per width showed no horizontal scroll and nothing past the right edge
+      - 75 API requests per run, none failed or unexpected (only the sign-in page's `/api/auth/me` 401)
+      - 0 console errors
+    - Screenshots are in `t068/web-desktop/` and `t068/web-mobile/`.
+  - **Timings:**
+
+    | Measure | Threshold | Desktop | 390 px | Result |
+    | --- | --- | --- | --- | --- |
+    | SC-001: 500-row import, upload to summary | < 10 min | 1.42 s | 1.36 s | Pass |
+    | SC-004: document upload and reopen | < 1 min | 0.135 s | 0.153 s | Pass |
+
+    - **Limitation:** both are automated browser timings, so they exclude a person's reading and clicking time. The margins are wide.
+  - **Performance goals:**
+    - **Method:** timed over HTTP with `performance.now()` from a client on the same machine.
+    - **Volume:** 1,011 vendors, 3 projects, 8 advances, 7 reversals, 1,040 history entries, 4 documents, which is more than the seeded volume.
+
+    | Request | Runs | Median | Max | Threshold | Result |
+    | --- | --- | --- | --- | --- | --- |
+    | `POST /vendor-imports/previews`, 1,000-row `.xlsx` | 5 | 195 ms | 216 ms | < 5 s | Pass |
+    | `POST /vendor-imports/previews`, 1,000-row `.csv` | 5 | 153 ms | 163 ms | < 5 s | Pass |
+    | `GET /dashboard/summary` | 20 | 2.3 ms | 3.2 ms | < 1 s | Pass |
+    | `GET /client-advances?scope=all` | 20 | 2.2 ms | 2.6 ms | < 1 s | Pass |
+    | `GET /client-advances?scope=month` | 20 | 2.2 ms | 2.9 ms | < 1 s | Pass |
+    | `GET /projects/:id/client-advances` | 20 | 2.7 ms | 2.8 ms | < 1 s | Pass |
+
+    - **Limitation:** this is a local developer machine, not production hardware.
+  - **Findings, not fixed (outside T068's pass criteria; recorded, not changed):**
+    1. **Recording dates shown in UTC.** The advances section ("Recorded by … · date"), the document list date, and the import-run date print `created_at.slice(0, 10)`, which is the UTC calendar date. Between 00:00 and 05:30 IST they show the previous day: an advance recorded at 00:17 IST on 30 October shows "2026-10-29". The history panel and the dashboard already use IST.
+    2. **Unlabelled file input on the project page.** The Feature 001 costing-sheet `<input type="file" name="file">` on the project page has no label. It predates this feature.
+  - All processes started for T068 (the disposable Postgres, the API, the web server, and Chrome) were stopped afterwards.
+- T069 (2026-10-30), convergence:
+  - **First pass:** `tasks_appended`.
+    - **Checked:** 31 functional requirements (FR-001–FR-030 with FR-008a–e), 11 success criteria, the 34 US1–US5 acceptance scenarios, the plan decisions, and all six constitution principles plus Product Boundaries. No constitution violation was found.
+    - **Findings, all `partial`:**
+      - F1 HIGH: FR-021, US1/AC1, US1/AC4, SC-008
+      - F2 MEDIUM: US3/AC1
+      - F3 MEDIUM: FR-010, US2/AC9
+    - **The gap:** the advance, reversal, document, and import-run times were shown as `created_at.slice(0, 10)`, a UTC date with no time, showing the previous day between 00:00 and 05:30 IST (seen live in T068).
+    - **Result:** appended T070–T072 as Phase 9.
+    - **Not appended:** the Feature 001 costing-sheet file input without a label, which is outside this feature's artifacts.
+  - **T070–T072, implemented test-first:**
+    - **Test:** `web/tests/ist-times.test.tsx` (4 tests) uses 2026-10-29T19:00Z, which is 2026-10-30 00:30 IST. All 4 failed first.
+    - **Helper:** new `web/src/time.ts` with `istDateTime` ("YYYY-MM-DD HH:mm IST") and `istDate`. The history panel now uses the same helper, with unchanged output.
+    - **Where:**
+      - `advances-section.tsx`: an advance and its reversal show the time recorded
+      - `documents-section.tsx`: the upload time
+      - `vendor-imports.tsx`: the run list and the run detail
+      - `vendor-detail.tsx`: the "Imported in … on" link now uses the IST day, still a date only, since FR-010 needs only which import
+    - **Existing tests:** none were changed; their substring date checks still hold.
+    - **Own-test correction:** one assertion in the new test was wrong. It banned "2026-10-29 ·", which legitimately appears in the date-received line, and it was narrowed to the recorded line, which the old code would fail.
+  - **Final checks:**
+    - root `npm run lint` exit 0 and `npm run typecheck` exit 0
+    - `npm test`: API 42 files, 240 tests passed, including all 5 `vendor-import-regression` tests; web 20 files, 71 passed and 1 skipped (the pre-existing skipped test)
+    - 5 more full web runs: 5/5 passed
+    - `vendor-lock.ts` is identical to HEAD
+  - **Second pass:** **Converged**. F1–F3 are resolved with tests, and no new gap was found; that pass made no change to `tasks.md`.
+  - **Open, but not a gap in this feature's artifacts:** the unlabelled Feature 001 costing-sheet input.
+  - **Not done:** no pull request was opened, and nothing was committed or pushed.
+
+## Phase 9: Convergence
+
+- [X] T070 Show the time each client advance and reversal was recorded, in India Standard Time, instead of the UTC calendar date in `web/src/pages/advances-section.tsx` per FR-021, US1/AC1, US1/AC4, SC-008 (partial)
+- [X] T071 Show each document's upload time, in India Standard Time, instead of the UTC calendar date in `web/src/pages/documents-section.tsx` per US3/AC1 (partial)
+- [X] T072 Show when each import ran, in India Standard Time, instead of the UTC calendar date in `web/src/pages/vendor-imports.tsx` and `web/src/pages/vendor-detail.tsx` per FR-010, US2/AC9 (partial)

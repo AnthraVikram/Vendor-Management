@@ -89,9 +89,27 @@ fieldset { border: 1px solid #e4ddd2; border-radius: 6px; }
 label.check { display: flex; gap: 0.4rem; align-items: center; }
 label.check input { width: auto; }
 .dashboard-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.dashboard-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr)); gap: 0.75rem; }
+.dashboard-tiles a { display: grid; gap: 0.25rem; align-content: start; color: inherit; text-decoration: none; overflow-wrap: anywhere; }
+.dashboard-tiles strong { font-size: 1.5rem; }
 .dashboard-list { margin: 0; padding-left: 1.1rem; display: grid; gap: 0.4rem; }
 .records li, .dashboard-list li, .history li { overflow-wrap: anywhere; }
 .timeline-item.highlighted { outline: 3px solid #1f4d3a; outline-offset: 2px; }
+.card { overflow-wrap: break-word; }
+/* Lists of cards (documents, advances, history entries) use the full width without bullets. */
+ul.grid { list-style: none; margin: 0; padding: 0; }
+
+/* Import preview and import history tables. A wide table scrolls inside its own box, never the page. */
+.table-wrap { overflow-x: auto; }
+.table-wrap table { width: 100%; border-collapse: collapse; }
+.table-wrap th, .table-wrap td { text-align: left; vertical-align: top; padding: 0.45rem; border-bottom: 1px solid #e4ddd2; overflow-wrap: anywhere; }
+.table-wrap input[type="checkbox"] { width: auto; }
+
+/* Import row outcome badges (FR-005 to FR-007). */
+.flag { display: inline-block; }
+.outcome-ready { background: #e7f3ec; border-color: #1f4d3a; color: #1f4d3a; }
+.outcome-rejected { background: #fde8e8; border-color: #9b1c1c; color: #7f1d1d; }
+.outcome-duplicate { background: #fef3c7; border-color: #92400e; color: #78350f; }
 
 @media (max-width: 700px) {
   .filters { grid-template-columns: 1fr; }
@@ -99,4 +117,19 @@ label.check input { width: auto; }
   .shell { padding: 0.75rem; }
   button, .button { width: 100%; }
   nav { flex-direction: column; align-items: stretch; }
+  .dashboard-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Money tiles take a full row, so an amount up to ₹9999999999999.99 stays on one line. */
+  .dashboard-tiles .tile-wide { grid-column: 1 / -1; }
+
+  /* Each table row becomes a card; each cell shows its column name from data-label. */
+  .table-wrap { overflow-x: visible; position: relative; }
+  .table-wrap table, .table-wrap tbody, .table-wrap tr, .table-wrap td { display: block; width: 100%; }
+  /* Kept for screen readers but out of the layout. It must be a block, because overflow does not clip a table row group. */
+  .table-wrap thead { display: block; position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .table-wrap tr { background: #fff; border: 1px solid #e4ddd2; border-radius: 8px; padding: 0.6rem; margin-bottom: 0.6rem; }
+  .table-wrap td { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: 0.5rem; border: 0; padding: 0.2rem 0; }
+  .table-wrap td::before { content: attr(data-label); font-size: 0.8rem; color: #57534e; }
+  .table-wrap td:empty { display: none; }
+  .table-wrap td > * { justify-self: start; }
+  .table-wrap td > button { justify-self: stretch; }
 }

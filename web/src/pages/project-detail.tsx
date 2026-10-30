@@ -1,6 +1,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { AdvancesSection } from './advances-section';
+import { DocumentsSection } from './documents-section';
+import { HistoryPanel } from './history-panel';
 import { ProjectTimeline } from './project-timeline';
 
 interface LinkRow {
@@ -263,6 +265,8 @@ export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
         <button type="submit">Attach file</button>
       </form>
       <AdvancesSection projectId={id} version={version} />
+      <DocumentsSection parent="projects" parentId={id} parentArchived={project.archived} />
+      <HistoryPanel target="project_id" id={id} label="Project history" />
       <ProjectTimeline
         projectId={id}
         linkedVendors={project.links.map((link) => ({ id: link.vendor_id, name: link.vendor_name, archived: link.vendor_archived }))}

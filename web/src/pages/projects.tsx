@@ -3,7 +3,10 @@ import { api } from '../api/client';
 
 interface Project { id: string; name: string; status: string; archived: boolean }
 
-export function Projects({ openProject }: { openProject: (id: string) => void }) {
+const STATUS_NAMES: Record<string, string> = { PLANNED: 'Planned', ACTIVE: 'Active', ON_HOLD: 'On hold', COMPLETED: 'Completed' };
+
+// `status` comes from a dashboard tile (#/projects?status=ACTIVE) and narrows the list to that status.
+export function Projects({ openProject, status: statusFilter }: { openProject: (id: string) => void; status?: string }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [name, setName] = useState('');
   const [status, setStatus] = useState('PLANNED');
@@ -11,7 +14,10 @@ export function Projects({ openProject }: { openProject: (id: string) => void })
   const [error, setError] = useState('');
 
   function load(archived = includeArchived) {
-    const query = archived ? '?include_archived=true' : '';
+    const params = new URLSearchParams();
+    if (statusFilter) params.set('status', statusFilter);
+    if (archived) params.set('include_archived', 'true');
+    const query = params.toString() ? `?${params}` : '';
     api<Project[]>(`/api/projects${query}`).then(setProjects).catch((caught: Error) => setError(caught.message));
   }
 
@@ -27,6 +33,11 @@ export function Projects({ openProject }: { openProject: (id: string) => void })
   return (
     <section className="grid">
       <h1>Projects</h1>
+      {statusFilter ? (
+        <p>
+          Showing {STATUS_NAMES[statusFilter] ?? statusFilter} projects only. <a href="#/projects">Show all projects</a>
+        </p>
+      ) : null}
       <form className="card row" onSubmit={create}>
         <label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label>
         <label>

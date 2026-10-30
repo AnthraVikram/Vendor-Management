@@ -1,5 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { HistoryPanel } from './history-panel';
+import { istDateTime } from '../time';
 
 interface Person {
   id: string;
@@ -177,15 +179,16 @@ export function AdvancesSection({ projectId, version = 0 }: { projectId: string;
                   {advance.reference ? ` · ${advance.reference}` : ''}
                   {advance.note ? ` · ${advance.note}` : ''}
                 </p>
-                <p>Recorded by {advance.created_by.name} · {advance.created_at.slice(0, 10)}</p>
+                <p>Recorded by {advance.created_by.name} · {istDateTime(advance.created_at)}</p>
                 {advance.reversal ? (
                   <p>
                     <strong>Reversed</strong> {rupees(advance.reversal.amount)} by {advance.reversal.created_by.name} ·{' '}
-                    {advance.reversal.created_at.slice(0, 10)} · Reason: {advance.reversal.reason}
+                    {istDateTime(advance.reversal.created_at)} · Reason: {advance.reversal.reason}
                   </p>
                 ) : canRecord ? (
                   <ReverseForm advanceId={advance.id} onSaved={load} />
                 ) : null}
+                <HistoryPanel target="client_advance_id" id={advance.id} label={`History of the advance received ${advance.received_on}`} />
               </li>
             ))}
           </ul>

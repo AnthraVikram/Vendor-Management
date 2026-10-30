@@ -17,6 +17,63 @@ interface DashboardData {
   })[];
 }
 
+interface Summary {
+  vendors: { active: number };
+  projects: Record<string, number>;
+  client_advances?: {
+    standing_total: string;
+    received_this_month: string;
+    month: string;
+    labels: { standing_total: string; received_this_month: string };
+  };
+}
+
+const STATUSES: [string, string][] = [
+  ['PLANNED', 'Planned'],
+  ['ACTIVE', 'Active'],
+  ['ON_HOLD', 'On hold'],
+  ['COMPLETED', 'Completed'],
+];
+
+function Tile({ href, value, label, wide = false }: { href: string; value: string; label: string; wide?: boolean }) {
+  return (
+    <a className={wide ? 'card tile-wide' : 'card'} href={href}>
+      <strong>{value}</strong>
+      <span>{label}</span>
+    </a>
+  );
+}
+
+// Count and money tiles (FR-023 to FR-026). The money tiles appear only when the API sends them.
+function SummaryTiles() {
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api<Summary>('/api/dashboard/summary').then(setSummary).catch((caught: Error) => setError(caught.message));
+  }, []);
+
+  return (
+    <section className="dashboard-tiles" aria-label="At a glance">
+      {error ? <p className="error">{error}</p> : null}
+      {summary ? (
+        <>
+          <Tile href="#/vendors" value={String(summary.vendors.active)} label="Vendors not archived" />
+          {STATUSES.map(([status, name]) => (
+            <Tile key={status} href={`#/projects?status=${status}`} value={String(summary.projects[status] ?? 0)} label={`${name} projects, not archived`} />
+          ))}
+          {summary.client_advances ? (
+            <>
+              <Tile wide href="#/client-advances?scope=all" value={`₹${summary.client_advances.standing_total}`} label={summary.client_advances.labels.standing_total} />
+              <Tile wide href="#/client-advances?scope=month" value={`₹${summary.client_advances.received_this_month}`} label={summary.client_advances.labels.received_this_month} />
+            </>
+          ) : null}
+        </>
+      ) : null}
+    </section>
+  );
+}
+
 function target(entry: Entry): string {
   return entry.item ? `#/projects/${entry.project.id}?item=${entry.item.id}` : `#/projects/${entry.project.id}`;
 }
@@ -43,12 +100,12 @@ export function Dashboard() {
     api<DashboardData>('/api/dashboard').then(setData).catch((caught: Error) => setError(caught.message));
   }, []);
 
-  if (!data) return <p>{error || 'Loading dashboard'}</p>;
   return (
     <section className="grid">
-      <h1>Deadlines and delays</h1>
-      <p>Today: {data.today} (India Standard Time). Archived projects and archived items are not shown.</p>
-      <div className="dashboard-grid">
+      <h1>Dashboard</h1>
+      <SummaryTiles />
+      {data ? <p>Today: {data.today} (India Standard Time). Archived projects and archived items are not shown in the lists below.</p> : <p>{error || 'Loading dashboard'}</p>}
+      {data ? <div className="dashboard-grid">
         <List
           title="Overdue"
           empty="Nothing overdue."
@@ -92,7 +149,7 @@ export function Dashboard() {
             </li>
           )}
         />
-      </div>
+      </div> : null}
     </section>
   );
 }

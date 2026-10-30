@@ -1,5 +1,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api } from '../api/client';
+import { DocumentsSection } from './documents-section';
+import { HistoryPanel } from './history-panel';
+import { istDate } from '../time';
 
 interface VendorDetail {
   id: string;
@@ -10,6 +13,7 @@ interface VendorDetail {
   rates: { label: string; amount: string; unit: string }[];
   notes: { id: string; note_type: string; body: string }[];
   current_rating: { score: number } | null;
+  import_run?: { id: string; file_name: string; created_at: string } | null;
 }
 
 export function VendorDetail({ id }: { id: string }) {
@@ -47,6 +51,13 @@ export function VendorDetail({ id }: { id: string }) {
     <section className="grid">
       <h1>{vendor.name}</h1>
       <p>{vendor.phone}</p>
+      {vendor.import_run ? (
+        <p>
+          <a href={`#/vendor-imports?run=${vendor.import_run.id}`}>
+            Imported in {vendor.import_run.file_name} on {istDate(vendor.import_run.created_at)}
+          </a>
+        </p>
+      ) : null}
       <p>Availability: {vendor.availability ?? 'Not set'}</p>
       <h2>Indicative rates</h2>
       <ul>
@@ -65,6 +76,8 @@ export function VendorDetail({ id }: { id: string }) {
         <button type="submit">Add note</button>
       </form>
       <button type="button" className="secondary" onClick={toggleArchive}>{vendor.archived ? 'Restore' : 'Archive'}</button>
+      <DocumentsSection parent="vendors" parentId={vendor.id} parentArchived={vendor.archived} />
+      <HistoryPanel target="vendor_id" id={vendor.id} label="Vendor history" />
       {error ? <p className="error">{error}</p> : null}
     </section>
   );

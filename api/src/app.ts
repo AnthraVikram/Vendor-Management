@@ -13,6 +13,9 @@ import { fileRouter } from './modules/files/routes';
 import { timelineRouter } from './modules/timeline/routes';
 import { dashboardRouter } from './modules/dashboard/routes';
 import { clientAdvanceRouter } from './modules/client-advances/routes';
+import { vendorImportRouter } from './modules/vendor-imports/routes';
+import { documentRouter } from './modules/documents/routes';
+import { historyRouter } from './modules/history/routes';
 
 export function createApp() {
   const config = loadConfig();
@@ -35,6 +38,9 @@ export function createApp() {
   app.use('/api', timelineRouter);
   app.use('/api', dashboardRouter);
   app.use('/api', clientAdvanceRouter);
+  app.use('/api', vendorImportRouter);
+  app.use('/api', documentRouter);
+  app.use('/api', historyRouter);
   app.use('/api', (_req, res) => {
     res.status(404).json({ message: 'Not found.' });
   });

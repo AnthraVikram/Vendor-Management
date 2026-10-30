@@ -8,6 +8,9 @@ import { Projects } from './pages/projects';
 import { ProjectDetail } from './pages/project-detail';
 import { StaffPage } from './pages/staff';
 import { Dashboard } from './pages/dashboard';
+import { VendorImport } from './pages/vendor-import';
+import { VendorImports } from './pages/vendor-imports';
+import { ClientAdvances } from './pages/client-advances';
 import './styles.css';
 
 interface Me { id: string; name: string; role: string }
@@ -50,10 +53,14 @@ function App() {
     }
   }
 
-  const vendorId = path.startsWith('/vendors/') ? path.slice('/vendors/'.length) : '';
+  // '/vendors/import' is the import page, not a vendor id.
+  const vendorId = path.startsWith('/vendors/') && path !== '/vendors/import' ? path.slice('/vendors/'.length) : '';
   const [projectPath, projectQuery = ''] = path.split('?');
   const projectId = projectPath.startsWith('/projects/') ? projectPath.slice('/projects/'.length) : '';
   const focusItemId = new URLSearchParams(projectQuery).get('item') ?? undefined;
+  const importRunId = new URLSearchParams(projectQuery).get('run') ?? undefined;
+  const projectStatus = new URLSearchParams(projectQuery).get('status') ?? undefined;
+  const advanceScope = new URLSearchParams(projectQuery).get('scope') === 'month' ? 'month' : 'all';
 
   return (
     <div className="shell">
@@ -75,10 +82,14 @@ function App() {
         {passwordMessage ? <p>{passwordMessage}</p> : null}
       </form>
       {path.startsWith('/vendors/') && vendorId ? <VendorDetail id={vendorId} /> : null}
+      {path === '/vendors' ? <p><a href="#/vendors/import">Import vendors</a></p> : null}
       {path === '/vendors' ? <Vendors openVendor={(id) => { window.location.hash = `/vendors/${id}`; }} /> : null}
+      {path === '/vendors/import' ? <VendorImport /> : null}
+      {projectPath === '/vendor-imports' ? <VendorImports key={importRunId ?? ''} runId={importRunId} /> : null}
       {path === '/dashboard' ? <Dashboard /> : null}
       {projectPath.startsWith('/projects/') && projectId ? <ProjectDetail key={`${projectId}:${focusItemId ?? ''}`} id={projectId} itemId={focusItemId} /> : null}
-      {path === '/projects' ? <Projects openProject={(id) => { window.location.hash = `/projects/${id}`; }} /> : null}
+      {projectPath === '/projects' ? <Projects key={projectStatus ?? ''} status={projectStatus} openProject={(id) => { window.location.hash = `/projects/${id}`; }} /> : null}
+      {projectPath === '/client-advances' ? <ClientAdvances scope={advanceScope} /> : null}
       {path === '/staff' ? <StaffPage currentUserId={me.id} /> : null}
     </div>
   );

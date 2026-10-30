@@ -7,7 +7,7 @@ import { prisma } from '../../db';
 import { stampCreate } from '../../lib/audit';
 import { recordHistory } from '../../lib/history';
 import { HttpError } from '../../lib/http';
-import { fromDateColumn, todayInIndia, toDateColumn } from '../../lib/india-date';
+import { currentMonthInIndia, fromDateColumn, todayInIndia, toDateColumn } from '../../lib/india-date';
 import { moneyString, parsePositiveAmount } from '../../lib/money';
 import { ADVANCE_RECORDERS, ADVANCE_VIEWERS } from '../../lib/permissions';
 import { asyncRoute } from '../async-route';
@@ -31,6 +31,10 @@ const recordSchema = z.object({
 
 const reverseSchema = z.object({
   reason: z.string({ required_error: 'A reason is required.' }).trim().min(1, 'A reason is required.'),
+});
+
+const scopeSchema = z.object({
+  scope: z.enum(['all', 'month'], { errorMap: () => ({ message: 'Scope must be "all" or "month".' }) }),
 });
 
 const advanceInclude = {
@@ -83,6 +87,30 @@ async function loadAdvance(id: string): Promise<AdvanceRecord> {
 }
 
 export const clientAdvanceRouter = Router();
+
+// The standing advances behind a dashboard money tile, on every project, archived included (US4-6).
+clientAdvanceRouter.get(
+  '/client-advances',
+  asyncRoute(async (req, res) => {
+    assertRole(req, ADVANCE_VIEWERS);
+    const { scope } = scopeSchema.parse(req.query);
+    const month = currentMonthInIndia();
+    const advances = await prisma.clientAdvance.findMany({
+      where: {
+        reversal: { is: null },
+        ...(scope === 'month' ? { receivedOn: { gte: toDateColumn(month.start), lt: toDateColumn(month.end) } } : {}),
+      },
+      include: { ...advanceInclude, project: { select: { id: true, name: true, clientName: true, archived: true } } },
+      orderBy: [{ receivedOn: 'desc' }, { createdAt: 'desc' }],
+    });
+    res.json(
+      advances.map((advance) => ({
+        ...presentAdvance(advance),
+        project: { id: advance.project.id, name: advance.project.name, client_name: advance.project.clientName, archived: advance.project.archived },
+      })),
+    );
+  }),
+);
 
 clientAdvanceRouter.get(
   '/projects/:id/client-advances',

@@ -1,7 +1,11 @@
+import type { ProjectStatus } from '@prisma/client';
 import { Router } from 'express';
 import { prisma } from '../../db';
 import { recentDelaysAndIssues, sortDueSoon, sortMissingUpdate, sortOverdue } from '../../lib/dashboard-sort';
-import { fromDateColumn, todayInIndia } from '../../lib/india-date';
+import { presentSummary } from '../../lib/dashboard-summary';
+import { currentMonthInIndia, fromDateColumn, toDateColumn, todayInIndia } from '../../lib/india-date';
+import { moneyString } from '../../lib/money';
+import { ADVANCE_VIEWERS } from '../../lib/permissions';
 import { asyncRoute } from '../async-route';
 import { delayInclude, flagsOf, itemInclude, presentAuthor, presentResponsible } from '../timeline/present';
 
@@ -78,5 +82,38 @@ dashboardRouter.get(
         RECENT_LIMIT,
       ),
     });
+  }),
+);
+
+// Count and money tiles (FR-023 to FR-026). Worked out on every request, so they reflect every saved change.
+dashboardRouter.get(
+  '/dashboard/summary',
+  asyncRoute(async (req, res) => {
+    const role = req.staff!.role;
+    const [vendorsActive, byStatus] = await Promise.all([
+      prisma.vendor.count({ where: { archived: false } }),
+      prisma.project.groupBy({ by: ['status'], where: { archived: false }, _count: { _all: true } }),
+    ]);
+    const projects: Record<ProjectStatus, number> = { PLANNED: 0, ACTIVE: 0, ON_HOLD: 0, COMPLETED: 0 };
+    for (const row of byStatus) projects[row.status] = row._count._all;
+
+    let advances = null;
+    if (ADVANCE_VIEWERS.includes(role)) {
+      // Covers every project, archived included. A reversal removes its advance from the month it was received in.
+      const month = currentMonthInIndia();
+      const [standing, received] = await Promise.all([
+        prisma.clientAdvance.aggregate({ where: { reversal: { is: null } }, _sum: { amount: true } }),
+        prisma.clientAdvance.aggregate({
+          where: { reversal: { is: null }, receivedOn: { gte: toDateColumn(month.start), lt: toDateColumn(month.end) } },
+          _sum: { amount: true },
+        }),
+      ]);
+      advances = {
+        standingTotal: moneyString(standing._sum.amount ?? 0),
+        receivedThisMonth: moneyString(received._sum.amount ?? 0),
+        month: month.label,
+      };
+    }
+    res.json(presentSummary(role, { vendorsActive, projects, advances }));
   }),
 );
