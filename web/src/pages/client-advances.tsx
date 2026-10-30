@@ -27,28 +27,51 @@ export function ClientAdvances({ scope }: { scope: 'all' | 'month' }) {
 
   return (
     <section className="grid">
-      <h1>{TITLES[scope]}</h1>
-      <p><a href="#/dashboard">Back to the dashboard</a></p>
-      {error ? <p className="error">{error}</p> : null}
+      <header className="page-header">
+        <div className="page-title">
+          <p className="eyebrow">Client advances</p>
+          <h1>{TITLES[scope]}</h1>
+          <p className="page-subtitle">The standing advances behind this dashboard figure, archived projects included.</p>
+        </div>
+        <div className="page-actions">
+          <a className="button secondary" href="#/dashboard">Back to the dashboard</a>
+        </div>
+      </header>
+      {error ? <p className="error form-error" role="alert">{error}</p> : null}
       {advances && advances.length > 0 ? (
-        <ul className="grid" aria-label="Client advances">
-          {advances.map((advance) => (
-            <li className="card" key={advance.id}>
-              <p>
-                <a href={`#/projects/${advance.project.id}`}>{advance.project.name}</a>
-                {advance.project.archived ? ' (archived)' : ''}
-                {advance.project.client_name ? ` · ${advance.project.client_name}` : ''}
-              </p>
-              <p>
-                {advance.received_on} · ₹{advance.amount}
-                {advance.reference ? ` · ${advance.reference}` : ''}
-                {advance.note ? ` · ${advance.note}` : ''} · recorded by {advance.created_by.name}
-              </p>
-            </li>
-          ))}
-        </ul>
+        <div className="section">
+          <div className="section-heading">
+            <div>
+              <h2>Advances</h2>
+              <span className="count-badge">{advances.length}</span>
+            </div>
+          </div>
+          <ul className="grid" aria-label="Client advances">
+            {advances.map((advance) => (
+              <li className="card advance" key={advance.id}>
+                <div className="advance-main">
+                  <div className="advance-what">
+                    <p className="advance-project">
+                      <a href={`#/projects/${advance.project.id}`}>{advance.project.name}</a>
+                      {advance.project.archived ? <span className="status-badge status-archived">Project archived</span> : null}
+                    </p>
+                    <p className="meta">{advance.project.client_name ? `Client: ${advance.project.client_name}` : 'Client not set'}</p>
+                  </div>
+                  <div className="advance-money">
+                    <p className="advance-amount">₹{advance.amount}</p>
+                  </div>
+                </div>
+                <p className="meta">
+                  Received {advance.received_on}
+                  {advance.reference ? ` · ${advance.reference}` : ''}
+                  {advance.note ? ` · ${advance.note}` : ''} · recorded by {advance.created_by.name}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
-      {advances && advances.length === 0 ? <p>No client advances to show.</p> : null}
+      {advances && advances.length === 0 ? <p className="empty">No client advances to show.</p> : null}
     </section>
   );
 }

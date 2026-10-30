@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { ApiError, api } from '../api/client';
+import { ArchivedBadge, AvailabilityBadge } from '../badges';
 
 interface Category { id: string; name: string }
 interface Project { id: string; name: string }
@@ -140,9 +141,18 @@ export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
 
   return (
     <section className="grid">
-      <h1>Vendors</h1>
-      <form className="card filters" onSubmit={filter} aria-label="Vendor filters">
-        <label>
+      <header className="page-header">
+        <div className="page-title">
+          <p className="eyebrow">Directory</p>
+          <h1>Vendors</h1>
+          <p className="page-subtitle">Find vendors by name, category, location, availability, or project, and add new ones.</p>
+        </div>
+        <div className="page-actions">
+          <a className="button secondary" href="#/vendors/import">Import vendors</a>
+        </div>
+      </header>
+      <form className="card filter-bar" onSubmit={filter} aria-label="Vendor filters">
+        <label className="search">
           Search
           <input aria-label="Search" value={q} onChange={(event) => setQ(event.target.value)} />
         </label>
@@ -177,13 +187,15 @@ export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
             ))}
           </select>
         </label>
-        <label>
-          <span>Include archived</span>
-          <input type="checkbox" checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} />
-        </label>
-        <button type="submit">Apply filters</button>
+        <div className="form-actions">
+          <label className="check">
+            <input type="checkbox" checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} />
+            <span>Include archived</span>
+          </label>
+          <button type="submit">Apply filters</button>
+        </div>
       </form>
-      <form className="card grid" onSubmit={create} aria-label="Add vendor">
+      <form className="card form-2col" onSubmit={create} aria-label="Add vendor">
         <h2>Add vendor</h2>
         <label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label>
         <label>Phone<input value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
@@ -191,16 +203,19 @@ export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
         <label>Contact person<input value={contactPerson} onChange={(event) => setContactPerson(event.target.value)} /></label>
         <label>Alternate phone<input value={alternatePhone} onChange={(event) => setAlternatePhone(event.target.value)} /></label>
         <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-        <label>Address<input value={address} onChange={(event) => setAddress(event.target.value)} /></label>
+        <label className="span-2">Address<input value={address} onChange={(event) => setAddress(event.target.value)} /></label>
+        <p className="form-section-title">Coverage</p>
         <label>Locations<input placeholder="Comma-separated" value={locationsText} onChange={(event) => setLocationsText(event.target.value)} /></label>
         <label>Services<input placeholder="Comma-separated" value={servicesText} onChange={(event) => setServicesText(event.target.value)} /></label>
-        <label>Materials<input placeholder="Comma-separated" value={materialsText} onChange={(event) => setMaterialsText(event.target.value)} /></label>
-        <label>
-          <span>GST registered</span>
+        <label className="span-2">Materials<input placeholder="Comma-separated" value={materialsText} onChange={(event) => setMaterialsText(event.target.value)} /></label>
+        <p className="form-section-title">GST</p>
+        <label className="check span-2">
           <input type="checkbox" checked={gstRegistered} onChange={(event) => setGstRegistered(event.target.checked)} />
+          <span>GST registered</span>
         </label>
         <label>GSTIN<input value={gstin} onChange={(event) => setGstin(event.target.value)} /></label>
         <label>GST legal name<input value={gstLegalName} onChange={(event) => setGstLegalName(event.target.value)} /></label>
+        <p className="form-section-title">Capacity and rates</p>
         <label>Team size<input inputMode="numeric" value={teamSize} onChange={(event) => setTeamSize(event.target.value)} /></label>
         <label>
           Manpower availability
@@ -215,22 +230,52 @@ export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
         <label>Rate label<input value={rateLabel} onChange={(event) => setRateLabel(event.target.value)} /></label>
         <label>Rate amount<input inputMode="decimal" placeholder="1500.00" value={rateAmount} onChange={(event) => setRateAmount(event.target.value)} /></label>
         <label>Rate unit<input value={rateUnit} onChange={(event) => setRateUnit(event.target.value)} /></label>
-        <button type="submit">Save vendor</button>
+        <div className="form-actions">
+          <button type="submit">Save vendor</button>
+        </div>
       </form>
       {duplicate ? (
-        <div className="card" role="alert">
-          <p>Another vendor already uses this phone number: {duplicate.matches.map((match) => match.name).join(', ')}.</p>
+        <div className="card notice-card" role="alert">
+          <p className="notice-warning">Another vendor already uses this phone number: {duplicate.matches.map((match) => match.name).join(', ')}.</p>
           <button type="button" onClick={saveAnyway}>Save anyway</button>
         </div>
       ) : null}
-      {error ? <p className="error">{error}</p> : null}
-      <div className="grid">
-        {vendors.map((vendor) => (
-          <article className="card" key={vendor.id}>
-            <button type="button" onClick={() => openVendor(vendor.id)}>{vendor.name}</button>
-            <p>{vendor.phone} {vendor.locations.join(', ')} {vendor.archived ? '(archived)' : ''}</p>
-          </article>
-        ))}
+      {error ? <p className="error form-error" role="alert">{error}</p> : null}
+      <div className="section">
+        <div className="section-heading">
+          <div>
+            <h2>Vendor list</h2>
+            <span className="count-badge">{vendors.length}</span>
+          </div>
+        </div>
+        {vendors.length > 0 ? (
+          <div className="table-wrap list-table">
+            <table aria-label="Vendors">
+              <thead>
+                <tr>
+                  <th>Vendor</th>
+                  <th>Phone</th>
+                  <th>Locations</th>
+                  <th>Availability</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {vendors.map((vendor) => (
+                  <tr key={vendor.id}>
+                    <td data-label="Vendor"><button type="button" className="link-button" onClick={() => openVendor(vendor.id)}>{vendor.name}</button></td>
+                    <td data-label="Phone">{vendor.phone}</td>
+                    <td data-label="Locations">{vendor.locations.join(', ')}</td>
+                    <td data-label="Availability"><AvailabilityBadge availability={vendor.availability} /></td>
+                    <td data-label="Status">{vendor.archived ? <ArchivedBadge /> : <span className="muted">Active</span>}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="empty">No vendors match these filters.</p>
+        )}
       </div>
     </section>
   );

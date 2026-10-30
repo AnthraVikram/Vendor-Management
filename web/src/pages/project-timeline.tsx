@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { istDateTime } from '../time';
 
 type ResponsibleKind = 'NONE' | 'VENDOR' | 'FIRM_TEAM';
 type Status = 'NOT_STARTED' | 'IN_PROGRESS' | 'DONE';
@@ -53,9 +54,9 @@ interface TimelineData {
 const typeLabel = { MILESTONE: 'Milestone', ACTIVITY: 'Activity' } as const;
 const statusLabel: Record<Status, string> = { NOT_STARTED: 'Not started', IN_PROGRESS: 'In progress', DONE: 'Done' };
 
-function when(value: string): string {
-  return new Date(value).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-}
+// Recorded times in India Standard Time, in the same "YYYY-MM-DD HH:mm IST" form as the rest of the app.
+const when = istDateTime;
+const statusClass: Record<Status, string> = { NOT_STARTED: 'status-not-started', IN_PROGRESS: 'status-in-progress', DONE: 'status-done' };
 
 function responsibleText(responsible: Responsible): string {
   return responsible.vendor?.archived ? `${responsible.label} (archived)` : responsible.label;
@@ -77,7 +78,7 @@ export function FlagBadges({ flags }: { flags: Flag[] }) {
 }
 
 function FieldError({ message }: { message?: string }) {
-  return message ? <span className="error">{message}</span> : null;
+  return message ? <span className="error" role="alert">{message}</span> : null;
 }
 
 function responsibleValue(responsible?: Responsible): string {
@@ -151,9 +152,11 @@ export function ItemForm({
   }
 
   const responsibleError = fields['responsible.vendor_id'] ?? fields['responsible.kind'] ?? fields.responsible;
+  // Inside an item card the item's name is already a level-3 heading, so the edit form sits one level below it.
+  const Heading = item ? 'h4' : 'h3';
   return (
-    <form className="card grid" onSubmit={submit} aria-label={item ? `Edit ${item.name}` : 'Add timeline item'}>
-      <h3>{item ? `Edit ${item.name}` : 'Add timeline item'}</h3>
+    <form className={`card grid timeline-form${item ? ' is-editing' : ''}`} onSubmit={submit} aria-label={item ? `Edit ${item.name}` : 'Add timeline item'}>
+      <Heading>{item ? `Edit ${item.name}` : 'Add timeline item'}</Heading>
       <div className="form-grid">
         <div className="field">
           <label>
@@ -206,12 +209,12 @@ export function ItemForm({
           <FieldError message={fields.description} />
         </div>
       </div>
-      <div className="row">
+      <div className="form-actions">
         <button type="submit">Save item</button>
         {onCancel ? <button type="button" className="secondary" onClick={onCancel}>Cancel</button> : null}
       </div>
-      {fields.body ? <p className="error">{fields.body}</p> : null}
-      {message ? <p className="error">{message}</p> : null}
+      {fields.body ? <p className="error form-error" role="alert">{fields.body}</p> : null}
+      {message ? <p className="error form-error" role="alert">{message}</p> : null}
     </form>
   );
 }
@@ -238,7 +241,8 @@ export function ProgressForm({ itemId, itemName, onSaved }: { itemId: string; it
   }
 
   return (
-    <form className="row" onSubmit={submit} aria-label={`Record progress on ${itemName}`}>
+    <form className="progress-form" onSubmit={submit} aria-label={`Record progress on ${itemName}`}>
+      <span className="progress-form-title" aria-hidden="true">Record progress</span>
       <label>
         Status
         <select value={status} onChange={(event) => setStatus(event.target.value as Status)}>
@@ -251,8 +255,8 @@ export function ProgressForm({ itemId, itemName, onSaved }: { itemId: string; it
         Note
         <input value={note} onChange={(event) => setNote(event.target.value)} />
       </label>
-      <button type="submit">Save update</button>
-      {message ? <p className="error">{message}</p> : null}
+      <button type="submit" className="small">Save update</button>
+      {message ? <p className="error form-error" role="alert">{message}</p> : null}
     </form>
   );
 }
@@ -278,13 +282,18 @@ function RecordList({ delays, issues, showItem }: { delays: Delay[]; issues: Iss
       by: issue.created_by,
     })),
   ].sort((a, b) => b.at.localeCompare(a.at));
-  if (rows.length === 0) return <p>No delays or coordination issues.</p>;
+  if (rows.length === 0) return <p className="empty">No delays or coordination issues.</p>;
   return (
-    <ul className="records">
+    <ul className="records record-list" aria-label={showItem ? 'Delays and coordination issues' : 'Delays and issues on this item'}>
       {rows.map((row) => (
-        <li key={row.key}>
-          <strong>{row.kind}</strong>{showItem ? ` · ${row.item ? row.item.name : 'Whole project'}` : ''}: {row.text}
-          {row.vendors ? ` · Vendors: ${row.vendors}` : ''} · {row.by.name}, {when(row.at)}
+        <li key={row.key} className={`record ${row.kind === 'Delay' ? 'record-delay' : 'record-issue'}`}>
+          <p className="record-head">
+            <strong className="record-kind">{row.kind}</strong>
+            {showItem ? <span className="record-item">{row.item ? row.item.name : 'Whole project'}</span> : null}
+          </p>
+          <p className="record-text">{row.text}</p>
+          {row.vendors ? <p className="record-vendors">Vendors: {row.vendors}</p> : null}
+          <p className="meta">{row.by.name} · {when(row.at)}</p>
         </li>
       ))}
     </ul>
@@ -326,12 +335,12 @@ export function DelayForm({ projectId, items, onSaved }: { projectId: string; it
   }
 
   return (
-    <form className="card grid" onSubmit={submit} aria-label="Record delay">
+    <form className="card grid record-form" onSubmit={submit} aria-label="Record delay">
       <h3>Record delay</h3>
       <label>Reason<textarea value={reason} onChange={(event) => setReason(event.target.value)} /></label>
       <ItemChoice items={items} value={itemId} onChange={setItemId} />
       <button type="submit">Record delay</button>
-      {message ? <p className="error">{message}</p> : null}
+      {message ? <p className="error form-error" role="alert">{message}</p> : null}
     </form>
   );
 }
@@ -370,13 +379,13 @@ export function IssueForm({
   }
 
   return (
-    <form className="card grid" onSubmit={submit} aria-label="Record coordination issue">
+    <form className="card grid record-form" onSubmit={submit} aria-label="Record coordination issue">
       <h3>Record coordination issue</h3>
       <label>Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} /></label>
       <ItemChoice items={items} value={itemId} onChange={setItemId} />
-      <fieldset className="row">
+      <fieldset className="check-group">
         <legend>Vendors involved</legend>
-        {vendors.length === 0 ? <span>No linked vendors.</span> : vendors.map((vendor) => (
+        {vendors.length === 0 ? <span className="empty">No linked vendors.</span> : vendors.map((vendor) => (
           <label key={vendor.id} className="check">
             <input
               type="checkbox"
@@ -390,12 +399,12 @@ export function IssueForm({
         ))}
       </fieldset>
       <button type="submit">Record issue</button>
-      {message ? <p className="error">{message}</p> : null}
+      {message ? <p className="error form-error" role="alert">{message}</p> : null}
     </form>
   );
 }
 
-function ItemHistory({ itemId, version }: { itemId: string; version: number }) {
+function ItemHistory({ id, itemId, version }: { id: string; itemId: string; version: number }) {
   const [detail, setDetail] = useState<ItemDetail | null>(null);
   const [error, setError] = useState('');
 
@@ -403,40 +412,59 @@ function ItemHistory({ itemId, version }: { itemId: string; version: number }) {
     api<ItemDetail>(`/api/timeline-items/${itemId}`).then(setDetail).catch((caught: Error) => setError(caught.message));
   }, [itemId, version]);
 
-  if (!detail) return <p>{error || 'Loading history'}</p>;
+  if (!detail) return <p id={id} className={error ? 'error' : 'meta'}>{error || 'Loading history'}</p>;
   return (
-    <div className="grid history">
-      <h4>Progress updates</h4>
-      {detail.progress_updates.length === 0 ? <p>No progress updates yet.</p> : (
-        <ul>
-          {detail.progress_updates.map((update) => (
-            <li key={update.id}>
-              {statusLabel[update.status]}{update.note ? `: ${update.note}` : ''}, by {update.created_by.name}, {when(update.created_at)}
-            </li>
-          ))}
-        </ul>
-      )}
-      <h4>Date changes</h4>
-      {detail.date_changes.length === 0 ? <p>No date changes.</p> : (
-        <ul>
-          {detail.date_changes.map((change) => (
-            <li key={change.id}>
-              {change.field === 'DEADLINE' ? 'Deadline' : 'Planned date'}: {change.old_value ?? 'none'} → {change.new_value ?? 'none'}, by {change.created_by.name}, {when(change.created_at)}
-            </li>
-          ))}
-        </ul>
-      )}
-      <h4>Responsible party changes</h4>
-      {detail.responsible_changes.length === 0 ? <p>No responsible party changes.</p> : (
-        <ul>
-          {detail.responsible_changes.map((change) => (
-            <li key={change.id}>
-              {responsibleText(change.old)} → {responsibleText(change.new)}
-              {change.cause === 'LINK_REMOVED' ? ' (vendor link removed)' : ''}, by {change.created_by.name}, {when(change.created_at)}
-            </li>
-          ))}
-        </ul>
-      )}
+    <div id={id} className="grid history item-history">
+      <div className="item-history-group">
+        <h4>Progress updates</h4>
+        {detail.progress_updates.length === 0 ? <p className="empty">No progress updates yet.</p> : (
+          <ul className="history-timeline">
+            {detail.progress_updates.map((update) => (
+              <li key={update.id} className={`history-entry progress-${update.status.toLowerCase().replace('_', '-')}`}>
+                <p className="history-head">
+                  <strong className="history-action">{statusLabel[update.status]}</strong> · {update.created_by.name} · <span className="history-when">{when(update.created_at)}</span>
+                </p>
+                {update.note ? <p className="history-detail"><span className="history-value">{update.note}</span></p> : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="item-history-group">
+        <h4>Date changes</h4>
+        {detail.date_changes.length === 0 ? <p className="empty">No date changes.</p> : (
+          <ul className="history-timeline">
+            {detail.date_changes.map((change) => (
+              <li key={change.id} className="history-entry action-edited">
+                <p className="history-head">
+                  <strong className="history-action">{change.field === 'DEADLINE' ? 'Deadline' : 'Planned date'}</strong> · {change.created_by.name} · <span className="history-when">{when(change.created_at)}</span>
+                </p>
+                <p className="history-change">
+                  <span className="history-from">{change.old_value ?? 'none'}</span> → <span className="history-to">{change.new_value ?? 'none'}</span>
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+      <div className="item-history-group">
+        <h4>Responsible party changes</h4>
+        {detail.responsible_changes.length === 0 ? <p className="empty">No responsible party changes.</p> : (
+          <ul className="history-timeline">
+            {detail.responsible_changes.map((change) => (
+              <li key={change.id} className="history-entry action-edited">
+                <p className="history-head">
+                  <strong className="history-action">Responsible party</strong> · {change.created_by.name} · <span className="history-when">{when(change.created_at)}</span>
+                </p>
+                <p className="history-change">
+                  <span className="history-from">{responsibleText(change.old)}</span> → <span className="history-to">{responsibleText(change.new)}</span>
+                  {change.cause === 'LINK_REMOVED' ? ' (vendor link removed)' : ''}
+                </p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
@@ -466,6 +494,8 @@ function ItemCard({
   const [showHistory, setShowHistory] = useState(false);
   const [error, setError] = useState('');
   const ref = useRef<HTMLElement>(null);
+  const historyId = `timeline-item-history-${item.id}`;
+  const overdue = item.flags.some((flag) => flag.type === 'OVERDUE');
 
   useEffect(() => {
     if (highlighted) ref.current?.scrollIntoView({ block: 'center' });
@@ -484,33 +514,49 @@ function ItemCard({
   return (
     <article
       ref={ref}
-      className={`card grid timeline-item${highlighted ? ' highlighted' : ''}`}
+      className={`card grid timeline-item ${statusClass[item.status]}${overdue ? ' is-overdue' : ''}${item.archived ? ' is-archived' : ''}${highlighted ? ' highlighted' : ''}`}
       id={`timeline-item-${item.id}`}
       aria-label={`Timeline item ${item.name}`}
     >
       <div className="item-heading">
-        <strong>{item.name}</strong>
-        <span>{typeLabel[item.item_type]}</span>
+        <div className="item-title">
+          <span className="type-tag">{typeLabel[item.item_type]}</span>
+          <h3>{item.name}</h3>
+        </div>
+        <div className="item-badges">
+          <span className={`status-badge ${statusClass[item.status]}`}>{statusLabel[item.status]}</span>
+          {item.archived ? <span className="status-badge status-archived">Archived</span> : null}
+        </div>
       </div>
       <FlagBadges flags={item.flags} />
-      <dl className="facts">
-        <div><dt>Deadline</dt><dd>{item.deadline}</dd></div>
+      <dl className="facts timeline-facts">
+        <div className="fact-deadline"><dt>Deadline</dt><dd>{item.deadline}</dd></div>
         <div><dt>Planned date</dt><dd>{item.planned_date ?? 'None'}</dd></div>
         <div><dt>Responsible</dt><dd>{responsibleText(item.responsible)}</dd></div>
         <div><dt>Status</dt><dd>{statusLabel[item.status]}{item.done_on ? `, done on ${item.done_on}` : ''}</dd></div>
         <div><dt>Last update</dt><dd>{item.last_update_on ?? 'None yet'}</dd></div>
       </dl>
-      {item.description ? <p>{item.description}</p> : null}
-      <div className="row">
-        {!readOnly && !item.archived ? <button type="button" className="secondary" onClick={() => setEditing((current) => !current)}>Edit</button> : null}
-        {!readOnly ? (
-          <button type="button" className="secondary" onClick={() => setArchived(!item.archived)}>{item.archived ? 'Restore' : 'Archive'}</button>
-        ) : null}
-        <button type="button" className="secondary" onClick={() => setShowHistory((current) => !current)}>
+      {item.description ? <p className="item-description">{item.description}</p> : null}
+      {delays.length + issues.length > 0 ? <RecordList delays={delays} issues={issues} showItem={false} /> : null}
+      {!readOnly && !item.archived ? <ProgressForm itemId={item.id} itemName={item.name} onSaved={onChanged} /> : null}
+      <div className="item-actions">
+        <button
+          type="button"
+          className="secondary small history-toggle"
+          aria-expanded={showHistory}
+          aria-controls={showHistory ? historyId : undefined}
+          onClick={() => setShowHistory((current) => !current)}
+        >
+          <span className="chevron" aria-hidden="true" />
           {showHistory ? 'Hide history' : 'Show history'}
         </button>
+        {!readOnly && !item.archived ? (
+          <button type="button" className="secondary small" aria-expanded={editing} onClick={() => setEditing((current) => !current)}>Edit</button>
+        ) : null}
+        {!readOnly ? (
+          <button type="button" className={item.archived ? 'secondary small' : 'danger small'} onClick={() => setArchived(!item.archived)}>{item.archived ? 'Restore' : 'Archive'}</button>
+        ) : null}
       </div>
-      {!readOnly && !item.archived ? <ProgressForm itemId={item.id} itemName={item.name} onSaved={onChanged} /> : null}
       {editing ? (
         <ItemForm
           projectId={projectId}
@@ -523,11 +569,20 @@ function ItemCard({
           }}
         />
       ) : null}
-      {delays.length + issues.length > 0 ? <RecordList delays={delays} issues={issues} showItem={false} /> : null}
-      {showHistory ? <ItemHistory itemId={item.id} version={version} /> : null}
-      {error ? <p className="error">{error}</p> : null}
+      {showHistory ? <ItemHistory id={historyId} itemId={item.id} version={version} /> : null}
+      {error ? <p className="error form-error" role="alert">{error}</p> : null}
     </article>
   );
+}
+
+// "2 overdue · 1 due soon": how many items carry each flag, for the section heading.
+function flagSummary(items: ItemSummary[]): string {
+  const count = (type: Flag['type']) => items.filter((item) => item.flags.some((flag) => flag.type === type)).length;
+  const parts: string[] = [];
+  if (count('OVERDUE') > 0) parts.push(`${count('OVERDUE')} overdue`);
+  if (count('DUE_SOON') > 0) parts.push(`${count('DUE_SOON')} due soon`);
+  if (count('MISSING_UPDATE') > 0) parts.push(`${count('MISSING_UPDATE')} missing an update`);
+  return parts.length > 0 ? parts.join(' · ') : 'Milestones, activities, deadlines and progress';
 }
 
 export function ProjectTimeline({
@@ -560,7 +615,7 @@ export function ProjectTimeline({
     load();
   }, [projectId, outerVersion]);
 
-  if (!timeline) return <p>{error || 'Loading timeline'}</p>;
+  if (!timeline) return <p className={error ? 'error' : 'meta'}>{error || 'Loading timeline'}</p>;
   const readOnly = timeline.project.archived;
   const activeVendors = linkedVendors.filter((vendor) => !vendor.archived);
   const card = (item: ItemSummary) => (
@@ -579,12 +634,35 @@ export function ProjectTimeline({
   );
 
   return (
-    <section className="grid" aria-label="Timeline">
-      <h2>Timeline</h2>
+    <section className="section timeline-section" aria-label="Timeline">
+      <div className="section-heading">
+        <div>
+          <h2>Timeline</h2>
+          <span className="count-badge">{timeline.items.length}</span>
+        </div>
+        <p>{flagSummary(timeline.items)}</p>
+      </div>
       {readOnly ? <p className="notice">This project is archived. Its timeline is read-only.</p> : null}
-      {timeline.items.length === 0 ? <p>No timeline items yet.</p> : timeline.items.map(card)}
+      {timeline.items.length === 0 ? (
+        <div className="empty-box"><p className="empty">No timeline items yet.</p></div>
+      ) : (
+        <ol className="timeline-track" aria-label="Timeline items">
+          {timeline.items.map((item) => (
+            <li key={item.id} className={`timeline-node ${statusClass[item.status]}${item.flags.some((flag) => flag.type === 'OVERDUE') ? ' is-overdue' : ''}`}>
+              {card(item)}
+            </li>
+          ))}
+        </ol>
+      )}
       {!readOnly ? <ItemForm projectId={projectId} vendors={activeVendors} onSaved={load} /> : null}
-      <h2>Delays and coordination issues</h2>
+
+      <div className="section-heading">
+        <div>
+          <h2>Delays and coordination issues</h2>
+          <span className="count-badge">{timeline.delays.length + timeline.coordination_issues.length}</span>
+        </div>
+        <p>Recorded against the whole project or one item</p>
+      </div>
       <RecordList delays={timeline.delays} issues={timeline.coordination_issues} showItem />
       {!readOnly ? (
         <div className="two-up">
@@ -592,13 +670,13 @@ export function ProjectTimeline({
           <IssueForm projectId={projectId} items={timeline.items} vendors={linkedVendors} onSaved={load} />
         </div>
       ) : null}
-      <details className="card" open={archivedOpen} onToggle={(event) => setArchivedOpen(event.currentTarget.open)}>
+      <details className="card archived-items" open={archivedOpen} onToggle={(event) => setArchivedOpen(event.currentTarget.open)}>
         <summary>Archived items ({timeline.archived_items.length})</summary>
         <div className="grid">
-          {timeline.archived_items.length === 0 ? <p>No archived items.</p> : timeline.archived_items.map(card)}
+          {timeline.archived_items.length === 0 ? <p className="empty">No archived items.</p> : timeline.archived_items.map(card)}
         </div>
       </details>
-      {error ? <p className="error">{error}</p> : null}
+      {error ? <p className="error form-error" role="alert">{error}</p> : null}
     </section>
   );
 }

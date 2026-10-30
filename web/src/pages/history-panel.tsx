@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { istDateTime } from '../time';
 
@@ -58,14 +58,20 @@ function value(raw: unknown): string {
 
 const when = istDateTime;
 
+// Stored details come back in the database's key order; known ones are shown in a fixed, readable order.
+const DETAIL_ORDER = ['imported_count', 'skipped_count', 'rejected_count', 'amount', 'received_on', 'reason', 'title', 'original_filename', 'import_run_id'];
+const detailRank = (key: string) => (DETAIL_ORDER.includes(key) ? DETAIL_ORDER.indexOf(key) : DETAIL_ORDER.length);
+
 function Details({ details }: { details: Record<string, unknown> }) {
   return (
     <>
-      {Object.entries(details).map(([key, raw]) =>
+      {Object.entries(details).sort(([a], [b]) => detailRank(a) - detailRank(b)).map(([key, raw]) =>
         key === 'import_run_id' ? (
-          <p key={key}><a href={`#/vendor-imports?run=${String(raw)}`}>From an import</a></p>
+          <p key={key} className="history-detail"><a href={`#/vendor-imports?run=${String(raw)}`}>From an import</a></p>
         ) : (
-          <p key={key}>{fieldName(key)}: {key === 'amount' ? `₹${String(raw)}` : value(raw)}</p>
+          <p key={key} className="history-detail">
+            <span className="history-field">{fieldName(key)}</span>: <span className="history-value">{key === 'amount' ? `₹${String(raw)}` : value(raw)}</span>
+          </p>
         ),
       )}
     </>
@@ -77,39 +83,57 @@ export function HistoryPanel({ target, id, label = 'History' }: { target: Histor
   const [open, setOpen] = useState(false);
   const [history, setHistory] = useState<History | null>(null);
   const [error, setError] = useState('');
+  // The record this panel currently belongs to. A page can reuse the panel for another record (for example,
+  // moving from one vendor to the next), so it closes, forgets what it loaded, and ignores late replies.
+  const current = useRef(`${target}:${id}`);
+
+  useEffect(() => {
+    current.current = `${target}:${id}`;
+    setOpen(false);
+    setHistory(null);
+    setError('');
+  }, [target, id]);
 
   function toggle() {
     if (!open) {
+      const requestedFor = `${target}:${id}`;
       setError('');
       api<History>(`/api/history?${target}=${encodeURIComponent(id)}`)
-        .then(setHistory)
-        .catch((caught: Error) => setError(caught.message));
+        .then((loaded) => {
+          if (current.current === requestedFor) setHistory(loaded);
+        })
+        .catch((caught: Error) => {
+          if (current.current === requestedFor) setError(caught.message);
+        });
     }
     setOpen(!open);
   }
 
   return (
-    <section className="grid" aria-label={label}>
-      <button type="button" className="secondary" aria-expanded={open} onClick={toggle}>
+    <section className={`history-panel${open ? ' is-open' : ''}`} aria-label={label}>
+      <button type="button" className="secondary small history-toggle" aria-expanded={open} onClick={toggle}>
+        <span className="chevron" aria-hidden="true" />
         {open ? 'Hide history' : 'Show history'}
       </button>
-      {open && error ? <p className="error">{error}</p> : null}
+      {open && error ? <p className="error form-error" role="alert">{error}</p> : null}
       {open && history ? (
         <div className="grid history">
-          <p>Created by {history.record.created_by.name} on {when(history.record.created_at)}</p>
-          <p>Last updated by {history.record.updated_by.name} on {when(history.record.updated_at)}</p>
+          <div className="history-record">
+            <p>Created by {history.record.created_by.name} on {when(history.record.created_at)}</p>
+            <p>Last updated by {history.record.updated_by.name} on {when(history.record.updated_at)}</p>
+          </div>
           {history.entries.length === 0 ? (
-            <p>No changes recorded since history began.</p>
+            <p className="empty">No changes recorded since history began.</p>
           ) : (
-            <ul className="grid" aria-label="History entries">
+            <ul className="history-timeline" aria-label="History entries">
               {history.entries.map((entry) => (
-                <li key={entry.id}>
-                  <p>
-                    <strong>{ACTIONS[entry.action] ?? entry.action}</strong> · {entry.created_by.name} · {when(entry.created_at)}
+                <li key={entry.id} className={`history-entry action-${entry.action.toLowerCase()}`}>
+                  <p className="history-head">
+                    <strong className="history-action">{ACTIONS[entry.action] ?? entry.action}</strong> · {entry.created_by.name} · <span className="history-when">{when(entry.created_at)}</span>
                   </p>
                   {Object.entries(entry.changes).map(([field, change]) => (
-                    <p key={field}>
-                      {fieldName(field)}: {value(change.from)} → {value(change.to)}
+                    <p key={field} className="history-change">
+                      <span className="history-field">{fieldName(field)}</span>: <span className="history-from">{value(change.from)}</span> → <span className="history-to">{value(change.to)}</span>
                     </p>
                   ))}
                   <Details details={entry.details} />

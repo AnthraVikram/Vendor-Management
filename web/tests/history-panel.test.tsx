@@ -90,6 +90,19 @@ describe('history panel (US5)', () => {
     expect(items[1]).toHaveTextContent('Date received: 2026-10-19');
   });
 
+  it('closes and forgets the loaded entries when it is reused for a different record', async () => {
+    const fetchMock = mockFetch({}, vendorHistory);
+    const { rerender } = render(<HistoryPanel target="vendor_id" id="v1" />);
+    await userEvent.click(screen.getByRole('button', { name: 'Show history' }));
+    expect(await screen.findByRole('list', { name: 'History entries' })).toBeInTheDocument();
+
+    rerender(<HistoryPanel target="vendor_id" id="v2" />);
+    expect(screen.queryByRole('list', { name: 'History entries' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Show history' })).toHaveAttribute('aria-expanded', 'false');
+    await userEvent.click(screen.getByRole('button', { name: 'Show history' }));
+    expect(historyCalls(fetchMock)).toEqual(['/api/history?vendor_id=v1', '/api/history?vendor_id=v2']);
+  });
+
   it('says when nothing has been recorded since history began, and has no edit or delete control (US5-4, US5-6)', async () => {
     mockFetch();
     render(<HistoryPanel target="project_id" id="p1" />);

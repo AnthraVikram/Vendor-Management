@@ -42,7 +42,12 @@ describe('app shell', () => {
     await userEvent.type(screen.getByLabelText('Password'), 'password1');
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
-    expect(await screen.findByRole('button', { name: 'Change password' })).toBeInTheDocument();
+    // The change-password form sits behind the Account button in the app shell.
+    const account = await screen.findByRole('button', { name: 'Account' });
+    expect(screen.queryByRole('button', { name: 'Change password' })).toBeNull();
+    await userEvent.click(account);
+    expect(account).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('button', { name: 'Change password' })).toBeInTheDocument();
     expect(screen.getByText('Asha Admin')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Vendors' })).toBeInTheDocument();
 

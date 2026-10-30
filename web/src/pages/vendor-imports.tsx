@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { HistoryPanel } from './history-panel';
+import { ImportCounts } from '../badges';
 import { istDateTime } from '../time';
 
 interface Run {
@@ -22,6 +23,12 @@ const OUTCOMES: Record<RunDetail['rows'][number]['outcome'], string> = {
   IMPORTED: 'Imported',
   SKIPPED: 'Skipped',
   REJECTED: 'Rejected',
+};
+
+const OUTCOME_BADGES: Record<RunDetail['rows'][number]['outcome'], string> = {
+  IMPORTED: 'outcome-ready',
+  SKIPPED: 'outcome-duplicate',
+  REJECTED: 'outcome-rejected',
 };
 
 // The import history (FR-010, US2-9): every confirmed import, and one import's row outcomes.
@@ -47,12 +54,20 @@ export function VendorImports({ runId }: { runId?: string }) {
 
   return (
     <section className="grid">
-      <h1>Import history</h1>
-      <p><a href="#/vendors/import">Import vendors</a></p>
-      {error ? <p className="error">{error}</p> : null}
-      {runs && runs.length === 0 ? <p>No imports yet.</p> : null}
+      <header className="page-header">
+        <div className="page-title">
+          <p className="eyebrow">Directory</p>
+          <h1>Import history</h1>
+          <p className="page-subtitle">Every confirmed import, who ran it, and what happened to each row.</p>
+        </div>
+        <div className="page-actions">
+          <a className="button secondary" href="#/vendors/import">Import vendors</a>
+        </div>
+      </header>
+      {error ? <p className="error form-error" role="alert">{error}</p> : null}
+      {runs && runs.length === 0 ? <p className="empty">No imports yet.</p> : null}
       {runs && runs.length > 0 ? (
-        <div className="table-wrap">
+        <div className="table-wrap list-table">
           <table aria-label="Import runs">
             <thead>
               <tr>
@@ -65,13 +80,13 @@ export function VendorImports({ runId }: { runId?: string }) {
             </thead>
             <tbody>
               {runs.map((run) => (
-                <tr key={run.id}>
-                  <td data-label="When">{istDateTime(run.created_at)}</td>
+                <tr key={run.id} className={run.id === openRunId ? 'is-selected' : undefined} aria-current={run.id === openRunId ? 'true' : undefined}>
+                  <td data-label="When" className="numeric">{istDateTime(run.created_at)}</td>
                   <td data-label="By">{run.created_by.name}</td>
-                  <td data-label="File">{run.file_name}</td>
-                  <td data-label="Counts">Imported {run.imported_count} · Skipped {run.skipped_count} · Rejected {run.rejected_count}</td>
+                  <td data-label="File"><strong>{run.file_name}</strong></td>
+                  <td data-label="Counts"><ImportCounts compact imported={run.imported_count} skipped={run.skipped_count} rejected={run.rejected_count} /></td>
                   <td data-label="">
-                    <button type="button" className="secondary" aria-label={`View ${run.file_name}`} onClick={() => setOpenRunId(run.id)}>View</button>
+                    <button type="button" className="secondary small" aria-label={`View ${run.file_name}`} onClick={() => setOpenRunId(run.id)}>View</button>
                   </td>
                 </tr>
               ))}
@@ -81,12 +96,14 @@ export function VendorImports({ runId }: { runId?: string }) {
       ) : null}
 
       {detail ? (
-        <section className="card grid" aria-label="Import run">
-          <h2>{detail.run.file_name}</h2>
-          <p>
-            Imported by {detail.run.created_by.name} on {istDateTime(detail.run.created_at)}: imported {detail.run.imported_count}, skipped{' '}
-            {detail.run.skipped_count}, rejected {detail.run.rejected_count}.
-          </p>
+        <section className="card grid import-run" aria-label="Import run">
+          <div className="card-heading">
+            <div className="grid">
+              <h2>{detail.run.file_name}</h2>
+              <p className="meta">Imported by {detail.run.created_by.name} on {istDateTime(detail.run.created_at)}</p>
+            </div>
+          </div>
+          <ImportCounts imported={detail.run.imported_count} skipped={detail.run.skipped_count} rejected={detail.run.rejected_count} />
           <div className="table-wrap">
             <table aria-label="Run rows">
               <thead>
@@ -100,9 +117,9 @@ export function VendorImports({ runId }: { runId?: string }) {
               <tbody>
                 {detail.rows.map((row) => (
                   <tr key={row.row_number}>
-                    <td data-label="Row">{row.row_number}</td>
-                    <td data-label="Outcome">{OUTCOMES[row.outcome]}</td>
-                    <td data-label="Reasons">{row.reasons.join(' ')}</td>
+                    <td data-label="Row" className="numeric">{row.row_number}</td>
+                    <td data-label="Outcome"><span className={`flag ${OUTCOME_BADGES[row.outcome]}`}>{OUTCOMES[row.outcome]}</span></td>
+                    <td data-label="Reasons" className="reasons">{row.reasons.join(' ')}</td>
                     <td data-label="Vendor">{row.vendor_id ? <a href={`#/vendors/${row.vendor_id}`}>Open vendor</a> : null}</td>
                   </tr>
                 ))}

@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api } from '../api/client';
+import { ArchivedBadge, ProjectStatusBadge } from '../badges';
 
-interface Project { id: string; name: string; status: string; archived: boolean }
+interface Project { id: string; name: string; status: string; archived: boolean; client_name?: string | null; site_location?: string | null }
 
 const STATUS_NAMES: Record<string, string> = { PLANNED: 'Planned', ACTIVE: 'Active', ON_HOLD: 'On hold', COMPLETED: 'Completed' };
 
@@ -32,13 +33,19 @@ export function Projects({ openProject, status: statusFilter }: { openProject: (
 
   return (
     <section className="grid">
-      <h1>Projects</h1>
+      <header className="page-header">
+        <div className="page-title">
+          <p className="eyebrow">Work</p>
+          <h1>Projects</h1>
+          <p className="page-subtitle">Every project with its client and status. Open one for vendors, schedules, advances, and documents.</p>
+        </div>
+      </header>
       {statusFilter ? (
-        <p>
+        <p className="notice">
           Showing {STATUS_NAMES[statusFilter] ?? statusFilter} projects only. <a href="#/projects">Show all projects</a>
         </p>
       ) : null}
-      <form className="card row" onSubmit={create}>
+      <form className="card inline-form" onSubmit={create} aria-label="Add project">
         <label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label>
         <label>
           Status
@@ -51,18 +58,49 @@ export function Projects({ openProject, status: statusFilter }: { openProject: (
         </label>
         <button type="submit">Save project</button>
       </form>
-      <label>
-        Include archived
-        <input type="checkbox" checked={includeArchived} onChange={(event) => { setIncludeArchived(event.target.checked); load(event.target.checked); }} />
-      </label>
-      {error ? <p className="error">{error}</p> : null}
-      <div className="grid">
-        {projects.map((project) => (
-          <article className="card" key={project.id}>
-            <button type="button" onClick={() => openProject(project.id)}>{project.name}</button>
-            <p>{project.status} {project.archived ? '(archived)' : ''}</p>
-          </article>
-        ))}
+      {error ? <p className="error form-error" role="alert">{error}</p> : null}
+      <div className="section">
+        <div className="section-heading">
+          <div>
+            <h2>Project list</h2>
+            <span className="count-badge">{projects.length}</span>
+          </div>
+          <label className="check">
+            <input type="checkbox" checked={includeArchived} onChange={(event) => { setIncludeArchived(event.target.checked); load(event.target.checked); }} />
+            Include archived
+          </label>
+        </div>
+        {projects.length > 0 ? (
+          <div className="table-wrap list-table">
+            <table aria-label="Projects">
+              <thead>
+                <tr>
+                  <th>Project</th>
+                  <th>Client</th>
+                  <th>Site</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projects.map((project) => (
+                  <tr key={project.id}>
+                    <td data-label="Project"><button type="button" className="link-button" onClick={() => openProject(project.id)}>{project.name}</button></td>
+                    <td data-label="Client">{project.client_name ?? <span className="muted">Not set</span>}</td>
+                    <td data-label="Site">{project.site_location ?? <span className="muted">Not set</span>}</td>
+                    <td data-label="Status">
+                      <span className="page-meta">
+                        <ProjectStatusBadge status={project.status} />
+                        {project.archived ? <ArchivedBadge /> : null}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="empty">No projects to show.</p>
+        )}
       </div>
     </section>
   );

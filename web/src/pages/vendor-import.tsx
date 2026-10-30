@@ -1,5 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { ImportCounts } from '../badges';
+import { istDateTime } from '../time';
 
 type Match = { kind: 'VENDOR'; vendor_id: string; vendor_name: string } | { kind: 'ROW'; row_number: number };
 
@@ -130,29 +132,56 @@ export function VendorImport() {
 
   return (
     <section className="grid">
-      <h1>Import vendors</h1>
-      <p className="row">
-        <a href="/api/vendor-imports/template?format=xlsx">Download Excel template</a>
-        <a href="/api/vendor-imports/template?format=csv">Download CSV template</a>
-        <a href="#/vendor-imports">Import history</a>
-      </p>
-      <form className="card row" onSubmit={upload}>
-        <label>
-          Spreadsheet file
-          <input type="file" accept=".xlsx,.csv" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-        </label>
-        <button type="submit" disabled={busy === 'upload'}>Preview</button>
-      </form>
-      {message ? <p className="error" role="alert">{message}</p> : null}
+      <header className="page-header">
+        <div className="page-title">
+          <p className="eyebrow">Directory</p>
+          <h1>Import vendors</h1>
+          <p className="page-subtitle">Upload a spreadsheet, review every row, then confirm. Nothing is saved until you confirm.</p>
+        </div>
+        <div className="page-actions">
+          <a className="button secondary" href="#/vendor-imports">Import history</a>
+        </div>
+      </header>
+
+      <div className="import-steps">
+        <div className="card grid import-step">
+          <p className="step-label"><span className="step-number">1</span> Start from the template</p>
+          <p className="meta">The template has the 16 column headings the import reads. Use .xlsx or .csv, at most 1,000 rows and 25 MB.</p>
+          <div className="page-actions">
+            <a className="button secondary" href="/api/vendor-imports/template?format=xlsx">Download Excel template</a>
+            <a className="button secondary" href="/api/vendor-imports/template?format=csv">Download CSV template</a>
+          </div>
+        </div>
+        <form className="card grid import-step" onSubmit={upload}>
+          <p className="step-label"><span className="step-number">2</span> Upload and preview</p>
+          <label className="dropzone">
+            Spreadsheet file
+            <input type="file" accept=".xlsx,.csv" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+          </label>
+          <p className="meta">The preview checks every row. Rejected rows are never imported.</p>
+          <button type="submit" disabled={busy === 'upload'}>Preview</button>
+        </form>
+      </div>
+      {message ? <p className="error form-error" role="alert">{message}</p> : null}
 
       {preview ? (
-        <div className="grid">
-          <p>
-            {preview.file_name}: {preview.counts.ready} ready, {preview.counts.possible_duplicate} possible duplicates, {preview.counts.rejected} rejected.
-          </p>
+        <div className="section">
+          <div className="section-heading">
+            <div>
+              <h2>Review {preview.file_name}</h2>
+            </div>
+            <p className="expiry-pill">Confirm before {istDateTime(preview.expires_at)} or upload again.</p>
+          </div>
+          <ul className="preview-counts">
+            <li className="count-ready"><strong>{preview.counts.ready}</strong> ready</li>
+            <li className="count-duplicate"><strong>{preview.counts.possible_duplicate}</strong> possible duplicates</li>
+            <li className="count-rejected"><strong>{preview.counts.rejected}</strong> rejected</li>
+          </ul>
           {preview.ignored_headings.length > 0 ? <p className="notice">Ignored columns: {preview.ignored_headings.join(', ')}</p> : null}
-          <p>Confirm before {new Date(preview.expires_at).toLocaleTimeString()} or upload again.</p>
-          <div className="table-wrap">
+          {preview.counts.possible_duplicate > 0 ? (
+            <p className="notice">Possible duplicates match an existing vendor or an earlier row by phone. They are skipped unless you tick Import anyway.</p>
+          ) : null}
+          <div className="table-wrap preview-table">
             <table aria-label="Preview">
               <thead>
                 <tr>
@@ -165,49 +194,66 @@ export function VendorImport() {
                 </tr>
               </thead>
               <tbody>
-                {preview.rows.map((row) => (
-                  <tr key={row.row_number}>
-                    <td data-label="Row">{row.row_number}</td>
-                    <td data-label="Name">{row.name}</td>
-                    <td data-label="Outcome"><span className={BADGES[row.outcome].className}>{BADGES[row.outcome].label}</span></td>
-                    <td data-label="Reasons">{row.reasons.join(' ')}</td>
-                    <td data-label="Matches">{row.matches.map(matchText).join(', ')}</td>
-                    <td data-label="Import anyway">
-                      {row.outcome === 'POSSIBLE_DUPLICATE' ? (
-                        <input
-                          type="checkbox"
-                          aria-label={`Import row ${row.row_number} anyway`}
-                          checked={approved.includes(row.row_number)}
-                          onChange={(event) => toggle(row.row_number, event.target.checked)}
-                        />
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
+                {preview.rows.map((row) => {
+                  const ticked = approved.includes(row.row_number);
+                  const tone = row.outcome === 'POSSIBLE_DUPLICATE' ? (ticked ? 'approved' : 'duplicate') : row.outcome.toLowerCase();
+                  return (
+                    <tr key={row.row_number} className={`outcome-row-${tone}`}>
+                      <td data-label="Row" className="numeric">{row.row_number}</td>
+                      <td data-label="Name"><strong>{row.name}</strong></td>
+                      <td data-label="Outcome"><span className={BADGES[row.outcome].className}>{BADGES[row.outcome].label}</span></td>
+                      <td data-label="Reasons" className="reasons">{row.reasons.join(' ')}</td>
+                      <td data-label="Matches">{row.matches.map(matchText).join(', ')}</td>
+                      <td data-label="Import anyway">
+                        {row.outcome === 'POSSIBLE_DUPLICATE' ? (
+                          <label className="check import-anyway">
+                            <input
+                              type="checkbox"
+                              aria-label={`Import row ${row.row_number} anyway`}
+                              checked={ticked}
+                              onChange={(event) => toggle(row.row_number, event.target.checked)}
+                            />
+                            <span aria-hidden="true">{ticked ? 'Will import' : 'Import anyway'}</span>
+                          </label>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
-          <div className="row">
-            <button type="button" onClick={confirm} disabled={busy !== null}>Confirm import</button>
-            <button type="button" className="secondary" onClick={cancel} disabled={busy !== null}>Cancel preview</button>
+          <div className="card confirm-bar">
+            <div className="grid confirm-text">
+              <p>
+                <strong>{preview.counts.ready}</strong> ready · <strong>{approved.length}</strong> of {preview.counts.possible_duplicate} possible duplicates ticked
+              </p>
+              <p className="meta">Each row is checked against the directory again when you confirm. If saving fails, nothing is imported.</p>
+            </div>
+            <div className="page-actions">
+              <button type="button" className="secondary" onClick={cancel} disabled={busy !== null}>Cancel preview</button>
+              <button type="button" onClick={confirm} disabled={busy !== null}>Confirm import</button>
+            </div>
           </div>
         </div>
       ) : null}
 
       {summary ? (
-        <section className="card grid" aria-label="Import summary">
-          <h2>Import summary</h2>
-          <ul className="row">
-            <li>Imported {summary.run.imported_count}</li>
-            <li>Skipped {summary.run.skipped_count}</li>
-            <li>Rejected {summary.run.rejected_count}</li>
-          </ul>
+        <section className="card grid import-summary" aria-label="Import summary">
+          <div className="card-heading">
+            <h2>Import summary</h2>
+            <span className="meta">{summary.run.file_name}</span>
+          </div>
+          <ImportCounts imported={summary.run.imported_count} skipped={summary.run.skipped_count} rejected={summary.run.rejected_count} />
           {notImported.length > 0 ? (
-            <ul className="records">
-              {notImported.map((row) => <li key={row.row_number}>Row {row.row_number}: {row.reasons.join(' ')}</li>)}
-            </ul>
+            <div className="grid">
+              <h3>Rows not imported</h3>
+              <ul className="records not-imported">
+                {notImported.map((row) => <li key={row.row_number}>Row {row.row_number}: {row.reasons.join(' ')}</li>)}
+              </ul>
+            </div>
           ) : null}
-          <a href={`#/vendor-imports?run=${summary.run.id}`}>View this import in the history</a>
+          <p><a className="button secondary" href={`#/vendor-imports?run=${summary.run.id}`}>View this import in the history</a></p>
         </section>
       ) : null}
     </section>
