@@ -10,6 +10,7 @@ import { phoneMatches } from '../../lib/phone';
 import { vendorIdentityLock } from '../../lib/vendor-lock';
 import { gstinProblem, normalizeGstin, ratingProblem, reuseCategory } from '../../lib/vendor-rules';
 import { asyncRoute } from '../async-route';
+import { assignmentStatuses } from '../links/statuses';
 
 const rateSchema = z.object({
   label: z.string().trim().min(1, 'Rate label is required.'),
@@ -60,7 +61,7 @@ const vendorInclude = {
   rates: true,
   notes: { include: { createdBy: { select: { id: true, name: true } } }, orderBy: { createdAt: 'asc' as const } },
   ratings: { include: { createdBy: { select: { id: true, name: true } } }, orderBy: { createdAt: 'asc' as const } },
-  links: { include: { project: { select: { id: true, name: true } } } },
+  links: { where: { removedAt: null }, include: { project: { select: { id: true, name: true, status: true, archived: true } } } },
   importRun: { select: { id: true, fileName: true, createdAt: true } },
 } satisfies Prisma.VendorInclude;
 
@@ -112,10 +113,14 @@ function presentVendor(vendor: VendorRecord) {
       id: link.id,
       project_id: link.project.id,
       project_name: link.project.name,
+      project_status: link.project.status,
+      project_archived: link.project.archived,
       role_on_project: link.roleOnProject,
       scope_of_work: link.scopeOfWork,
       note: link.note,
     })),
+    // Current assignments on projects that are not archived; Completed projects count (FR-002, decision D1).
+    project_count: vendor.links.filter((link) => !link.project.archived).length,
     import_run: vendor.importRun
       ? { id: vendor.importRun.id, file_name: vendor.importRun.fileName, created_at: vendor.importRun.createdAt.toISOString() }
       : null,
@@ -282,7 +287,7 @@ vendorRouter.get(
         ...(categoryId ? { categories: { some: { categoryId } } } : {}),
         ...(location ? { locations: { some: { label: { equals: location, mode: 'insensitive' } } } } : {}),
         ...(availability ? { availability: availability as 'AVAILABLE' | 'LIMITED' | 'UNAVAILABLE' } : {}),
-        ...(projectId ? { links: { some: { projectId } } } : {}),
+        ...(projectId ? { links: { some: { projectId, removedAt: null } } } : {}),
         ...(q
           ? {
               OR: [
@@ -349,7 +354,31 @@ vendorRouter.post(
 vendorRouter.get(
   '/:id',
   asyncRoute(async (req, res) => {
-    res.json(presentVendor(await loadVendor(req.params.id)));
+    const vendor = presentVendor(await loadVendor(req.params.id));
+    const [statusOf, past] = await Promise.all([
+      assignmentStatuses({ vendorId: vendor.id }),
+      // Removed assignments, kept as read-only past assignments (FR-013a). They have no status and are not counted.
+      prisma.vendorProjectLink.findMany({
+        where: { vendorId: vendor.id, removedAt: { not: null } },
+        include: { project: { select: { id: true, name: true, archived: true } }, removedBy: { select: { id: true, name: true } } },
+        orderBy: [{ removedAt: 'desc' }, { id: 'desc' }],
+      }),
+    ]);
+    res.json({
+      ...vendor,
+      links: vendor.links.map((link) => ({ ...link, assignment_status: statusOf(vendor.id, link.project_id) })),
+      past_links: past.map((link) => ({
+        id: link.id,
+        project_id: link.project.id,
+        project_name: link.project.name,
+        project_archived: link.project.archived,
+        role_on_project: link.roleOnProject,
+        scope_of_work: link.scopeOfWork,
+        note: link.note,
+        removed_at: link.removedAt!.toISOString(),
+        removed_by: link.removedBy,
+      })),
+    });
   }),
 );
 

@@ -199,6 +199,8 @@ describe('lists behind the tiles (US4-6, FR-026)', () => {
     const { asAdmin } = await setup();
     const response = await asAdmin.client.get('/api/dashboard');
     expect(response.status).toBe(200);
-    expect(Object.keys(response.body).sort()).toEqual(['due_soon', 'missing_update', 'overdue', 'recent_delays_and_issues', 'today']);
+    // Feature 004 adds `items` and `attention_projects` (supersession of Feature 002 FR-023, spec.md Backward
+    // Compatibility). The Feature 002 keys are unchanged, and nothing else is added.
+    expect(Object.keys(response.body).sort()).toEqual(['attention_projects', 'due_soon', 'items', 'missing_update', 'overdue', 'recent_delays_and_issues', 'today']);
   });
 });

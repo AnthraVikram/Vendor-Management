@@ -15,3 +15,6 @@ api/tests/.files/
 Thumbs.db
 .idea/
 .vscode/
+
+# Graphify generated knowledge graph
+graphify-out/

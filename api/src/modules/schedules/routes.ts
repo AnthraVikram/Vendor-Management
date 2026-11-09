@@ -130,8 +130,9 @@ async function conflictsFor(candidate: Booking) {
 }
 
 async function requireLinked(vendorId: string, projectId: string) {
-  const link = await prisma.vendorProjectLink.findUnique({
-    where: { vendorId_projectId: { vendorId, projectId } },
+  // Only a current assignment counts as linked; a removed one is a past assignment (Feature 004 FR-013).
+  const link = await prisma.vendorProjectLink.findFirst({
+    where: { vendorId, projectId, removedAt: null },
     include: { vendor: true, project: true },
   });
   if (!link) throw new HttpError(409, 'The vendor is not linked to this project.', { code: 'NOT_LINKED' });

@@ -254,6 +254,37 @@ button.small, a.button.small { padding: 0.3rem 0.65rem; font-size: 0.85rem; }
 .availability-unavailable { color: #fecaca; border-color: rgba(248, 113, 113, 0.45); background: rgba(248, 113, 113, 0.1); }
 .status-archived { color: var(--text-muted); border-style: dashed; }
 .status-muted { color: var(--text-dim); }
+/* Assignment status (Feature 004). Same tones as project and item statuses; the text always carries the meaning. */
+.assignment-no-activities { color: var(--text-dim); border-style: dashed; }
+.assignment-not-started { color: var(--text-muted); }
+.assignment-in-progress { color: #a5f3fc; border-color: rgba(34, 211, 238, 0.45); background: rgba(34, 211, 238, 0.1); }
+.assignment-delayed { color: #fecaca; border-color: rgba(248, 113, 113, 0.45); background: rgba(248, 113, 113, 0.1); }
+.assignment-completed { color: #ddd6fe; border-color: rgba(167, 139, 250, 0.45); background: rgba(167, 139, 250, 0.1); }
+/* Dashboard deadline groups (Feature 004). Layout only; colours come from the existing tokens. */
+.group-switch { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.group-option { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.3rem 0.7rem; border: 1px solid var(--border); border-radius: 999px; cursor: pointer; }
+.group-option.is-selected { border-color: var(--accent); color: var(--text); }
+.group-option:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.dashboard-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); gap: var(--space-3); }
+
+/* Project health and progress (Feature 004). */
+.health-ongoing { color: #bfdbfe; border-color: rgba(147, 197, 253, 0.45); background: rgba(147, 197, 253, 0.1); }
+.health-delayed { color: #fecaca; border-color: rgba(248, 113, 113, 0.45); background: rgba(248, 113, 113, 0.1); }
+.health-completed { color: #ddd6fe; border-color: rgba(167, 139, 250, 0.45); background: rgba(167, 139, 250, 0.1); }
+.progress-meter { display: inline-grid; gap: 0.3rem; min-width: 8rem; font-variant-numeric: tabular-nums; }
+.progress-bar { display: block; height: 0.4rem; border-radius: 999px; background: var(--surface-sunken); overflow: hidden; }
+.progress-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
 
 /* ---------- Sections, forms, and list tables ---------- */
 .section { display: grid; gap: var(--space-3); }
@@ -712,14 +743,32 @@ ul.grid { list-style: none; margin: 0; padding: 0; }
 }
 .main-nav a:hover { background: rgba(255, 255, 255, 0.04); color: var(--text); }
 .main-nav a[aria-current="page"] { background: var(--accent-soft); color: #f4f8fc; border-left-color: var(--accent); }
-.account { margin-top: auto; display: grid; gap: var(--space-3); padding-top: var(--space-4); border-top: 1px solid var(--border); }
-.account-who { display: grid; gap: 2px; }
+/* Top bar with the profile menu (Feature 004 US7); its panel opens below the button, inside the viewport. */
+.workspace { min-width: 0; display: flex; flex-direction: column; }
+.topbar { display: flex; justify-content: flex-end; padding: var(--space-3) var(--space-8) 0; }
+.profile-menu { position: relative; }
+.profile-button { padding: 0.4rem 0.8rem; font-size: 0.9rem; }
+.profile-panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 20;
+  width: min(20rem, calc(100vw - 2rem));
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow);
+}
+.account-who { display: grid; gap: 2px; overflow-wrap: anywhere; }
 .account-who strong { color: #f4f8fc; }
 .account-who span { color: var(--text-dim); font-size: 0.82rem; }
-.account-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
-.account-actions button { flex: 1 1 auto; padding: 0.4rem 0.7rem; font-size: 0.88rem; }
-.account-panel { display: grid; gap: var(--space-2); padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.account-panel { display: grid; gap: var(--space-2); }
 .account-panel p { font-size: 0.85rem; color: var(--text-muted); }
+/* One confirmation at a time (FR-026), kept inside the viewport at phone width. */
+.notice-region { position: fixed; right: var(--space-4); bottom: var(--space-4); z-index: 30; max-width: min(24rem, calc(100vw - 2rem)); }
 .content { min-width: 0; padding: var(--space-6) var(--space-8) var(--space-8); }
 .content > * { max-width: 1180px; }
 .content > section { margin-bottom: var(--space-4); }
@@ -738,8 +787,7 @@ ul.grid { list-style: none; margin: 0; padding: 0; }
   .main-nav { display: flex; flex-wrap: wrap; gap: var(--space-1); }
   .main-nav a { border-left: 0; border-bottom: 2px solid transparent; padding: 0.4rem 0.7rem; }
   .main-nav a[aria-current="page"] { border-bottom-color: var(--accent); }
-  .account { margin-top: 0; padding-top: var(--space-3); grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
-  .account-panel { grid-column: 1 / -1; }
+  .topbar { padding: var(--space-3) var(--space-4) 0; }
   .content { padding: var(--space-5) var(--space-4) var(--space-8); }
   .tile-row-counts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .filter-bar { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -767,7 +815,9 @@ ul.grid { list-style: none; margin: 0; padding: 0; }
   .page-actions { width: 100%; }
   .shell { padding: var(--space-3); }
   button, .button { width: 100%; }
-  .account-actions button { width: auto; }
+  .topbar { padding: var(--space-3) var(--space-3) 0; }
+  .profile-button { width: auto; }
+  .group-option { min-height: 2.75rem; }
   .content { padding: var(--space-4) var(--space-3) var(--space-8); }
   .tile-row-counts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   /* Money tiles take a full row, so an amount up to ₹9999999999999.99 stays on one line. */

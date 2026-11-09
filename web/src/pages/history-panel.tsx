@@ -29,6 +29,9 @@ const ACTIONS: Record<string, string> = {
   ARCHIVED: 'Archived',
   RESTORED: 'Restored',
   REVERSED: 'Reversed',
+  ASSIGNED: 'Assigned to project',
+  ASSIGNMENT_EDITED: 'Assignment changed',
+  UNASSIGNED: 'Removed from project',
 };
 
 // Field and detail names that do not read well when simply un-snake-cased.
@@ -53,19 +56,26 @@ function value(raw: unknown): string {
   if (raw === null || raw === undefined || raw === '') return '(blank)';
   if (typeof raw === 'boolean') return raw ? 'Yes' : 'No';
   if (Array.isArray(raw)) return raw.length > 0 ? raw.join(', ') : '(none)';
+  // Assignment entries name the vendor and the project as { id, name } (Feature 004).
+  if (typeof raw === 'object' && 'name' in raw) return String((raw as { name: unknown }).name);
   return String(raw);
 }
 
 const when = istDateTime;
 
 // Stored details come back in the database's key order; known ones are shown in a fixed, readable order.
-const DETAIL_ORDER = ['imported_count', 'skipped_count', 'rejected_count', 'amount', 'received_on', 'reason', 'title', 'original_filename', 'import_run_id'];
+const DETAIL_ORDER = [
+  'imported_count', 'skipped_count', 'rejected_count', 'amount', 'received_on', 'reason', 'title', 'original_filename', 'import_run_id',
+  'vendor', 'project', 'role_on_project', 'scope_of_work', 'note',
+];
 const detailRank = (key: string) => (DETAIL_ORDER.includes(key) ? DETAIL_ORDER.indexOf(key) : DETAIL_ORDER.length);
+// Internal ids that mean nothing to staff.
+const HIDDEN_DETAILS = ['assignment_id'];
 
 function Details({ details }: { details: Record<string, unknown> }) {
   return (
     <>
-      {Object.entries(details).sort(([a], [b]) => detailRank(a) - detailRank(b)).map(([key, raw]) =>
+      {Object.entries(details).filter(([key]) => !HIDDEN_DETAILS.includes(key)).sort(([a], [b]) => detailRank(a) - detailRank(b)).map(([key, raw]) =>
         key === 'import_run_id' ? (
           <p key={key} className="history-detail"><a href={`#/vendor-imports?run=${String(raw)}`}>From an import</a></p>
         ) : (

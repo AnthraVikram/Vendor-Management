@@ -3,11 +3,13 @@ import { Router } from 'express';
 import { prisma } from '../../db';
 import { recentDelaysAndIssues, sortDueSoon, sortMissingUpdate, sortOverdue } from '../../lib/dashboard-sort';
 import { presentSummary } from '../../lib/dashboard-summary';
+import { deadlineGroup } from '../../lib/deadline-groups';
 import { currentMonthInIndia, fromDateColumn, toDateColumn, todayInIndia } from '../../lib/india-date';
 import { moneyString } from '../../lib/money';
 import { ADVANCE_VIEWERS } from '../../lib/permissions';
 import { asyncRoute } from '../async-route';
-import { delayInclude, flagsOf, itemInclude, presentAuthor, presentResponsible } from '../timeline/present';
+import { projectFigures } from '../projects/figures';
+import { currentState, delayInclude, flagsOf, itemInclude, presentAuthor, presentResponsible } from '../timeline/present';
 
 const RECENT_LIMIT = 10;
 
@@ -71,8 +73,57 @@ dashboardRouter.get(
       created_by: presentAuthor(row.createdBy),
     });
 
+    // Feature 004 (FR-018, FR-019): every open item on an active project with its deadline group. The browser
+    // groups, filters and sorts these; the Feature 002 lists above are kept unchanged beside them.
+    const open = items.filter((item) => currentState(item).status !== 'DONE');
+    const itemRows = open
+      .map((item) => {
+        const state = currentState(item);
+        const flags = flagsOf(item, today);
+        const overdueFlag = flags.find((flag) => flag.type === 'OVERDUE');
+        return {
+          id: item.id,
+          name: item.name,
+          item_type: item.itemType,
+          deadline: fromDateColumn(item.deadline),
+          status: state.status,
+          last_update_on: state.lastUpdateOn,
+          group: deadlineGroup(fromDateColumn(item.deadline), today),
+          days_overdue: overdueFlag && overdueFlag.type === 'OVERDUE' ? overdueFlag.days_overdue : null,
+          flags,
+          project: item.project,
+          responsible: presentResponsible(item.responsibleKind, item.responsibleVendor, 'None'),
+        };
+      })
+      .sort((a, b) => a.deadline.localeCompare(b.deadline) || a.name.localeCompare(b.name));
+
+    // FR-023a: active projects that are Delayed, or Ongoing with overdue items. Projects with no items count too.
+    const activeProjects = await prisma.project.findMany({
+      where: { archived: false },
+      select: { id: true, name: true, status: true, archived: true, expectedCompletionDate: true },
+    });
+    const attentionProjects = activeProjects
+      .map((project) => ({ project, figures: projectFigures(project, items.filter((item) => item.projectId === project.id), today) }))
+      .filter(({ figures }) => figures.reasons.length > 0)
+      .sort(
+        (a, b) =>
+          Number(b.figures.health === 'DELAYED') - Number(a.figures.health === 'DELAYED') ||
+          b.figures.overdue_count - a.figures.overdue_count ||
+          a.project.name.localeCompare(b.project.name),
+      )
+      .map(({ project, figures }) => ({
+        id: project.id,
+        name: project.name,
+        health: figures.health,
+        progress: figures.progress,
+        overdue_count: figures.overdue_count,
+        reasons: figures.reasons,
+      }));
+
     res.json({
       today,
+      items: itemRows,
+      attention_projects: attentionProjects,
       overdue: sortOverdue(overdue),
       due_soon: sortDueSoon(dueSoon),
       missing_update: sortMissingUpdate(missingUpdate),

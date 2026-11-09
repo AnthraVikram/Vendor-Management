@@ -17,6 +17,10 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(path, { ...init, headers, credentials: 'include' });
   if (!response.ok) {
     const body = (await response.json().catch(() => ({ message: response.statusText }))) as ApiError['body'];
+    // FR-027: no internal detail for a failure, and one plain wording for a refusal by role. A 403 with any other
+    // code (OWN_ROLE, PREVIEW_NOT_YOURS) is a business rule, so its own message is kept.
+    if (response.status >= 500) body.message = 'The action did not complete. Please try again.';
+    if (response.status === 403 && (!body.code || body.code === 'ROLE_NOT_ALLOWED')) body.message = 'You are not allowed to do this.';
     throw new ApiError(response.status, body);
   }
   if (response.status === 204) return undefined as T;

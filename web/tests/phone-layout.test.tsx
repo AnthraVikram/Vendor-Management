@@ -1,3 +1,5 @@
+/// <reference types="node" />
+import { readFileSync } from 'node:fs';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { VendorImport } from '../src/pages/vendor-import';
@@ -58,5 +60,30 @@ describe('tables that stack into cards at phone width (T065)', () => {
     render(<VendorImports runId="run1" />);
     expectLabelledCells(await screen.findByRole('table', { name: 'Import runs' }));
     expectLabelledCells(await screen.findByRole('table', { name: 'Run rows' }));
+  });
+});
+
+// Feature 004 T057 (FR-030): jsdom does not lay out CSS, so these check the rules that keep the new header,
+// its panel, the confirmation and the dashboard group control inside a 375 px screen.
+describe('profile menu and dashboard group control at phone width (Feature 004 T057)', () => {
+  // Vitest does not load CSS into tests, so read the stylesheet itself.
+  const css = readFileSync('src/styles.css', 'utf8');
+  const phone = css.slice(css.indexOf('@media (max-width: 700px)'));
+
+  function rule(source: string, selector: string): string {
+    const start = source.indexOf(`${selector} {`);
+    expect(start, `${selector} has a rule`).toBeGreaterThanOrEqual(0);
+    return source.slice(start, source.indexOf('}', start));
+  }
+
+  it('keeps the profile panel and the confirmation inside the screen, and the profile button its own width', () => {
+    expect(rule(css, '.profile-panel')).toMatch(/width: min\([^;]*100vw/);
+    expect(rule(css, '.notice-region')).toMatch(/max-width: min\([^;]*100vw/);
+    expect(rule(phone, '.profile-button')).toContain('width: auto');
+  });
+
+  it('wraps the deadline group choices and gives each a phone-sized touch target', () => {
+    expect(rule(css, '.group-switch')).toContain('flex-wrap: wrap');
+    expect(rule(phone, '.group-option')).toContain('min-height: 2.75rem');
   });
 });

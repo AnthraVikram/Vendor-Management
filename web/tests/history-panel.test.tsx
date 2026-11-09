@@ -172,3 +172,32 @@ describe('history on each page (T064)', () => {
     expect(historyCalls(fetchMock)).toEqual(['/api/history?project_id=p1']);
   });
 });
+
+describe('assignment history entries (US4, FR-013d)', () => {
+  it('names the three assignment actions and shows the vendor and project by name (T030)', async () => {
+    const names = { assignment_id: 'l1', vendor: { id: 'v1', name: 'Sharma Interiors' }, project: { id: 'p1', name: 'Lake House' } };
+    mockFetch({}, {
+      record: vendorHistory.record,
+      entries: [
+        { id: 'h3', action: 'UNASSIGNED', changes: {}, details: { ...names, role_on_project: 'Lead carpenter', scope_of_work: 'Wardrobes', note: null }, created_at: '2026-11-03T05:00:00.000Z', created_by: omar },
+        { id: 'h2', action: 'ASSIGNMENT_EDITED', changes: { role_on_project: { from: 'Carpentry', to: 'Lead carpenter' } }, details: names, created_at: '2026-11-02T05:00:00.000Z', created_by: asha },
+        { id: 'h1', action: 'ASSIGNED', changes: {}, details: { ...names, role_on_project: 'Carpentry', scope_of_work: 'Wardrobes', note: null }, created_at: '2026-11-01T05:00:00.000Z', created_by: asha },
+      ],
+    });
+    render(<HistoryPanel target="vendor_id" id="v1" />);
+    await userEvent.click(screen.getByRole('button', { name: 'Show history' }));
+    const items = within(await screen.findByRole('list', { name: 'History entries' })).getAllByRole('listitem');
+    expect(items[0]).toHaveTextContent('Removed from project · Omar Office · 2026-11-03 10:30 IST');
+    expect(items[1]).toHaveTextContent('Assignment changed · Asha Admin · 2026-11-02 10:30 IST');
+    expect(items[1]).toHaveTextContent('Role on project: Carpentry → Lead carpenter');
+    expect(items[2]).toHaveTextContent('Assigned to project · Asha Admin · 2026-11-01 10:30 IST');
+    for (const item of items) {
+      expect(item).toHaveTextContent('Vendor: Sharma Interiors');
+      expect(item).toHaveTextContent('Project: Lake House');
+      expect(item).not.toHaveTextContent('[object Object]');
+      expect(item).not.toHaveTextContent(/Assignment id/i);
+    }
+    expect(items[2]).toHaveTextContent('Role on project: Carpentry');
+    expect(items[2]).toHaveTextContent('Scope of work: Wardrobes');
+  });
+});

@@ -105,6 +105,9 @@ enum HistoryAction {
   ARCHIVED
   RESTORED
   REVERSED
+  ASSIGNED
+  ASSIGNMENT_EDITED
+  UNASSIGNED
 }
 
 model StaffUser {
@@ -150,6 +153,7 @@ model StaffUser {
   projectsUpdated Project[] @relation("ProjectUpdatedBy")
   linksCreated VendorProjectLink[] @relation("LinkCreatedBy")
   linksUpdated VendorProjectLink[] @relation("LinkUpdatedBy")
+  linksRemoved VendorProjectLink[] @relation("LinkRemovedBy")
   schedulesCreated WorkSchedule[] @relation("ScheduleCreatedBy")
   schedulesUpdated WorkSchedule[] @relation("ScheduleUpdatedBy")
   pricesCreated TaskPriceEntry[] @relation("PriceCreatedBy")
@@ -392,6 +396,9 @@ model Project {
   siteLocation String?       @map("site_location")
   description  String?
   status       ProjectStatus
+  // Entered by staff, both optional (FR-014); checked by projects_dates_ck.
+  startDate              DateTime? @map("start_date") @db.Date
+  expectedCompletionDate DateTime? @map("expected_completion_date") @db.Date
   archived     Boolean       @default(false)
   createdAt    DateTime      @default(now()) @map("created_at")
   createdById  String        @map("created_by") @db.Uuid
@@ -419,6 +426,9 @@ model VendorProjectLink {
   roleOnProject String?  @map("role_on_project")
   scopeOfWork   String?  @map("scope_of_work")
   note          String?
+  // A removed assignment is kept as a read-only past assignment (FR-013); both are set together.
+  removedAt     DateTime? @map("removed_at")
+  removedById   String?   @map("removed_by") @db.Uuid
   createdAt     DateTime @default(now()) @map("created_at")
   createdById   String   @map("created_by") @db.Uuid
   updatedAt     DateTime @updatedAt @map("updated_at")
@@ -428,8 +438,11 @@ model VendorProjectLink {
   project   Project @relation(fields: [projectId], references: [id])
   createdBy StaffUser @relation("LinkCreatedBy", fields: [createdById], references: [id])
   updatedBy StaffUser @relation("LinkUpdatedBy", fields: [updatedById], references: [id])
+  removedBy StaffUser? @relation("LinkRemovedBy", fields: [removedById], references: [id], onDelete: Restrict)
 
-  @@unique([vendorId, projectId])
+  // One current assignment per pair is enforced by the partial unique index
+  // vendor_project_links_current_key (WHERE removed_at IS NULL), written by hand in the migration.
+  @@index([vendorId, projectId])
   @@map("vendor_project_links")
 }
 

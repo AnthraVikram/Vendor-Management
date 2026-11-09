@@ -1,5 +1,7 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { ArchivedBadge } from '../badges';
+import { notify } from '../notify';
 import { istDateTime } from '../time';
 
 type ResponsibleKind = 'NONE' | 'VENDOR' | 'FIRM_TEAM';
@@ -25,6 +27,8 @@ export interface ItemSummary {
   done_on: string | null;
   archived: boolean;
   flags: Flag[];
+  // Due after the project's expected completion date (Feature 004 FR-015b). Not one of the Feature 002 flags.
+  after_project_completion?: boolean;
 }
 interface DateChange { id: string; field: 'PLANNED_DATE' | 'DEADLINE'; old_value: string | null; new_value: string | null; created_at: string; created_by: Person }
 interface ResponsibleChange { id: string; old: Responsible; new: Responsible; cause: 'EDIT' | 'LINK_REMOVED'; created_at: string; created_by: Person }
@@ -144,6 +148,7 @@ export function ItemForm({
         setDescription('');
         setResponsible('NONE');
       }
+      notify(item ? 'Item updated' : 'Item added');
       onSaved();
     } catch (caught) {
       if (caught instanceof ApiError && caught.body.fields) setFields(caught.body.fields);
@@ -505,6 +510,7 @@ function ItemCard({
     setError('');
     try {
       await api(`/api/timeline-items/${item.id}/${archived ? 'archive' : 'restore'}`, { method: 'POST' });
+      notify(archived ? 'Item archived' : 'Item restored');
       onChanged();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Could not change the item.');
@@ -525,14 +531,15 @@ function ItemCard({
         </div>
         <div className="item-badges">
           <span className={`status-badge ${statusClass[item.status]}`}>{statusLabel[item.status]}</span>
-          {item.archived ? <span className="status-badge status-archived">Archived</span> : null}
+          {item.archived ? <ArchivedBadge /> : null}
         </div>
       </div>
       <FlagBadges flags={item.flags} />
+      {item.after_project_completion ? <p className="notice notice-warning after-completion">After project completion date</p> : null}
       <dl className="facts timeline-facts">
         <div className="fact-deadline"><dt>Deadline</dt><dd>{item.deadline}</dd></div>
         <div><dt>Planned date</dt><dd>{item.planned_date ?? 'None'}</dd></div>
-        <div><dt>Responsible</dt><dd>{responsibleText(item.responsible)}</dd></div>
+        <div><dt>Responsible</dt><dd>{item.responsible.vendor ? <a href={`#/vendors/${item.responsible.vendor.id}`}>{responsibleText(item.responsible)}</a> : responsibleText(item.responsible)}</dd></div>
         <div><dt>Status</dt><dd>{statusLabel[item.status]}{item.done_on ? `, done on ${item.done_on}` : ''}</dd></div>
         <div><dt>Last update</dt><dd>{item.last_update_on ?? 'None yet'}</dd></div>
       </dl>
@@ -597,6 +604,7 @@ export function ProjectTimeline({
   itemId?: string;
 }) {
   const [timeline, setTimeline] = useState<TimelineData | null>(null);
+  const addForm = useRef<HTMLDivElement>(null);
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [version, setVersion] = useState(0);
   const [error, setError] = useState('');
@@ -644,7 +652,14 @@ export function ProjectTimeline({
       </div>
       {readOnly ? <p className="notice">This project is archived. Its timeline is read-only.</p> : null}
       {timeline.items.length === 0 ? (
-        <div className="empty-box"><p className="empty">No timeline items yet.</p></div>
+        <div className="empty-box">
+          <p className="empty">No activities yet</p>
+          {!readOnly ? (
+            <div className="form-actions">
+              <button type="button" onClick={() => addForm.current?.querySelector<HTMLElement>('select, input')?.focus()}>Add an item</button>
+            </div>
+          ) : null}
+        </div>
       ) : (
         <ol className="timeline-track" aria-label="Timeline items">
           {timeline.items.map((item) => (
@@ -654,7 +669,11 @@ export function ProjectTimeline({
           ))}
         </ol>
       )}
-      {!readOnly ? <ItemForm projectId={projectId} vendors={activeVendors} onSaved={load} /> : null}
+      {!readOnly ? (
+        <div ref={addForm}>
+          <ItemForm projectId={projectId} vendors={activeVendors} onSaved={load} />
+        </div>
+      ) : null}
 
       <div className="section-heading">
         <div>

@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Vendors } from '../src/pages/vendors';
+import { collectNotices } from './notices';
 import { VendorDetail } from '../src/pages/vendor-detail';
 
 function json(status: number, body: unknown) {
@@ -35,6 +36,7 @@ async function createForm() {
 
 describe('vendor create form', () => {
   it('sends every directory field the API accepts', async () => {
+    const notices = collectNotices();
     const fetchMock = mockFetch();
     render(<Vendors openVendor={() => undefined} />);
     const form = await createForm();
@@ -81,6 +83,7 @@ describe('vendor create form', () => {
         rates: [{ label: 'Day', amount: '1500.00', unit: 'day' }],
       },
     ]);
+    expect(notices).toEqual(['Vendor added']);
   });
 
   it('warns about a duplicate phone and saves only after confirmation', async () => {

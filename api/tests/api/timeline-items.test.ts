@@ -291,3 +291,73 @@ describe('timeline items', () => {
     }
   });
 });
+
+// Feature 004: a vendor whose only assignment was removed is no longer linked (research.md §4).
+describe('past assignments and timeline checks', () => {
+  beforeEach(async () => {
+    await resetDatabase();
+  });
+
+  it('refuses a vendor whose only assignment on the project was removed', async () => {
+    const { admin, session, vendor, project } = await setup();
+    await prisma.vendorProjectLink.updateMany({
+      where: { vendorId: vendor.id, projectId: project.id },
+      data: { removedAt: new Date(), removedById: admin.id },
+    });
+
+    const responsible = await session.client.post(`/api/projects/${project.id}/timeline-items`).send({
+      item_type: 'ACTIVITY',
+      name: 'Tiling',
+      deadline: dayOffset(3),
+      responsible: { kind: 'VENDOR', vendor_id: vendor.id },
+    });
+    expect(responsible.status).toBe(409);
+    expect(responsible.body.code).toBe('VENDOR_NOT_LINKED');
+
+    const issue = await session.client.post(`/api/projects/${project.id}/coordination-issues`).send({
+      description: 'Tiler did not arrive',
+      vendor_ids: [vendor.id],
+    });
+    expect(issue.status).toBe(409);
+    expect(issue.body.code).toBe('VENDOR_NOT_LINKED');
+  });
+});
+
+// Feature 004 US5: items due after the project's expected completion date are pointed out (FR-015b).
+describe('after project completion date marker', () => {
+  beforeEach(async () => {
+    await resetDatabase();
+  });
+
+  it('marks only open items whose deadline is after the expected completion date (US5-14, US5-15)', async () => {
+    const { admin, session, project } = await setup();
+    await prisma.project.update({ where: { id: project.id }, data: { expectedCompletionDate: new Date(`${dayOffset(10)}T00:00:00Z`) } });
+    const make = (name: string, days: number) =>
+      session.client.post(`/api/projects/${project.id}/timeline-items`).send({ item_type: 'ACTIVITY', name, deadline: dayOffset(days) });
+    expect((await make('On the date', 10)).status).toBe(201);
+    expect((await make('One day after', 11)).status).toBe(201);
+    expect((await make('Well before', 2)).status).toBe(201);
+    const finished = (await make('Done after', 20)).body;
+    await session.client.post(`/api/timeline-items/${finished.id}/progress-updates`).send({ status: 'DONE' });
+
+    const marked = async () => {
+      const timeline = await session.client.get(`/api/projects/${project.id}/timeline`);
+      expect(timeline.status).toBe(200);
+      return Object.fromEntries(timeline.body.items.map((item: { name: string; after_project_completion: boolean }) => [item.name, item.after_project_completion]));
+    };
+    expect(await marked()).toEqual({ 'On the date': false, 'One day after': true, 'Well before': false, 'Done after': false });
+
+    const timeline = await session.client.get(`/api/projects/${project.id}/timeline`);
+    const late = timeline.body.items.find((item: { name: string }) => item.name === 'One day after');
+    expect(late.flags).toEqual([]);
+
+    await prisma.project.update({ where: { id: project.id }, data: { expectedCompletionDate: null } });
+    expect(Object.values(await marked()).every((value) => value === false)).toBe(true);
+    expect(admin.id).toBeTruthy();
+  });
+
+  it('refuses a signed-out caller (SC-008)', async () => {
+    const { project } = await setup();
+    expect((await request(app).get(`/api/projects/${project.id}/timeline`)).status).toBe(401);
+  });
+});

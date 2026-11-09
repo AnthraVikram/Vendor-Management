@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { ProjectTimeline } from '../src/pages/project-timeline';
 
 function item(id: string, name: string, archived = false) {
@@ -27,7 +27,11 @@ function mockTimeline() {
       headers: { get: () => 'application/json' },
       json: async () => ({
         project: { id: 'p1', name: 'Lake House', archived: false },
-        items: [item('i1', 'Joinery'), item('i2', 'Wiring')],
+        items: [
+          item('i1', 'Joinery'),
+          item('i2', 'Wiring'),
+          { ...item('i4', 'Tiling'), responsible: { kind: 'VENDOR', vendor: { id: 'v9', name: 'Nair Tile Studio', archived: true }, label: 'Nair Tile Studio' } },
+        ],
         archived_items: [item('i3', 'Shelving', true)],
         delays: [],
         coordination_issues: [],
@@ -59,5 +63,15 @@ describe('opening a project at a timeline item (US5-6)', () => {
     const target = await screen.findByRole('article', { name: 'Timeline item Shelving' });
     expect(target).toHaveClass('highlighted');
     expect(target.closest('details')).toHaveAttribute('open');
+  });
+});
+
+describe('responsible vendor on a timeline item (FR-025)', () => {
+  it('links the vendor name to its profile and keeps the archived text', async () => {
+    mockTimeline();
+    Element.prototype.scrollIntoView = vi.fn();
+    render(<ProjectTimeline projectId="p1" linkedVendors={[]} />);
+    const article = await screen.findByRole('article', { name: 'Timeline item Tiling' });
+    expect(within(article).getByRole('link', { name: 'Nair Tile Studio (archived)' })).toHaveAttribute('href', '#/vendors/v9');
   });
 });

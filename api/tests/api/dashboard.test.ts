@@ -124,7 +124,9 @@ describe('dashboard', () => {
     const { session } = await setup();
     const dashboard = await session.client.get('/api/dashboard');
     expect(dashboard.status).toBe(200);
-    expect(Object.keys(dashboard.body).sort()).toEqual(['due_soon', 'missing_update', 'overdue', 'recent_delays_and_issues', 'today']);
+    // Feature 004 adds `items` and `attention_projects` (supersession of Feature 002 FR-023, spec.md Backward
+    // Compatibility). The Feature 002 keys are unchanged, and nothing else is added.
+    expect(Object.keys(dashboard.body).sort()).toEqual(['attention_projects', 'due_soon', 'items', 'missing_update', 'overdue', 'recent_delays_and_issues', 'today']);
     expect(dashboard.body).toMatchObject({ overdue: [], due_soon: [], missing_update: [], recent_delays_and_issues: [] });
   });
 
@@ -147,5 +149,133 @@ describe('dashboard', () => {
     await session.client.patch(`/api/staff/${revoked.id}`).send({ revoked: true });
     expect((await request(app).get('/api/dashboard')).status).toBe(401);
     expect((await revokedSession.client.get('/api/dashboard')).status).toBe(401);
+  });
+});
+
+// Feature 004 US6: deadline groups and the projects needing attention, added beside the Feature 002 lists.
+describe('dashboard items and attention projects (Feature 004 US6)', () => {
+  beforeEach(async () => {
+    await resetDatabase();
+  });
+
+  type Item = { name: string; group: string | null; days_overdue: number | null; status: string; last_update_on: string | null; project: { name: string }; responsible: { kind: string; label: string } };
+
+  it('lists every open item on active projects with its group, and leaves out done and archived ones (US6-1 to US6-6, FR-018)', async () => {
+    const { admin, session, vendor } = await setup();
+    const lake = await createProject(admin.id, 'Lake House');
+    await linkVendor(admin.id, vendor.id, lake.id);
+    const old = await createProject(admin.id, 'Old Office');
+    const add = (name: string, days: number, extra: Record<string, unknown> = {}) =>
+      createTimelineItem(admin.id, { projectId: lake.id, name, deadline: dayOffset(days), ...extra });
+    await add('Yesterday', -1, { responsibleVendorId: vendor.id });
+    await add('Today', 0, { responsibleKind: 'FIRM_TEAM' });
+    await add('In three days', 3);
+    await add('In seven days', 7);
+    await add('In eight days', 8);
+    await add('In twenty days', 20);
+    await add('In thirty days', 30);
+    await add('In ninety days', 90);
+    const started = await add('Started', 5);
+    await insertProgressUpdate({ itemId: started.id, status: 'IN_PROGRESS', actorId: admin.id, createdAt: indiaNoon(dayOffset(-2)) });
+    const done = await add('Done', -4);
+    await insertProgressUpdate({ itemId: done.id, status: 'DONE', actorId: admin.id });
+    await add('Archived item', -2, { archived: true });
+    await createTimelineItem(admin.id, { projectId: old.id, name: 'On archived project', deadline: dayOffset(-1) });
+    await prisma.project.update({ where: { id: old.id }, data: { archived: true } });
+
+    const response = await session.client.get('/api/dashboard');
+    expect(response.status).toBe(200);
+    const items = response.body.items as Item[];
+    const groups = Object.fromEntries(items.map((item) => [item.name, item.group]));
+    expect(groups).toEqual({
+      Yesterday: 'OVERDUE',
+      Today: 'DUE_TODAY',
+      'In three days': 'COMING_SOON',
+      'In seven days': 'COMING_SOON',
+      Started: 'COMING_SOON',
+      'In eight days': 'UPCOMING',
+      'In twenty days': 'UPCOMING',
+      'In thirty days': 'UPCOMING',
+      'In ninety days': null,
+    });
+    // Earliest deadline first.
+    expect(items[0].name).toBe('Yesterday');
+    const yesterday = items.find((item) => item.name === 'Yesterday')!;
+    expect(yesterday).toMatchObject({ days_overdue: 1, status: 'NOT_STARTED', last_update_on: null, project: { name: 'Lake House' }, responsible: { kind: 'VENDOR', label: 'Sharma Interiors' } });
+    expect(items.find((item) => item.name === 'Today')!.responsible).toMatchObject({ kind: 'FIRM_TEAM', label: 'Firm team' });
+    expect(items.find((item) => item.name === 'In three days')!.responsible).toMatchObject({ kind: 'NONE', label: 'None' });
+    expect(items.find((item) => item.name === 'Started')).toMatchObject({ status: 'IN_PROGRESS', last_update_on: dayOffset(-2), days_overdue: null });
+  });
+
+  it('lists the projects needing attention once each, Delayed first, then by overdue items (US6-17 to US6-19, FR-023a)', async () => {
+    const { admin, session } = await setup();
+    const make = async (name: string, status: 'ACTIVE' | 'COMPLETED' = 'ACTIVE', days: number | null = null) => {
+      const project = await createProject(admin.id, name, status);
+      if (days !== null) await prisma.project.update({ where: { id: project.id }, data: { expectedCompletionDate: new Date(`${dayOffset(days)}T00:00:00Z`) } });
+      return project;
+    };
+    const late = await make('Late Project', 'ACTIVE', -1);
+    const lateWithItems = await make('Late With Items', 'ACTIVE', -3);
+    const twoOverdue = await make('Two Overdue');
+    const oneOverdue = await make('One Overdue');
+    const calm = await make('Calm Project', 'ACTIVE', 10);
+    const finished = await make('Finished', 'COMPLETED', -10);
+    const archived = await make('Archived Late', 'ACTIVE', -2);
+    for (const [project, count] of [[lateWithItems, 1], [twoOverdue, 2], [oneOverdue, 1], [finished, 2], [archived, 1]] as const) {
+      for (let index = 0; index < count; index += 1) {
+        await createTimelineItem(admin.id, { projectId: project.id, name: `Late ${index}`, deadline: dayOffset(-1 - index) });
+      }
+    }
+    await createTimelineItem(admin.id, { projectId: calm.id, name: 'Fine', deadline: dayOffset(5) });
+    await prisma.project.update({ where: { id: archived.id }, data: { archived: true } });
+
+    const attention = (await session.client.get('/api/dashboard')).body.attention_projects;
+    expect(attention.map((row: { name: string }) => row.name)).toEqual(['Late With Items', 'Late Project', 'Two Overdue', 'One Overdue']);
+    expect(attention[0]).toMatchObject({
+      id: lateWithItems.id,
+      health: 'DELAYED',
+      overdue_count: 1,
+      progress: { done: 0, total: 1 },
+      reasons: [{ type: 'PAST_EXPECTED_COMPLETION' }, { type: 'OVERDUE_ITEMS', count: 1 }],
+    });
+    expect(attention[1]).toMatchObject({ id: late.id, health: 'DELAYED', reasons: [{ type: 'PAST_EXPECTED_COMPLETION' }] });
+    expect(attention[2]).toMatchObject({ health: 'ONGOING', reasons: [{ type: 'OVERDUE_ITEMS', count: 2 }] });
+  });
+
+  it('keeps the Feature 002 lists unchanged beside the new keys (US6-12, US6-13, FR-022)', async () => {
+    const { admin, session, vendor } = await setup();
+    const lake = await createProject(admin.id, 'Lake House');
+    await linkVendor(admin.id, vendor.id, lake.id);
+    await createTimelineItem(admin.id, { projectId: lake.id, name: 'Late', deadline: dayOffset(-2), responsibleVendorId: vendor.id });
+    await createTimelineItem(admin.id, { projectId: lake.id, name: 'Today', deadline: dayOffset(0) });
+    const stale = await createTimelineItem(admin.id, { projectId: lake.id, name: 'Stale', deadline: dayOffset(20) });
+    await insertProgressUpdate({ itemId: stale.id, status: 'IN_PROGRESS', actorId: admin.id, createdAt: indiaNoon(dayOffset(-9)) });
+
+    const body = (await session.client.get('/api/dashboard')).body;
+    expect(Object.keys(body).sort()).toEqual(['attention_projects', 'due_soon', 'items', 'missing_update', 'overdue', 'recent_delays_and_issues', 'today']);
+    expect(itemNames(body.overdue)).toEqual(['Lake House/Late']);
+    expect(body.overdue[0]).toMatchObject({ days_overdue: 2, responsible_label: 'Sharma Interiors' });
+    // Feature 002 Due soon still includes the item due today; the new Due today group is separate.
+    expect(itemNames(body.due_soon)).toEqual(['Lake House/Today']);
+    expect(itemNames(body.missing_update)).toEqual(['Lake House/Stale']);
+  });
+
+  it('is the same for every role, and refuses a signed-out caller (US6-16, SC-008)', async () => {
+    const { admin, session } = await setup();
+    await createUser({ email: 'office@example.com', role: 'OFFICE_TEAM', actorId: admin.id });
+    await createUser({ email: 'accountant@example.com', role: 'ACCOUNTANT', actorId: admin.id });
+    const lake = await createProject(admin.id, 'Lake House');
+    await prisma.project.update({ where: { id: lake.id }, data: { expectedCompletionDate: new Date(`${dayOffset(-1)}T00:00:00Z`) } });
+    await createTimelineItem(admin.id, { projectId: lake.id, name: 'Late', deadline: dayOffset(-2) });
+
+    const asAdmin = (await session.client.get('/api/dashboard')).body;
+    for (const email of ['office@example.com', 'accountant@example.com']) {
+      const other = (await (await signIn(email)).client.get('/api/dashboard')).body;
+      expect(other.items, email).toEqual(asAdmin.items);
+      expect(other.attention_projects, email).toEqual(asAdmin.attention_projects);
+    }
+    const signedOut = await request(app).get('/api/dashboard');
+    expect(signedOut.status).toBe(401);
+    expect(signedOut.body.items).toBeUndefined();
   });
 });

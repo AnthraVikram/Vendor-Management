@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ItemForm } from '../src/pages/project-timeline';
+import { collectNotices } from './notices';
 
 function respond(status: number, body: unknown) {
   return vi.fn().mockResolvedValue({
@@ -13,6 +14,7 @@ function respond(status: number, body: unknown) {
 
 describe('timeline item form', () => {
   it('sends the type, name, dates, description, and responsible party', async () => {
+    const notices = collectNotices();
     const fetchMock = respond(201, { id: 'item-1' });
     vi.stubGlobal('fetch', fetchMock);
     const onSaved = vi.fn();
@@ -38,6 +40,7 @@ describe('timeline item form', () => {
       responsible: { kind: 'VENDOR', vendor_id: 'vendor-1' },
     });
     expect(onSaved).toHaveBeenCalled();
+    expect(notices).toEqual(['Item added']);
   });
 
   it('offers the linked vendors plus Firm team and No responsible party', () => {

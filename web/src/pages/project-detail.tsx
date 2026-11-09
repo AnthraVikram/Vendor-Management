@@ -4,9 +4,26 @@ import { AdvancesSection } from './advances-section';
 import { DocumentsSection } from './documents-section';
 import { HistoryPanel } from './history-panel';
 import { ProjectTimeline } from './project-timeline';
-import { ArchivedBadge, ProjectStatusBadge } from '../badges';
+import { ApiError } from '../api/client';
+import { ArchivedBadge, AssignmentStatusBadge, HealthBadge, ProgressMeter, ProjectStatusBadge } from '../badges';
+import { istDateTime } from '../time';
+import { notify } from '../notify';
 
 interface LinkRow {
+  id: string;
+  vendor_id: string;
+  vendor_name: string;
+  vendor_archived: boolean;
+  vendor_phone?: string;
+  vendor_contact_person?: string | null;
+  vendor_categories?: { id: string; name: string }[];
+  assignment_status?: string;
+  role_on_project: string | null;
+  scope_of_work: string | null;
+  note: string | null;
+}
+// A removed assignment, kept read-only for history (Feature 004 FR-013). It has no status and no actions.
+interface PastVendorRow {
   id: string;
   vendor_id: string;
   vendor_name: string;
@@ -14,6 +31,8 @@ interface LinkRow {
   role_on_project: string | null;
   scope_of_work: string | null;
   note: string | null;
+  removed_at: string;
+  removed_by: { id: string; name: string };
 }
 interface ScheduleRow {
   id: string;
@@ -26,12 +45,25 @@ interface ScheduleRow {
   pricing_mode: string;
   conflicts: { id: string; task: string; project_name: string }[];
 }
+interface UpcomingItem { id: string; name: string; item_type: string; deadline: string; status: string }
 interface ProjectDetailData {
   id: string;
   name: string;
   status: string;
   archived: boolean;
+  client_name?: string | null;
+  site_location?: string | null;
+  description?: string | null;
+  start_date?: string | null;
+  expected_completion_date?: string | null;
+  health?: string;
+  progress?: { done: number; total: number };
+  overdue_count?: number;
+  after_completion_count?: number;
+  upcoming?: UpcomingItem[];
+  completed_on?: string | null;
   links: LinkRow[];
+  past_links?: PastVendorRow[];
   schedules: ScheduleRow[];
 }
 interface VendorOption { id: string; name: string }
@@ -161,6 +193,130 @@ export function ScheduleForm({ projectId, vendors, onSaved }: { projectId: strin
   );
 }
 
+function NotSet() {
+  return <span className="muted">Not set</span>;
+}
+
+// The project at a glance (Feature 004 FR-009a): dates, health, progress, overdue count and the next open items.
+function ProjectOverview({ project }: { project: ProjectDetailData }) {
+  const overdue = project.overdue_count ?? 0;
+  const afterCompletion = project.after_completion_count ?? 0;
+  const upcoming = project.upcoming ?? [];
+  return (
+    <section className="section" aria-labelledby="project-overview-heading">
+      <div className="section-heading">
+        <div><h2 id="project-overview-heading">Overview</h2></div>
+      </div>
+      <div className="card grid">
+        <dl className="facts">
+          <div className="fact"><dt>Status</dt><dd><ProjectStatusBadge status={project.status} /></dd></div>
+          <div className="fact"><dt>Client</dt><dd>{project.client_name || <NotSet />}</dd></div>
+          <div className="fact"><dt>Site</dt><dd>{project.site_location || <NotSet />}</dd></div>
+          <div className="fact"><dt>Start date</dt><dd>{project.start_date ?? <NotSet />}</dd></div>
+          <div className="fact"><dt>Project expected completion</dt><dd>{project.expected_completion_date ?? <NotSet />}</dd></div>
+          {project.health ? <div className="fact"><dt>Health</dt><dd><HealthBadge health={project.health} /></dd></div> : null}
+          {project.status === 'COMPLETED' ? (
+            <div className="fact"><dt>Completion</dt><dd>{project.completed_on ? `Completed on ${project.completed_on}` : 'Completed'}</dd></div>
+          ) : null}
+          {project.progress ? <div className="fact"><dt>Progress</dt><dd><ProgressMeter progress={project.progress} /></dd></div> : null}
+          <div className="fact"><dt>Overdue</dt><dd>{overdue > 0 ? `${overdue} overdue ${overdue === 1 ? 'item' : 'items'}` : 'No overdue items'}</dd></div>
+        </dl>
+        {afterCompletion > 0 ? (
+          <p className="notice notice-warning">
+            {afterCompletion === 1 ? '1 item is' : `${afterCompletion} items are`} due after the expected completion date
+          </p>
+        ) : null}
+        {upcoming.length > 0 ? (
+          <>
+            <h3>Next items</h3>
+            <ul className="plain-list" aria-label="Upcoming items">
+              {upcoming.map((item) => (
+                <li key={item.id}>
+                  <a href={`#/projects/${project.id}?item=${item.id}`}>{item.name}</a>{' '}
+                  <span className="muted">Deadline</span> {item.deadline}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+// Every project field (Feature 001 FR-023, task T078) plus the two Feature 004 dates.
+function EditProjectForm({ project, onSaved }: { project: ProjectDetailData; onSaved: () => void }) {
+  const [name, setName] = useState(project.name);
+  const [clientName, setClientName] = useState(project.client_name ?? '');
+  const [siteLocation, setSiteLocation] = useState(project.site_location ?? '');
+  const [description, setDescription] = useState(project.description ?? '');
+  const [status, setStatus] = useState(project.status);
+  const [startDate, setStartDate] = useState(project.start_date ?? '');
+  const [expectedCompletionDate, setExpectedCompletionDate] = useState(project.expected_completion_date ?? '');
+  const [fields, setFields] = useState<Record<string, string>>({});
+  const [message, setMessage] = useState('');
+
+  async function save(event: FormEvent) {
+    event.preventDefault();
+    setFields({});
+    setMessage('');
+    try {
+      await api(`/api/projects/${project.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          name,
+          client_name: clientName,
+          site_location: siteLocation,
+          description,
+          status,
+          start_date: startDate || null,
+          expected_completion_date: expectedCompletionDate || null,
+        }),
+      });
+      notify('Project updated');
+      onSaved();
+    } catch (caught) {
+      if (caught instanceof ApiError && caught.body.fields) setFields(caught.body.fields);
+      else setMessage(caught instanceof Error ? caught.message : 'Could not save the project.');
+    }
+  }
+
+  return (
+    <form className="card form-2col" onSubmit={save} aria-label="Edit project">
+      <h3 className="span-2">Edit project</h3>
+      <label>Name<input value={name} onChange={(event) => setName(event.target.value)} aria-invalid={Boolean(fields.name)} /></label>
+      <label>
+        Status
+        <select value={status} onChange={(event) => setStatus(event.target.value)}>
+          <option value="PLANNED">Planned</option>
+          <option value="ACTIVE">Active</option>
+          <option value="ON_HOLD">On hold</option>
+          <option value="COMPLETED">Completed</option>
+        </select>
+      </label>
+      {fields.name ? <span className="error field-error">{fields.name}</span> : null}
+      <label>Client name<input value={clientName} onChange={(event) => setClientName(event.target.value)} /></label>
+      <label>Site location<input value={siteLocation} onChange={(event) => setSiteLocation(event.target.value)} /></label>
+      <label className="span-2">Description<input value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+      <div className="field">
+        <label>Start date<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} aria-invalid={Boolean(fields.start_date)} /></label>
+        {fields.start_date ? <span className="error field-error">{fields.start_date}</span> : null}
+      </div>
+      <div className="field">
+        <label>
+          Expected completion date
+          <input type="date" value={expectedCompletionDate} onChange={(event) => setExpectedCompletionDate(event.target.value)} aria-invalid={Boolean(fields.expected_completion_date)} />
+        </label>
+        {fields.expected_completion_date ? <span className="error field-error">{fields.expected_completion_date}</span> : null}
+      </div>
+      <div className="form-actions">
+        <button type="submit">Save changes</button>
+      </div>
+      {message ? <p className="error form-error" role="alert">{message}</p> : null}
+    </form>
+  );
+}
+
 export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
   const [project, setProject] = useState<ProjectDetailData | null>(null);
   const [vendors, setVendors] = useState<VendorOption[]>([]);
@@ -192,11 +348,13 @@ export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
       method: 'POST',
       body: JSON.stringify({ vendor_id: vendorId, role_on_project: role, scope_of_work: scope, note }),
     });
+    notify('Vendor assigned to project');
     load();
   }
 
   async function removeLink(linkId: string) {
     await api(`/api/links/${linkId}`, { method: 'DELETE' });
+    notify('Vendor removed from project');
     load();
   }
 
@@ -230,15 +388,20 @@ export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
         <div className="page-actions">
           <button type="button" className={project.archived ? 'secondary' : 'danger'} onClick={async () => {
             await api(`/api/projects/${id}/${project.archived ? 'restore' : 'archive'}`, { method: 'POST' });
+            notify(project.archived ? 'Project restored' : 'Project archived');
             load();
           }}>{project.archived ? 'Restore project' : 'Archive project'}</button>
         </div>
       </header>
 
-      <div className="section">
+      <ProjectOverview project={project} />
+      {/* Keyed by the load count, so the form shows the saved values after every reload. */}
+      <EditProjectForm key={version} project={project} onSaved={load} />
+
+      <section className="section" aria-labelledby="project-vendors-heading">
         <div className="section-heading">
           <div>
-            <h2>Links</h2>
+            <h2 id="project-vendors-heading">Vendors</h2>
             <span className="count-badge">{project.links.length}</span>
           </div>
           <p>Vendors working on this project</p>
@@ -246,21 +409,27 @@ export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
         {project.links.length > 0 ? (
           <div className="card-list">
             {project.links.map((link) => (
-              <article className="card grid link-card" key={link.id}>
+              <article className="card grid vendor-card" key={link.id}>
                 <div className="card-heading">
-                  <p><strong>{link.vendor_name}</strong></p>
+                  <p><strong><a href={`#/vendors/${link.vendor_id}`}>{link.vendor_name}</a></strong></p>
                   {link.vendor_archived ? <ArchivedBadge /> : null}
+                  {link.assignment_status ? <AssignmentStatusBadge status={link.assignment_status} /> : null}
                 </div>
+                <dl className="facts">
+                  <div className="fact"><dt>Phone</dt><dd>{link.vendor_phone ?? <span className="muted">Not set</span>}</dd></div>
+                  <div className="fact"><dt>Contact person</dt><dd>{link.vendor_contact_person || <span className="muted">No contact person</span>}</dd></div>
+                  <div className="fact"><dt>Categories</dt><dd>{(link.vendor_categories ?? []).map((category) => category.name).join(', ')}</dd></div>
+                </dl>
                 {link.role_on_project || link.scope_of_work || link.note ? (
                   <p className="meta">{[link.role_on_project, link.scope_of_work, link.note].filter(Boolean).join(' · ')}</p>
                 ) : null}
-                <button type="button" className="danger small" onClick={() => removeLink(link.id)}>Remove link</button>
+                <button type="button" className="danger small" onClick={() => removeLink(link.id)}>Remove from project</button>
               </article>
             ))}
           </div>
-        ) : <p className="empty">No vendors linked yet.</p>}
-        <form className="card form-2col" onSubmit={addLink} aria-label="Link a vendor">
-          <h3 className="span-2">Link a vendor</h3>
+        ) : <p className="empty">No vendors are assigned to this project yet</p>}
+        <form className="card form-2col" onSubmit={addLink} aria-label="Assign a vendor">
+          <h3 className="span-2">Assign a vendor</h3>
           <label>
             Vendor
             <select value={vendorId} onChange={(event) => setVendorId(event.target.value)}>
@@ -272,10 +441,33 @@ export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
           <label>Scope<input value={scope} onChange={(event) => setScope(event.target.value)} /></label>
           <label>Note<input value={note} onChange={(event) => setNote(event.target.value)} /></label>
           <div className="form-actions">
-            <button type="submit">Link vendor</button>
+            <button type="submit">Assign vendor</button>
           </div>
         </form>
-      </div>
+      </section>
+
+      <section className="section" aria-labelledby="project-past-vendors-heading">
+        <div className="section-heading">
+          <div><h2 id="project-past-vendors-heading">Past vendors</h2></div>
+          <p>Vendors removed from this project. Kept for reference and cannot be changed.</p>
+        </div>
+        {(project.past_links ?? []).length > 0 ? (
+          <ul className="card-list plain-list">
+            {(project.past_links ?? []).map((link) => (
+              <li className="card grid past-card" key={link.id}>
+                <div className="card-heading">
+                  <p><strong><a href={`#/vendors/${link.vendor_id}`}>{link.vendor_name}</a></strong></p>
+                  {link.vendor_archived ? <ArchivedBadge /> : null}
+                </div>
+                {link.role_on_project || link.scope_of_work || link.note ? (
+                  <p className="meta">{[link.role_on_project, link.scope_of_work, link.note].filter(Boolean).join(' · ')}</p>
+                ) : null}
+                <p className="meta">Removed by {link.removed_by.name} on {istDateTime(link.removed_at)}</p>
+              </li>
+            ))}
+          </ul>
+        ) : <p className="empty">No past vendors</p>}
+      </section>
 
       <div className="section">
         <div className="section-heading">

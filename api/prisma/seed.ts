@@ -7,11 +7,9 @@ import { stampCreate } from '../src/lib/audit';
 import { recordHistory } from '../src/lib/history';
 import { addDays, currentMonthInIndia, toDateColumn, todayInIndia } from '../src/lib/india-date';
 
-const prisma = new PrismaClient();
-
 const SAMPLE_PDF = Buffer.from('%PDF-1.1\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n');
 
-async function staff(email: string, name: string, role: StaffRole, password: string, actorId?: string) {
+async function staff(prisma: PrismaClient, email: string, name: string, role: StaffRole, password: string, actorId?: string) {
   const existing = await prisma.staffUser.findUnique({ where: { email } });
   if (existing) return existing;
   const id = randomUUID();
@@ -30,26 +28,33 @@ async function staff(email: string, name: string, role: StaffRole, password: str
   });
 }
 
-async function category(name: string, actorId: string) {
+async function category(prisma: PrismaClient, name: string, actorId: string) {
   const rows = await prisma.category.findMany();
   const found = rows.find((row) => row.name.toLowerCase() === name.toLowerCase());
   if (found) return found;
   return prisma.category.create({ data: { name, ...stampCreate(actorId) } });
 }
 
-async function main() {
+// Feature 004 T059: the seed runs only through the client it is given, so a test can call it with its own
+// client. It never disconnects or exits; the command-line entry at the end does that.
+export async function seed(prisma: PrismaClient): Promise<void> {
   const adminPassword = process.env.SEED_ADMIN_PASSWORD;
   const officePassword = process.env.SEED_OFFICE_PASSWORD;
   const accountantPassword = process.env.SEED_ACCOUNTANT_PASSWORD;
   if (!adminPassword || !officePassword || !accountantPassword) {
     throw new Error('Set SEED_ADMIN_PASSWORD, SEED_OFFICE_PASSWORD, and SEED_ACCOUNTANT_PASSWORD.');
   }
-  const admin = await staff('admin@example.com', 'Asha Admin', 'ADMINISTRATOR', adminPassword);
-  const office = await staff('office@example.com', 'Omar Office', 'OFFICE_TEAM', officePassword, admin.id);
-  const accountant = await staff('accountant@example.com', 'Anil Accountant', 'ACCOUNTANT', accountantPassword, admin.id);
+  const admin = await staff(prisma, 'admin@example.com', 'Asha Admin', 'ADMINISTRATOR', adminPassword);
+  const office = await staff(prisma, 'office@example.com', 'Omar Office', 'OFFICE_TEAM', officePassword, admin.id);
+  const accountant = await staff(prisma, 'accountant@example.com', 'Anil Accountant', 'ACCOUNTANT', accountantPassword, admin.id);
 
-  const carpentry = await category('Carpentry', admin.id);
-  const electrical = await category('Electrical', admin.id);
+  const carpentry = await category(prisma, 'Carpentry', admin.id);
+  const electrical = await category(prisma, 'Electrical', admin.id);
+  const plumbing = await category(prisma, 'Plumbing', admin.id);
+  const tiling = await category(prisma, 'Tiling', admin.id);
+  const painting = await category(prisma, 'Painting', admin.id);
+  const falseCeiling = await category(prisma, 'False ceiling', admin.id);
+  const glass = await category(prisma, 'Glass and aluminium', admin.id);
 
   async function vendor(input: {
     name: string;
@@ -58,6 +63,7 @@ async function main() {
     location: string;
     availability: 'AVAILABLE' | 'LIMITED' | 'UNAVAILABLE';
     rate?: string;
+    email?: string;
   }) {
     const existing = await prisma.vendor.findFirst({ where: { phone: input.phone } });
     if (existing) return existing;
@@ -65,6 +71,7 @@ async function main() {
       data: {
         name: input.name,
         phone: input.phone,
+        email: input.email ?? null,
         gstRegistered: false,
         availability: input.availability,
         teamSize: 4,
@@ -86,7 +93,7 @@ async function main() {
     availability: 'AVAILABLE',
     rate: '1800.00',
   });
-  await vendor({
+  const rao = await vendor({
     name: 'Rao Electrical',
     phone: '9800000002',
     categoryId: electrical.id,
@@ -95,33 +102,71 @@ async function main() {
     rate: '2200.00',
   });
 
-  async function project(name: string) {
+  // Feature 004 (FR-032, FR-034): eight more fictional vendors, so seven categories are covered.
+  const patel = await vendor({ name: 'Patel Plumbing Works', phone: '9800000003', categoryId: plumbing.id, location: 'Chennai', availability: 'AVAILABLE', email: 'patel.plumbing@example.com' });
+  const nair = await vendor({ name: 'Nair Tile Studio', phone: '9800000004', categoryId: tiling.id, location: 'Kochi', availability: 'LIMITED', rate: '95.00' });
+  const iyer = await vendor({ name: 'Iyer Painters', phone: '9800000005', categoryId: painting.id, location: 'Chennai', availability: 'AVAILABLE', email: 'iyer.painters@example.com' });
+  const khan = await vendor({ name: 'Khan Ceiling Systems', phone: '9800000006', categoryId: falseCeiling.id, location: 'Hyderabad', availability: 'AVAILABLE' });
+  await vendor({ name: 'Clearview Glass and Aluminium', phone: '9800000007', categoryId: glass.id, location: 'Bengaluru', availability: 'UNAVAILABLE' });
+  const joseph = await vendor({ name: 'Joseph Woodcraft', phone: '9800000008', categoryId: carpentry.id, location: 'Kochi', availability: 'AVAILABLE', rate: '1600.00' });
+  await vendor({ name: 'Das Power Fittings', phone: '9800000009', categoryId: electrical.id, location: 'Chennai', availability: 'LIMITED' });
+  await vendor({ name: 'Bose Colour Works', phone: '9800000010', categoryId: painting.id, location: 'Bengaluru', availability: 'AVAILABLE', email: 'bose.colour@example.com' });
+
+  const today = todayInIndia();
+  const indiaNoon = (offset: number) => new Date(`${addDays(today, offset)}T06:30:00Z`);
+  // Dates are relative to the first run; a project found again keeps the dates it was created with.
+  async function project(name: string, status: 'PLANNED' | 'ACTIVE' | 'ON_HOLD' | 'COMPLETED', start: number, expected: number) {
     const existing = await prisma.project.findFirst({ where: { name } });
     if (existing) return existing;
     return prisma.project.create({
-      data: { name, status: 'ACTIVE', clientName: 'Sample client', ...stampCreate(admin.id) },
-    });
-  }
-  const lake = await project('Lake House');
-  const studio = await project('Studio Fit-out');
-
-  async function link(projectId: string) {
-    const existing = await prisma.vendorProjectLink.findUnique({
-      where: { vendorId_projectId: { vendorId: mehta.id, projectId } },
-    });
-    if (existing) return existing;
-    return prisma.vendorProjectLink.create({
       data: {
-        vendorId: mehta.id,
-        projectId,
-        roleOnProject: 'Carpentry',
-        scopeOfWork: 'Joinery',
+        name,
+        status,
+        clientName: 'Sample client',
+        startDate: toDateColumn(addDays(today, start)),
+        expectedCompletionDate: toDateColumn(addDays(today, expected)),
         ...stampCreate(admin.id),
       },
     });
   }
-  await link(lake.id);
-  await link(studio.id);
+  const lake = await project('Lake House', 'ACTIVE', -60, 15);
+  const studio = await project('Studio Fit-out', 'PLANNED', 10, 90);
+  const hill = await project('Hill Villa', 'COMPLETED', -150, -30);
+  const riverside = await project('Riverside Clinic', 'ON_HOLD', -90, -5);
+
+  async function link(vendorId: string, projectId: string, role: string, scope: string) {
+    const existing = await prisma.vendorProjectLink.findFirst({
+      where: { vendorId, projectId, removedAt: null },
+    });
+    if (existing) return existing;
+    return prisma.vendorProjectLink.create({
+      data: { vendorId, projectId, roleOnProject: role, scopeOfWork: scope, ...stampCreate(admin.id) },
+    });
+  }
+  await link(mehta.id, lake.id, 'Carpentry', 'Joinery');
+  await link(mehta.id, studio.id, 'Carpentry', 'Joinery');
+  await link(rao.id, lake.id, 'Electrical contractor', 'Wiring and lighting');
+  await link(rao.id, hill.id, 'Electrical contractor', 'Full rewiring');
+  await link(patel.id, lake.id, 'Plumber', 'Bathrooms and kitchen');
+  await link(iyer.id, hill.id, 'Painter', 'Exterior and interior painting');
+  await link(khan.id, riverside.id, 'Ceiling contractor', 'Gypsum false ceiling');
+  await link(nair.id, riverside.id, 'Tiler', 'Clinic floor tiling');
+  await link(joseph.id, studio.id, 'Second carpenter', 'Loose furniture');
+
+  // A past assignment (FR-013a), created only when the pair has never had an assignment.
+  if (!(await prisma.vendorProjectLink.findFirst({ where: { vendorId: nair.id, projectId: lake.id } }))) {
+    await prisma.vendorProjectLink.create({
+      data: {
+        vendorId: nair.id,
+        projectId: lake.id,
+        roleOnProject: 'Tiler',
+        scopeOfWork: 'Balcony tiling',
+        removedAt: indiaNoon(-20),
+        removedById: office.id,
+        ...stampCreate(admin.id),
+      },
+    });
+  }
 
   async function pricedSchedule(projectId: string, task: string, workDate: string, amount: string) {
     const existing = await prisma.workSchedule.findFirst({ where: { projectId, task } });
@@ -180,25 +225,26 @@ async function main() {
     });
   }
 
-  const today = todayInIndia();
-  const indiaNoon = (offset: number) => new Date(`${addDays(today, offset)}T06:30:00Z`);
   async function timelineItem(input: {
     name: string;
     itemType: 'MILESTONE' | 'ACTIVITY';
     deadline: number;
     responsible?: 'VENDOR' | 'FIRM_TEAM';
+    projectId?: string;
+    vendorId?: string;
     updates?: { status: 'IN_PROGRESS' | 'DONE'; daysAgo: number; note: string }[];
   }) {
-    const existing = await prisma.timelineItem.findFirst({ where: { projectId: lake.id, name: input.name } });
+    const projectId = input.projectId ?? lake.id;
+    const existing = await prisma.timelineItem.findFirst({ where: { projectId, name: input.name } });
     if (existing) return existing;
     const item = await prisma.timelineItem.create({
       data: {
-        projectId: lake.id,
+        projectId,
         name: input.name,
         itemType: input.itemType,
         deadline: toDateColumn(addDays(today, input.deadline)),
         responsibleKind: input.responsible ?? 'NONE',
-        responsibleVendorId: input.responsible === 'VENDOR' ? mehta.id : null,
+        responsibleVendorId: input.responsible === 'VENDOR' ? (input.vendorId ?? mehta.id) : null,
         ...stampCreate(office.id),
       },
     });
@@ -237,6 +283,41 @@ async function main() {
     updates: [{ status: 'DONE', daysAgo: 9, note: 'Debris cleared' }],
   });
   await timelineItem({ name: 'Material selection', itemType: 'ACTIVITY', deadline: 12, responsible: 'FIRM_TEAM' });
+
+  // Feature 004 (FR-033): every deadline group, each assignment status, and a Missing update.
+  await timelineItem({ name: 'Site measurement sign-off', itemType: 'MILESTONE', deadline: 0, responsible: 'FIRM_TEAM' });
+  await timelineItem({
+    name: 'Bathroom plumbing',
+    itemType: 'ACTIVITY',
+    deadline: 6,
+    responsible: 'VENDOR',
+    vendorId: patel.id,
+    updates: [{ status: 'IN_PROGRESS', daysAgo: 10, note: 'Concealed lines laid' }],
+  });
+  await timelineItem({ name: 'Lighting layout', itemType: 'ACTIVITY', deadline: 25, responsible: 'VENDOR', vendorId: rao.id });
+  // The Delayed project (quickstart 3.3) has an upcoming item due after its expected completion date.
+  await timelineItem({ name: 'Clinic false ceiling', itemType: 'ACTIVITY', deadline: 10, responsible: 'VENDOR', projectId: riverside.id, vendorId: khan.id });
+  await timelineItem({
+    name: 'Final electrical inspection',
+    itemType: 'MILESTONE',
+    deadline: -35,
+    responsible: 'VENDOR',
+    projectId: hill.id,
+    vendorId: rao.id,
+    updates: [{ status: 'DONE', daysAgo: 36, note: 'Inspection passed' }],
+  });
+  await timelineItem({
+    name: 'Exterior painting',
+    itemType: 'ACTIVITY',
+    deadline: -40,
+    responsible: 'VENDOR',
+    projectId: hill.id,
+    vendorId: iyer.id,
+    updates: [
+      { status: 'IN_PROGRESS', daysAgo: 50, note: 'Primer coat done' },
+      { status: 'DONE', daysAgo: 41, note: 'Final coat done' },
+    ],
+  });
 
   const delayReason = 'Laminate shipment arrived late';
   if (!(await prisma.delay.findFirst({ where: { projectId: lake.id, reason: delayReason } }))) {
@@ -322,12 +403,16 @@ async function main() {
   await advance({ projectId: studio.id, amount: '75000.00', receivedOn: lastMonth, reference: 'SEED-ADV-3', paymentMethod: 'CHEQUE' });
 }
 
-main()
-  .then(async () => {
-    await prisma.$disconnect();
-  })
-  .catch(async (error: unknown) => {
-    console.error(error instanceof Error ? error.message : error);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+// Command-line entry (`prisma db seed` runs `tsx prisma/seed.ts`). Importing this file runs nothing.
+if (require.main === module) {
+  const client = new PrismaClient();
+  seed(client)
+    .then(async () => {
+      await client.$disconnect();
+    })
+    .catch(async (error: unknown) => {
+      console.error(error instanceof Error ? error.message : error);
+      await client.$disconnect();
+      process.exit(1);
+    });
+}

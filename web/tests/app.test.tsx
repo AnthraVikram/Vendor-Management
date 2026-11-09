@@ -42,13 +42,13 @@ describe('app shell', () => {
     await userEvent.type(screen.getByLabelText('Password'), 'password1');
     await userEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
-    // The change-password form sits behind the Account button in the app shell.
-    const account = await screen.findByRole('button', { name: 'Account' });
+    // The change-password form and Sign out sit behind the profile button in the top bar (Feature 004 US7-1).
+    const account = await screen.findByRole('button', { name: 'Asha Admin' });
     expect(screen.queryByRole('button', { name: 'Change password' })).toBeNull();
     await userEvent.click(account);
     expect(account).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByRole('button', { name: 'Change password' })).toBeInTheDocument();
-    expect(screen.getByText('Asha Admin')).toBeInTheDocument();
+    expect(screen.getAllByText('Asha Admin')).toHaveLength(2);
     expect(screen.getByRole('link', { name: 'Vendors' })).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: 'Sign out' }));

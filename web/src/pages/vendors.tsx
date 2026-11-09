@@ -1,10 +1,21 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { ApiError, api } from '../api/client';
 import { ArchivedBadge, AvailabilityBadge } from '../badges';
+import { notify } from '../notify';
 
 interface Category { id: string; name: string }
 interface Project { id: string; name: string }
-interface Vendor { id: string; name: string; phone: string; archived: boolean; locations: string[]; availability: string | null }
+interface Vendor {
+  id: string;
+  name: string;
+  phone: string;
+  archived: boolean;
+  locations: string[];
+  availability: string | null;
+  contact_person?: string | null;
+  categories?: { id: string; name: string }[];
+  project_count?: number;
+}
 interface DuplicatePhone { body: Record<string, unknown>; matches: { id: string; name: string }[] }
 
 function list(value: string): string[] {
@@ -42,6 +53,10 @@ export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
   const [rateUnit, setRateUnit] = useState('');
   const [duplicate, setDuplicate] = useState<DuplicatePhone | null>(null);
   const [error, setError] = useState('');
+  const [loaded, setLoaded] = useState(false);
+  // Whether the list on screen came from a search or filter, so an empty list gets the right message (FR-031).
+  const [narrowed, setNarrowed] = useState(false);
+  const nameInput = useRef<HTMLInputElement>(null);
 
   async function load(filters = { q, categoryId, location, availability, projectId, includeArchived }) {
     const params = new URLSearchParams();
@@ -53,6 +68,8 @@ export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
     if (filters.includeArchived) params.set('include_archived', 'true');
     const rows = await api<Vendor[]>(`/api/vendors?${params.toString()}`);
     setVendors(rows);
+    setNarrowed(Boolean(filters.q || filters.categoryId || filters.location || filters.availability || filters.projectId));
+    setLoaded(true);
   }
 
   useEffect(() => {
@@ -89,6 +106,7 @@ export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
       throw caught;
     }
     setDuplicate(null);
+    notify('Vendor added');
     resetForm();
     await load();
   }
@@ -197,7 +215,7 @@ export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
       </form>
       <form className="card form-2col" onSubmit={create} aria-label="Add vendor">
         <h2>Add vendor</h2>
-        <label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label>
+        <label>Name<input ref={nameInput} value={name} onChange={(event) => setName(event.target.value)} /></label>
         <label>Phone<input value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
         <label>Category<input value={newCategory} onChange={(event) => setNewCategory(event.target.value)} /></label>
         <label>Contact person<input value={contactPerson} onChange={(event) => setContactPerson(event.target.value)} /></label>
@@ -248,15 +266,20 @@ export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
             <span className="count-badge">{vendors.length}</span>
           </div>
         </div>
-        {vendors.length > 0 ? (
+        {!loaded ? (
+          <p className="meta">Loading vendors</p>
+        ) : vendors.length > 0 ? (
           <div className="table-wrap list-table">
             <table aria-label="Vendors">
               <thead>
                 <tr>
                   <th>Vendor</th>
+                  <th>Contact person</th>
                   <th>Phone</th>
+                  <th>Categories</th>
                   <th>Locations</th>
                   <th>Availability</th>
+                  <th>Projects</th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -264,17 +287,28 @@ export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
                 {vendors.map((vendor) => (
                   <tr key={vendor.id}>
                     <td data-label="Vendor"><button type="button" className="link-button" onClick={() => openVendor(vendor.id)}>{vendor.name}</button></td>
+                    <td data-label="Contact person">{vendor.contact_person ?? ''}</td>
                     <td data-label="Phone">{vendor.phone}</td>
+                    <td data-label="Categories">{(vendor.categories ?? []).map((category) => category.name).join(', ')}</td>
                     <td data-label="Locations">{vendor.locations.join(', ')}</td>
                     <td data-label="Availability"><AvailabilityBadge availability={vendor.availability} /></td>
+                    <td data-label="Projects">{vendor.project_count === 1 ? '1 project' : `${vendor.project_count ?? 0} projects`}</td>
                     <td data-label="Status">{vendor.archived ? <ArchivedBadge /> : <span className="muted">Active</span>}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        ) : narrowed ? (
+          <p className="empty">No vendors match your search and filters</p>
         ) : (
-          <p className="empty">No vendors match these filters.</p>
+          <div className="empty-box">
+            <p className="empty">No vendors have been added yet</p>
+            <div className="form-actions">
+              <button type="button" onClick={() => nameInput.current?.focus()}>Add vendor</button>
+              <a className="button secondary" href="#/vendors/import">Import spreadsheet</a>
+            </div>
+          </div>
         )}
       </div>
     </section>

@@ -1,5 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { ArchivedBadge } from '../badges';
+import { notify } from '../notify';
 import { HistoryPanel } from './history-panel';
 import { istDateTime } from '../time';
 
@@ -74,6 +76,7 @@ function UploadForm({ action, onSaved }: { action: string; onSaved: () => void }
       setTitle('');
       setType('');
       setNote('');
+      notify('Document uploaded');
       onSaved();
     } catch (caught) {
       if (caught instanceof ApiError && caught.body.fields) setFields(caught.body.fields);
@@ -150,6 +153,7 @@ export function DocumentsSection({ parent, parentId, parentArchived }: { parent:
     setError('');
     try {
       await api(`/api/documents/${documentId}/${archived ? 'archive' : 'restore'}`, { method: 'POST' });
+      notify(archived ? 'Document archived' : 'Document restored');
       load();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'The document was not changed.');
@@ -182,7 +186,7 @@ export function DocumentsSection({ parent, parentId, parentArchived }: { parent:
                   <p className="document-title">
                     <strong>{document.title}</strong>
                     <span className="status-badge status-planned">{TYPES[document.document_type] ?? document.document_type}</span>
-                    {document.archived ? <span className="status-badge status-archived">Archived</span> : null}
+                    {document.archived ? <ArchivedBadge /> : null}
                   </p>
                   <p className="meta">
                     {document.original_filename} · {fileSize(document.byte_size)} · <span>Uploaded by {document.created_by.name} · {istDateTime(document.created_at)}</span>

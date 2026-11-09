@@ -77,12 +77,14 @@ describe('dashboard tiles (US4)', () => {
     expect(region).not.toHaveTextContent('₹');
   });
 
-  it('keeps the Feature 002 lists, below the tiles', async () => {
+  // Feature 004 replaced the Feature 002 "Due soon" list with deadline groups (supersession of Feature 002 FR-020
+  // and FR-021, spec.md Backward Compatibility). The deadline lists still sit below the tiles.
+  it('keeps the deadline lists below the tiles', async () => {
     mockFetch({ '/api/dashboard/summary': summary, '/api/dashboard': lists });
     render(<Dashboard />);
     const region = await tiles();
     const overdue = await screen.findByRole('region', { name: 'Overdue' });
-    expect(screen.getByText('Nothing due soon.')).toBeInTheDocument();
+    expect(screen.getByText('No missing updates.')).toBeInTheDocument();
     expect(region.compareDocumentPosition(overdue) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

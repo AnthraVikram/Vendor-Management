@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { api } from './api/client';
 import { SignIn } from './pages/sign-in';
@@ -13,7 +13,7 @@ import { VendorImports } from './pages/vendor-imports';
 import { ClientAdvances } from './pages/client-advances';
 import './styles.css';
 
-interface Me { id: string; name: string; role: string }
+interface Me { id: string; name: string; email: string; role: string }
 
 function pathOf(): string {
   return window.location.hash.replace(/^#/, '') || '/vendors';
@@ -39,6 +39,23 @@ function App() {
   const [newPassword, setNewPassword] = useState('');
   const [passwordMessage, setPasswordMessage] = useState('');
   const [accountOpen, setAccountOpen] = useState(false);
+  const [notice, setNotice] = useState('');
+  const profileButton = useRef<HTMLButtonElement>(null);
+
+  // FR-026: the latest confirmation from any page, shown for 5 seconds.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onNotify = (event: Event) => {
+      setNotice((event as CustomEvent<string>).detail);
+      clearTimeout(timer);
+      timer = setTimeout(() => setNotice(''), 5000);
+    };
+    window.addEventListener('notify', onNotify);
+    return () => {
+      window.removeEventListener('notify', onNotify);
+      clearTimeout(timer);
+    };
+  }, []);
 
   useEffect(() => {
     api<Me>('/api/auth/me').then(setMe).catch(() => setMe(null)).finally(() => setReady(true));
@@ -64,6 +81,12 @@ function App() {
     } catch (caught) {
       setPasswordMessage(caught instanceof Error ? caught.message : 'Could not change the password');
     }
+  }
+
+  function closeOnEscape(event: KeyboardEvent) {
+    if (event.key !== 'Escape' || !accountOpen) return;
+    setAccountOpen(false);
+    profileButton.current?.focus();
   }
 
   // '/vendors/import' is the import page, not a vendor id.
@@ -93,30 +116,36 @@ function App() {
             </a>
           ))}
         </nav>
-        <div className="account">
-          <div className="account-who">
-            <strong>{me.name}</strong>
-            <span>{ROLE_NAMES[me.role] ?? me.role}</span>
-          </div>
-          <div className="account-actions">
-            <button type="button" className="secondary" aria-expanded={accountOpen} aria-controls="account-panel" onClick={() => setAccountOpen(!accountOpen)}>
-              Account
-            </button>
-            <button type="button" className="secondary" onClick={async () => {
-              await api('/api/auth/logout', { method: 'POST' });
-              setMe(null);
-            }}>Sign out</button>
-          </div>
+      </aside>
+      <div className="workspace">
+      <header className="topbar">
+        <div className="profile-menu" onKeyDown={closeOnEscape}>
+          <button type="button" ref={profileButton} className="secondary profile-button" aria-expanded={accountOpen} aria-controls="profile-panel" onClick={() => setAccountOpen(!accountOpen)}>
+            {me.name}
+          </button>
           {accountOpen ? (
-            <form id="account-panel" className="account-panel" onSubmit={changePassword}>
-              <label>Current password<input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label>
-              <label>New password<input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>
-              <button type="submit">Change password</button>
-              {passwordMessage ? <p role="status">{passwordMessage}</p> : null}
-            </form>
+            <div id="profile-panel" className="profile-panel">
+              <div className="account-who">
+                <strong>{me.name}</strong>
+                <span>{ROLE_NAMES[me.role] ?? me.role}</span>
+                <span>{me.email}</span>
+              </div>
+              <form className="account-panel" onSubmit={changePassword}>
+                <label>Current password<input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label>
+                <label>New password<input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>
+                <button type="submit">Change password</button>
+                {passwordMessage ? <p role="status">{passwordMessage}</p> : null}
+              </form>
+              <button type="button" className="secondary" onClick={async () => {
+                await api('/api/auth/logout', { method: 'POST' });
+                setAccountOpen(false);
+                setMe(null);
+              }}>Sign out</button>
+            </div>
           ) : null}
         </div>
-      </aside>
+      </header>
+      <div className="notice-region" role="status" aria-live="polite">{notice ? <p className="success-message">{notice}</p> : null}</div>
       <main className="content">
       {path.startsWith('/vendors/') && vendorId ? <VendorDetail id={vendorId} /> : null}
       {path === '/vendors' ? <Vendors openVendor={(id) => { window.location.hash = `/vendors/${id}`; }} /> : null}
@@ -128,6 +157,7 @@ function App() {
       {projectPath === '/client-advances' ? <ClientAdvances scope={advanceScope} /> : null}
       {path === '/staff' ? <StaffPage currentUserId={me.id} /> : null}
       </main>
+      </div>
     </div>
   );
 }

@@ -137,3 +137,34 @@ describe('schedules', () => {
     expect(projectArchived.body.code).toBe('ARCHIVED');
   });
 });
+
+// Feature 004: a vendor whose only assignment was removed cannot be scheduled (research.md §4).
+describe('past assignments and schedules', () => {
+  beforeEach(async () => {
+    await resetDatabase();
+  });
+
+  it('refuses to schedule a vendor whose only assignment on the project was removed', async () => {
+    const admin = await createUser({ email: 'admin@example.com' });
+    const session = await signIn('admin@example.com');
+    const category = await createCategory(admin.id, 'Carpentry');
+    const vendor = await createVendor(admin.id, { name: 'Mehta', phone: '9000000041', categoryId: category.id });
+    const project = await createProject(admin.id, 'Lake House');
+    await session.client.post(`/api/projects/${project.id}/links`).send({ vendor_id: vendor.id });
+    await prisma.vendorProjectLink.updateMany({
+      where: { vendorId: vendor.id, projectId: project.id },
+      data: { removedAt: new Date(), removedById: admin.id },
+    });
+
+    const refused = await session.client.post(`/api/projects/${project.id}/schedules`).send({
+      vendor_id: vendor.id,
+      task: 'Floor tiling',
+      work_date: '2026-11-02',
+      start_time: '09:00',
+      end_time: '12:00',
+      required_team_size: 2,
+    });
+    expect(refused.status).toBe(409);
+    expect(refused.body.code).toBe('NOT_LINKED');
+  });
+});

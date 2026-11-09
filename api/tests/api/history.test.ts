@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../src/db';
-import { app, createCategory, createUser, dayOffset, resetDatabase, resetFileStorage, signIn } from '../helpers';
+import { app, createCategory, createProject, createUser, createVendor, dayOffset, resetDatabase, resetFileStorage, signIn } from '../helpers';
 import { csvBuffer, pdfBuffer, TEMPLATE_HEADINGS, vendorRow } from '../fixtures/files';
 
 type Session = Awaited<ReturnType<typeof signIn>>;
@@ -194,5 +194,36 @@ describe('history (US5)', () => {
     expect((await asAdmin.client.patch(`/api/history/${entryId}`).send({ action: 'ARCHIVED' })).status).toBe(404);
     expect((await asAdmin.client.delete(`/api/history/${entryId}`)).status).toBe(404);
     expect(await prisma.historyEntry.findMany({ orderBy: { id: 'asc' } })).toEqual(before);
+  });
+});
+
+describe('assignment history (US4, FR-013d)', () => {
+  beforeEach(async () => {
+    await resetDatabase();
+  });
+
+  it('records assign, edit and remove once on the vendor and once on the project', async () => {
+    const { admin, asAdmin: session, tiles } = await setup();
+    const project = await createProject(admin.id, 'Lake House');
+    const vendor = await createVendor(admin.id, { name: 'Sharma Interiors', phone: '9000000430', categoryId: tiles.id });
+    const link = (await session.client.post(`/api/projects/${project.id}/links`).send({ vendor_id: vendor.id, role_on_project: 'Carpentry', scope_of_work: 'Wardrobes', note: 'North wing' })).body;
+    expect((await session.client.patch(`/api/links/${link.id}`).send({ role_on_project: 'Carpentry', scope_of_work: 'Wardrobes', note: 'North wing' })).status).toBe(200);
+    await session.client.patch(`/api/links/${link.id}`).send({ role_on_project: 'Lead carpenter' });
+    await session.client.delete(`/api/links/${link.id}`);
+
+    const names = { vendor: { id: vendor.id, name: 'Sharma Interiors' }, project: { id: project.id, name: 'Lake House' } };
+    for (const query of [{ vendor_id: vendor.id }, { project_id: project.id }]) {
+      const response = await session.client.get('/api/history').query(query);
+      expect(response.status).toBe(200);
+      const entries = response.body.entries as { action: string; changes: Record<string, unknown>; details: Record<string, unknown>; created_by: { id: string } }[];
+      // The edit that changed nothing wrote no entry.
+      expect(entries.map((entry) => entry.action)).toEqual(['UNASSIGNED', 'ASSIGNMENT_EDITED', 'ASSIGNED']);
+      const [unassigned, edited, assignedEntry] = entries;
+      expect(assignedEntry.details).toEqual({ assignment_id: link.id, ...names, role_on_project: 'Carpentry', scope_of_work: 'Wardrobes', note: 'North wing' });
+      expect(edited.details).toEqual({ assignment_id: link.id, ...names });
+      expect(edited.changes).toEqual({ role_on_project: { from: 'Carpentry', to: 'Lead carpenter' } });
+      expect(unassigned.details).toEqual({ assignment_id: link.id, ...names, role_on_project: 'Lead carpenter', scope_of_work: 'Wardrobes', note: 'North wing' });
+      expect(unassigned.created_by.id).toBe(admin.id);
+    }
   });
 });

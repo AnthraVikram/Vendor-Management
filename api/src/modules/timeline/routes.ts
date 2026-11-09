@@ -5,6 +5,7 @@ import { prisma } from '../../db';
 import { stampCreate, stampUpdate } from '../../lib/audit';
 import { HttpError } from '../../lib/http';
 import { fromDateColumn, toDateColumn } from '../../lib/india-date';
+import { isAfterCompletion } from '../../lib/project-health';
 import {
   assertItemWritable,
   assertProjectWritable,
@@ -152,7 +153,8 @@ async function assertVendorCanBeResponsible(projectId: string, vendorId: string)
   if (vendor.archived) {
     throw new HttpError(409, 'That vendor is archived and cannot be named as responsible.', { code: 'VENDOR_ARCHIVED' });
   }
-  const link = await prisma.vendorProjectLink.findUnique({ where: { vendorId_projectId: { vendorId, projectId } } });
+  // Only a current assignment counts as linked (Feature 004 FR-013).
+  const link = await prisma.vendorProjectLink.findFirst({ where: { vendorId, projectId, removedAt: null } });
   if (!link) {
     throw new HttpError(409, 'That vendor is not linked to this project.', { code: 'VENDOR_NOT_LINKED' });
   }
@@ -172,7 +174,7 @@ async function attachableItemId(projectId: string, itemId: string | null | undef
 async function assertVendorsLinked(projectId: string, vendorIds: string[]): Promise<void> {
   if (vendorIds.length === 0) return;
   const links = await prisma.vendorProjectLink.findMany({
-    where: { projectId, vendorId: { in: vendorIds } },
+    where: { projectId, vendorId: { in: vendorIds }, removedAt: null },
     select: { vendorId: true },
   });
   const linked = new Set(links.map((link) => link.vendorId));
@@ -209,9 +211,16 @@ timelineRouter.get(
       include: itemInclude,
       orderBy: [{ deadline: 'asc' }, { name: 'asc' }],
     });
+    // FR-015b: open items due after the project's expected completion date are pointed out. Not a Feature 002 flag.
+    const expected = project.expectedCompletionDate ? fromDateColumn(project.expectedCompletionDate) : null;
     res.json({
       project: { id: project.id, name: project.name, archived: project.archived },
-      items: items.filter((item) => !item.archived).map(presentItem),
+      items: items
+        .filter((item) => !item.archived)
+        .map((item) => {
+          const presented = presentItem(item);
+          return { ...presented, after_project_completion: isAfterCompletion({ status: presented.status, archived: item.archived, deadline: presented.deadline }, expected) };
+        }),
       archived_items: items.filter((item) => item.archived).map(presentItem),
       delays: (
         await prisma.delay.findMany({ where: { projectId: project.id }, include: delayInclude, orderBy: [...newestFirst] })

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createUser, resetDatabase, signIn } from '../helpers';
+import { prisma } from '../../src/db';
 
 describe('vendors', () => {
   beforeEach(async () => {
@@ -248,5 +249,50 @@ describe('vendors', () => {
     expect(ownPair.status).toBe(201);
     const ownEdit = await session.client.patch(`/api/vendors/${ownPair.body.id}`).send(vendor({ name: 'Own pair', phone: '97777-88888', alternate_phone: '97777 88888' }));
     expect(ownEdit.status).toBe(200);
+  });
+});
+
+// Feature 004 US2: the directory list shows project counts, and the linked-project filter ignores past assignments.
+describe('vendor directory list (Feature 004 US2)', () => {
+  beforeEach(async () => {
+    await resetDatabase();
+  });
+
+  it('returns a project count per vendor, leaving out archived projects (US2-1, FR-004, decision D1)', async () => {
+    await createUser({ email: 'admin@example.com' });
+    const session = await signIn('admin@example.com');
+    const category = (await session.client.post('/api/categories').send({ name: 'Carpentry' })).body;
+    const busy = (await session.client.post('/api/vendors').send({ name: 'Busy Works', phone: '9100000201', category_ids: [category.id] })).body;
+    const idle = (await session.client.post('/api/vendors').send({ name: 'Idle Works', phone: '9100000202', category_ids: [category.id] })).body;
+    const lake = (await session.client.post('/api/projects').send({ name: 'Lake House', status: 'ACTIVE' })).body;
+    const villa = (await session.client.post('/api/projects').send({ name: 'Hill Villa', status: 'COMPLETED' })).body;
+    const old = (await session.client.post('/api/projects').send({ name: 'Old Office', status: 'ACTIVE' })).body;
+    for (const project of [lake, villa, old]) {
+      expect((await session.client.post(`/api/projects/${project.id}/links`).send({ vendor_id: busy.id })).status).toBe(201);
+    }
+    await session.client.post(`/api/projects/${old.id}/archive`);
+
+    const list = await session.client.get('/api/vendors');
+    const counts = Object.fromEntries(list.body.map((row: { id: string; project_count: number }) => [row.id, row.project_count]));
+    expect(counts[busy.id]).toBe(2);
+    expect(counts[idle.id]).toBe(0);
+  });
+
+  it('matches the linked-project filter on current assignments only (Feature 001 FR-014)', async () => {
+    const admin = await createUser({ email: 'admin@example.com' });
+    const session = await signIn('admin@example.com');
+    const category = (await session.client.post('/api/categories').send({ name: 'Carpentry' })).body;
+    const current = (await session.client.post('/api/vendors').send({ name: 'Current Works', phone: '9100000203', category_ids: [category.id] })).body;
+    const removed = (await session.client.post('/api/vendors').send({ name: 'Removed Works', phone: '9100000204', category_ids: [category.id] })).body;
+    const project = (await session.client.post('/api/projects').send({ name: 'Lake House', status: 'ACTIVE' })).body;
+    await session.client.post(`/api/projects/${project.id}/links`).send({ vendor_id: current.id });
+    await session.client.post(`/api/projects/${project.id}/links`).send({ vendor_id: removed.id });
+    await prisma.vendorProjectLink.updateMany({
+      where: { vendorId: removed.id, projectId: project.id },
+      data: { removedAt: new Date(), removedById: admin.id },
+    });
+
+    const linked = await session.client.get('/api/vendors').query({ project_id: project.id });
+    expect(linked.body.map((row: { id: string }) => row.id)).toEqual([current.id]);
   });
 });

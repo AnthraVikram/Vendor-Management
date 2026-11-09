@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { DocumentsSection } from '../src/pages/documents-section';
+import { collectNotices } from './notices';
 
 function json(status: number, body: unknown) {
   return { ok: status >= 200 && status < 300, status, statusText: '', headers: { get: () => 'application/json' }, json: async () => body };
@@ -72,6 +73,7 @@ describe('documents section', () => {
   });
 
   it('posts archive and restore to the document routes', async () => {
+    const notices = collectNotices();
     const posts: string[] = [];
     mockFetch((url) => {
       posts.push(url);
@@ -84,6 +86,7 @@ describe('documents section', () => {
     await userEvent.click(within(items[0]).getByRole('button', { name: 'Archive' }));
     await userEvent.click(within(items[1]).getByRole('button', { name: 'Restore' }));
     expect(posts).toEqual(['/api/documents/d1/archive', '/api/documents/d2/restore']);
+    expect(notices).toEqual(['Document archived', 'Document restored']);
   });
 
   it('uploads the file, title, type, and note to the parent record', async () => {
