@@ -102,7 +102,8 @@ describe('lists behind the tiles (US4-6)', () => {
     const list = await screen.findByRole('list', { name: 'Client advances' });
     expect(fetchMock.mock.calls.map((call) => String(call[0]))).toContain('/api/client-advances?scope=month');
     const item = within(list).getByRole('listitem');
-    expect(item).toHaveTextContent('2026-10-01');
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(item).toHaveTextContent('1 Oct 2026');
     expect(item).toHaveTextContent('₹25000.50');
     expect(item).toHaveTextContent('archived');
     expect(within(item).getByRole('link', { name: /Archived Active/ })).toHaveAttribute('href', '#/projects/p9');
@@ -115,17 +116,18 @@ describe('lists behind the tiles (US4-6)', () => {
   });
 
   it('asks the API for the projects in one status', async () => {
-    const fetchMock = mockFetch({ '/api/projects?status=ACTIVE': [{ id: 'p1', name: 'Kapoor Residence', status: 'ACTIVE', archived: false }] });
+    // Superseded (Feature 005 spec, Backward Compatibility): the Projects list asks for 50 at a time (FR-006).
+    const fetchMock = mockFetch({ '/api/projects?status=ACTIVE&limit=50': [{ id: 'p1', name: 'Kapoor Residence', status: 'ACTIVE', archived: false }] });
     render(<Projects openProject={() => undefined} status="ACTIVE" />);
     expect(await screen.findByRole('button', { name: 'Kapoor Residence' })).toBeInTheDocument();
-    expect(fetchMock.mock.calls.map((call) => String(call[0]))).toEqual(['/api/projects?status=ACTIVE']);
+    expect(fetchMock.mock.calls.map((call) => String(call[0]))).toEqual(['/api/projects?status=ACTIVE&limit=50']);
   });
 
   it('opens the tile lists from the app shell', async () => {
     mockFetch({
       '/api/auth/me': { id: 'u1', name: 'Omar Office', role: 'OFFICE_TEAM' },
       '/api/client-advances?scope=all': [advance],
-      '/api/projects?status=ON_HOLD': [{ id: 'p2', name: 'Paused Flat', status: 'ON_HOLD', archived: false }],
+      '/api/projects?status=ON_HOLD&limit=50': [{ id: 'p2', name: 'Paused Flat', status: 'ON_HOLD', archived: false }],
     });
     window.location.hash = '#/client-advances?scope=all';
     document.body.innerHTML = '<div id="root"></div>';

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
+import { formatDate } from '../time';
+import { Skeleton } from '../ui/skeleton';
 
 interface StandingAdvance {
   id: string;
@@ -38,6 +40,7 @@ export function ClientAdvances({ scope }: { scope: 'all' | 'month' }) {
         </div>
       </header>
       {error ? <p className="error form-error" role="alert">{error}</p> : null}
+      {!advances && !error ? <Skeleton label="Loading client advances" /> : null}
       {advances && advances.length > 0 ? (
         <div className="section">
           <div className="section-heading">
@@ -62,7 +65,7 @@ export function ClientAdvances({ scope }: { scope: 'all' | 'month' }) {
                   </div>
                 </div>
                 <p className="meta">
-                  Received {advance.received_on}
+                  Received {formatDate(advance.received_on)}
                   {advance.reference ? ` · ${advance.reference}` : ''}
                   {advance.note ? ` · ${advance.note}` : ''} · recorded by {advance.created_by.name}
                 </p>

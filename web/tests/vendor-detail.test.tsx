@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { VendorDetail } from '../src/pages/vendor-detail';
 import { collectNotices } from './notices';
@@ -77,7 +77,9 @@ describe('vendor profile', () => {
     render(<VendorDetail id="v1" />);
     await screen.findByRole('heading', { name: 'Sharma Interiors' });
     await userEvent.click(screen.getByRole('button', { name: 'Archive' }));
-    expect(notices).toEqual(['Vendor archived']);
+    // Superseded (Feature 005 spec, Backward Compatibility; FR-028): archiving now asks first.
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Archive vendor' }));
+    await waitFor(() => expect(notices).toEqual(['Vendor archived']));
   });
 
   it('lists the vendor\'s projects with status, role, scope and note, and a count (US1-1, US1-2, US1-7)', async () => {
@@ -141,7 +143,8 @@ describe('vendor profile past projects (US4)', () => {
     expect(within(row).getByText(/Carpentry/)).toBeInTheDocument();
     expect(within(row).getByText(/Wardrobes/)).toBeInTheDocument();
     expect(within(row).getByText(/North wing/)).toBeInTheDocument();
-    expect(within(row).getByText('Removed by Omar Office on 2026-11-01 10:30 IST')).toBeInTheDocument();
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(within(row).getByText('Removed by Omar Office on 1 Nov 2026, 10:30')).toBeInTheDocument();
     expect(within(row).getByText('Archived')).toBeInTheDocument();
     expect(within(past).queryByRole('button')).toBeNull();
     expect(within(past).queryByText(/Assignment status/)).toBeNull();

@@ -9,6 +9,7 @@ import { moneyString } from '../../lib/money';
 import { ADVANCE_VIEWERS } from '../../lib/permissions';
 import { asyncRoute } from '../async-route';
 import { projectFigures } from '../projects/figures';
+import { isInProgress } from '../projects/routes';
 import { currentState, delayInclude, flagsOf, itemInclude, presentAuthor, presentResponsible } from '../timeline/present';
 
 const RECENT_LIMIT = 10;
@@ -166,5 +167,97 @@ dashboardRouter.get(
       };
     }
     res.json(presentSummary(role, { vendorsActive, projects, advances }));
+  }),
+);
+
+// Feature 005 US3: the business overview (FR-020 to FR-023), worked out from the saved records on every request.
+// The Feature 003 summary above and GET /dashboard stay exactly as they were (FR-025).
+const RECENTLY_UPDATED_LIMIT = 5;
+const PROGRESS_LIMIT = 10;
+const ACTIVITY_LIMIT = 10;
+
+dashboardRouter.get(
+  '/dashboard/overview',
+  asyncRoute(async (req, res) => {
+    const today = todayInIndia();
+    const [vendorsAll, vendorsArchived, projectsArchived, openProjects] = await Promise.all([
+      prisma.vendor.count(),
+      prisma.vendor.count({ where: { archived: true } }),
+      prisma.project.count({ where: { archived: true } }),
+      prisma.project.findMany({
+        where: { archived: false },
+        select: { id: true, name: true, status: true, archived: true, expectedCompletionDate: true, timelineItems: { where: { archived: false }, include: itemInclude } },
+        orderBy: { name: 'asc' },
+      }),
+    ]);
+    const figures = openProjects.map((project) => ({ project, figures: projectFigures(project, project.timelineItems, today) }));
+    const progress = figures
+      .filter(({ project, figures: f }) => project.status !== 'COMPLETED' && f.progress.total > 0)
+      .map(({ project, figures: f }) => ({
+        id: project.id,
+        name: project.name,
+        status: project.status,
+        health: f.health,
+        done: f.progress.done,
+        total: f.progress.total,
+        percent: Math.round((f.progress.done / f.progress.total) * 100),
+      }))
+      .sort((a, b) => a.percent - b.percent || a.name.localeCompare(b.name))
+      .slice(0, PROGRESS_LIMIT);
+
+    // The newest change to each open project, its sections and their vendors, its assignments or its timeline.
+    const recentlyUpdated = await prisma.$queryRaw<{ id: string; name: string; status: string; updated_at: Date }[]>`
+      SELECT p.id, p.name, p.status::text AS status, MAX(c.at) AS updated_at
+      FROM (
+        SELECT id AS project_id, updated_at AS at FROM projects
+        UNION ALL SELECT project_id, updated_at FROM project_sections
+        UNION ALL SELECT s.project_id, a.updated_at FROM section_assignments a JOIN project_sections s ON s.id = a.section_id
+        UNION ALL SELECT project_id, updated_at FROM vendor_project_links
+        UNION ALL SELECT project_id, updated_at FROM timeline_items
+        UNION ALL SELECT i.project_id, u.created_at FROM timeline_progress_updates u JOIN timeline_items i ON i.id = u.timeline_item_id
+      ) c
+      JOIN projects p ON p.id = c.project_id AND p.archived = false
+      GROUP BY p.id, p.name, p.status
+      ORDER BY updated_at DESC, p.name ASC
+      LIMIT ${RECENTLY_UPDATED_LIMIT}`;
+
+    // Vendor and project history; client-advance entries only for roles that may see amounts (Feature 003 FR-017).
+    const maySeeAdvances = ADVANCE_VIEWERS.includes(req.staff!.role);
+    const entries = await prisma.historyEntry.findMany({
+      where: { OR: [{ vendorId: { not: null } }, { projectId: { not: null } }, ...(maySeeAdvances ? [{ clientAdvanceId: { not: null } }] : [])] },
+      include: {
+        vendor: { select: { id: true, name: true } },
+        project: { select: { id: true, name: true } },
+        clientAdvance: { select: { project: { select: { id: true, name: true } } } },
+        createdBy: { select: { id: true, name: true } },
+      },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: ACTIVITY_LIMIT,
+    });
+
+    res.json({
+      counts: {
+        vendors_all: vendorsAll,
+        vendors_archived: vendorsArchived,
+        projects_not_archived: openProjects.length,
+        projects_in_progress: figures.filter(({ project, figures: f }) => isInProgress(project, f.progress)).length,
+        projects_archived: projectsArchived,
+      },
+      progress,
+      recently_updated: recentlyUpdated.map((row) => ({ id: row.id, name: row.name, status: row.status, updated_at: row.updated_at.toISOString() })),
+      recent_activity: entries.map((entry) => ({
+        id: entry.id,
+        action: entry.action,
+        target: entry.vendor
+          ? { kind: 'vendor', id: entry.vendor.id, name: entry.vendor.name }
+          : entry.project
+            ? { kind: 'project', id: entry.project.id, name: entry.project.name }
+            : { kind: 'client_advance', id: entry.clientAdvance!.project.id, name: entry.clientAdvance!.project.name },
+        changes: entry.changes,
+        details: entry.details,
+        created_at: entry.createdAt.toISOString(),
+        created_by: entry.createdBy,
+      })),
+    });
   }),
 );

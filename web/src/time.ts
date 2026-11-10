@@ -16,14 +16,23 @@ function istParts(iso: string): Record<string, string> {
   );
 }
 
-// "YYYY-MM-DD HH:mm IST"
-export function istDateTime(iso: string): string {
-  const parts = istParts(iso);
-  return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute} IST`;
+// Feature 005 FR-042: the one display format, "9 Nov 2026" and "9 Nov 2026, 14:05". Inputs and API values stay
+// YYYY-MM-DD; only what staff read changes.
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function dayMonthYear(year: string, month: string, day: string): string {
+  return `${Number(day)} ${MONTHS[Number(month) - 1]} ${year}`;
 }
 
-// "YYYY-MM-DD", the India Standard Time calendar day
-export function istDate(iso: string): string {
+// A calendar date ("2026-11-09") is shown as it is; a recorded time is shown on its IST calendar day.
+export function formatDate(value: string): string {
+  const plain = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (plain) return dayMonthYear(plain[1], plain[2], plain[3]);
+  const parts = istParts(value);
+  return dayMonthYear(parts.year, parts.month, parts.day);
+}
+
+export function formatDateTime(iso: string): string {
   const parts = istParts(iso);
-  return `${parts.year}-${parts.month}-${parts.day}`;
+  return `${dayMonthYear(parts.year, parts.month, parts.day)}, ${parts.hour}:${parts.minute}`;
 }

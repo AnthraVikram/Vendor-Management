@@ -44,12 +44,14 @@ describe('client advances on the project page', () => {
 
     const rows = within(within(section).getByRole('list', { name: 'Advances' })).getAllByRole('listitem');
     expect(rows).toHaveLength(2);
-    expect(rows[0]).toHaveTextContent('2026-09-14');
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(rows[0]).toHaveTextContent('14 Sep 2026');
     expect(rows[0]).toHaveTextContent('₹100000.00');
     expect(rows[0]).toHaveTextContent('Reversed');
     expect(rows[0]).toHaveTextContent('Entered against the wrong project.');
     expect(rows[0]).toHaveTextContent('Anil Accountant');
-    expect(rows[1]).toHaveTextContent('2026-10-05');
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(rows[1]).toHaveTextContent('5 Oct 2026');
     expect(rows[1]).toHaveTextContent('₹150000.00');
     expect(rows[1]).not.toHaveTextContent('Reversed');
   });

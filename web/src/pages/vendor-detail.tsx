@@ -3,8 +3,10 @@ import { api } from '../api/client';
 import { DocumentsSection } from './documents-section';
 import { HistoryPanel } from './history-panel';
 import { notify } from '../notify';
-import { istDate, istDateTime } from '../time';
+import { formatDate, formatDateTime } from '../time';
+import { Skeleton } from '../ui/skeleton';
 import { ArchivedBadge, AssignmentStatusBadge, AvailabilityBadge, ProjectStatusBadge } from '../badges';
+import { ConfirmDialog } from '../ui/confirm-dialog';
 
 interface ProjectLink {
   id: string;
@@ -16,6 +18,8 @@ interface ProjectLink {
   scope_of_work: string | null;
   note: string | null;
   assignment_status?: string;
+  // Feature 005 FR-018: the sections the vendor works on in this project.
+  sections?: { id: string; name: string; role_in_section: string | null }[];
 }
 
 // A removed assignment, kept read-only for history (Feature 004 FR-013). It has no status and no actions.
@@ -76,14 +80,18 @@ function projectCount(count: number): string {
   return `${count} ${count === 1 ? 'project' : 'projects'}`;
 }
 
-export function VendorDetail({ id }: { id: string }) {
+// onTitle passes the vendor's name to the breadcrumbs (Feature 005 FR-038).
+export function VendorDetail({ id, onTitle }: { id: string; onTitle?: (name: string) => void }) {
   const [vendor, setVendor] = useState<VendorDetail | null>(null);
   const [note, setNote] = useState('');
   const [score, setScore] = useState('5');
   const [error, setError] = useState('');
 
   function load() {
-    api<VendorDetail>(`/api/vendors/${id}`).then(setVendor).catch((caught: Error) => setError(caught.message));
+    api<VendorDetail>(`/api/vendors/${id}`).then((row) => {
+      setVendor(row);
+      onTitle?.(row.name);
+    }).catch((caught: Error) => setError(caught.message));
   }
 
   useEffect(load, [id]);
@@ -101,14 +109,16 @@ export function VendorDetail({ id }: { id: string }) {
     load();
   }
 
-  async function toggleArchive() {
-    const restoring = vendor?.archived;
-    await api(`/api/vendors/${id}/${restoring ? 'restore' : 'archive'}`, { method: 'POST' });
-    notify(restoring ? 'Vendor restored' : 'Vendor archived');
+  // Feature 005 FR-028: archiving asks first and explains nothing is deleted; restoring does not ask.
+  const [confirmArchive, setConfirmArchive] = useState(false);
+
+  async function setArchived(archived: boolean) {
+    await api(`/api/vendors/${id}/${archived ? 'archive' : 'restore'}`, { method: 'POST' });
+    notify(archived ? 'Vendor archived' : 'Vendor restored');
     load();
   }
 
-  if (!vendor) return <p>{error || 'Loading vendor'}</p>;
+  if (!vendor) return error ? <p>{error}</p> : <Skeleton label="Loading vendor" rows={6} />;
   const links = vendor.links ?? [];
   return (
     <section className="grid">
@@ -123,13 +133,28 @@ export function VendorDetail({ id }: { id: string }) {
           </div>
         </div>
         <div className="page-actions">
-          <button type="button" className={vendor.archived ? 'secondary' : 'danger'} onClick={toggleArchive}>{vendor.archived ? 'Restore' : 'Archive'}</button>
+          <button type="button" className={vendor.archived ? 'secondary' : 'danger'} onClick={() => (vendor.archived ? setArchived(false) : setConfirmArchive(true))}>
+            {vendor.archived ? 'Restore' : 'Archive'}
+          </button>
         </div>
       </header>
+      {vendor.archived ? <p className="notice archived-note">Archived records are kept and can be restored.</p> : null}
+      <ConfirmDialog
+        open={confirmArchive}
+        title={`Archive ${vendor.name}?`}
+        message="It will be hidden from active lists. Nothing is deleted: its projects, sections, documents and history stay, and it can be restored at any time."
+        confirmLabel="Archive vendor"
+        danger
+        onCancel={() => setConfirmArchive(false)}
+        onConfirm={() => {
+          setConfirmArchive(false);
+          setArchived(true);
+        }}
+      />
       {vendor.import_run ? (
         <p className="meta">
           <a href={`#/vendor-imports?run=${vendor.import_run.id}`}>
-            Imported in {vendor.import_run.file_name} on {istDate(vendor.import_run.created_at)}
+            Imported in {vendor.import_run.file_name} on {formatDate(vendor.import_run.created_at)}
           </a>
         </p>
       ) : null}
@@ -223,6 +248,9 @@ export function VendorDetail({ id }: { id: string }) {
                 {link.role_on_project || link.scope_of_work || link.note ? (
                   <p className="meta">{[link.role_on_project, link.scope_of_work, link.note].filter(Boolean).join(' · ')}</p>
                 ) : null}
+                {link.sections && link.sections.length > 0 ? (
+                  <p className="meta">Sections: {link.sections.map((section) => (section.role_in_section ? `${section.name} (${section.role_in_section})` : section.name)).join(', ')}</p>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -244,7 +272,7 @@ export function VendorDetail({ id }: { id: string }) {
                 {link.role_on_project || link.scope_of_work || link.note ? (
                   <p className="meta">{[link.role_on_project, link.scope_of_work, link.note].filter(Boolean).join(' · ')}</p>
                 ) : null}
-                <p className="meta">Removed by {link.removed_by.name} on {istDateTime(link.removed_at)}</p>
+                <p className="meta">Removed by {link.removed_by.name} on {formatDateTime(link.removed_at)}</p>
               </li>
             ))}
           </ul>

@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ProjectDetail } from '../src/pages/project-detail';
 import { collectNotices } from './notices';
@@ -90,7 +90,9 @@ describe('project vendors', () => {
     render(<ProjectDetail id="p1" />);
     const section = await screen.findByRole('region', { name: 'Vendors' });
     await userEvent.click(within(section).getByRole('button', { name: 'Remove from project' }));
-    expect(notices).toEqual(['Vendor removed from project']);
+    // Superseded (Feature 005 FR-043, T042): removing a vendor from the project asks first.
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Remove from project' }));
+    await waitFor(() => expect(notices).toEqual(['Vendor removed from project']));
   });
 });
 
@@ -141,7 +143,8 @@ describe('project past vendors (US4)', () => {
     expect(within(row).getByText(/Tiling/)).toBeInTheDocument();
     expect(within(row).getByText(/Bathrooms/)).toBeInTheDocument();
     expect(within(row).getByText(/Left early/)).toBeInTheDocument();
-    expect(within(row).getByText('Removed by Asha Admin on 2026-11-03 10:30 IST')).toBeInTheDocument();
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(within(row).getByText('Removed by Asha Admin on 3 Nov 2026, 10:30')).toBeInTheDocument();
     expect(within(row).getByText('Archived')).toBeInTheDocument();
     expect(within(past).queryByRole('button')).toBeNull();
     expect(within(past).queryByText(/Assignment status/)).toBeNull();

@@ -5,12 +5,14 @@ import { prisma } from '../../db';
 import { stampCreate, stampUpdate } from '../../lib/audit';
 import { diffFields, recordHistory } from '../../lib/history';
 import { HttpError } from '../../lib/http';
+import { listViewSchema, sortBy, viewAndPage } from '../../lib/list-query';
 import { parseChargeAmount, moneyString } from '../../lib/money';
 import { phoneMatches } from '../../lib/phone';
 import { vendorIdentityLock } from '../../lib/vendor-lock';
 import { gstinProblem, normalizeGstin, ratingProblem, reuseCategory } from '../../lib/vendor-rules';
 import { asyncRoute } from '../async-route';
 import { assignmentStatuses } from '../links/statuses';
+import { currentSectionsOf } from '../sections/present';
 
 const rateSchema = z.object({
   label: z.string().trim().min(1, 'Rate label is required.'),
@@ -270,6 +272,20 @@ categoryRouter.post(
   }),
 );
 
+// Feature 005 FR-004: list sorts. Ties keep name order.
+const vendorListSchema = listViewSchema.extend({
+  sort: z.enum(['name', 'category', 'availability', 'project_count'], { message: 'Sort by name, category, availability or project count.' }).optional(),
+});
+
+const AVAILABILITY_ORDER: Record<string, number> = { AVAILABLE: 0, LIMITED: 1, UNAVAILABLE: 2 };
+
+function sortVendors<T extends { categories: { name: string }[]; availability: string | null; project_count: number }>(rows: T[], sort?: string): T[] {
+  if (sort === 'category') return sortBy(rows, (row) => row.categories.map((category) => category.name).sort()[0]?.toLowerCase() ?? null);
+  if (sort === 'availability') return sortBy(rows, (row) => (row.availability ? AVAILABILITY_ORDER[row.availability] : null));
+  if (sort === 'project_count') return sortBy(rows, (row) => -row.project_count);
+  return rows;
+}
+
 export const vendorRouter = Router();
 
 vendorRouter.get(
@@ -281,9 +297,10 @@ vendorRouter.get(
     const availability = typeof req.query.availability === 'string' ? req.query.availability : undefined;
     const projectId = typeof req.query.project_id === 'string' ? req.query.project_id : undefined;
     const includeArchived = req.query.include_archived === 'true';
+    const { sort, ...view } = vendorListSchema.parse(req.query);
+    // Both views are read, so the Active and Archived counts can be given for the same search (FR-026).
     const vendors = await prisma.vendor.findMany({
       where: {
-        ...(includeArchived ? {} : { archived: false }),
         ...(categoryId ? { categories: { some: { categoryId } } } : {}),
         ...(location ? { locations: { some: { label: { equals: location, mode: 'insensitive' } } } } : {}),
         ...(availability ? { availability: availability as 'AVAILABLE' | 'LIMITED' | 'UNAVAILABLE' } : {}),
@@ -304,7 +321,8 @@ vendorRouter.get(
       include: vendorInclude,
       orderBy: { name: 'asc' },
     });
-    res.json(vendors.map(presentVendor));
+    const presented = sortVendors(vendors.map(presentVendor), sort);
+    res.json(viewAndPage(res, presented, { ...view, includeArchived }));
   }),
 );
 
@@ -355,7 +373,7 @@ vendorRouter.get(
   '/:id',
   asyncRoute(async (req, res) => {
     const vendor = presentVendor(await loadVendor(req.params.id));
-    const [statusOf, past] = await Promise.all([
+    const [statusOf, past, sectionsOf] = await Promise.all([
       assignmentStatuses({ vendorId: vendor.id }),
       // Removed assignments, kept as read-only past assignments (FR-013a). They have no status and are not counted.
       prisma.vendorProjectLink.findMany({
@@ -363,10 +381,12 @@ vendorRouter.get(
         include: { project: { select: { id: true, name: true, archived: true } }, removedBy: { select: { id: true, name: true } } },
         orderBy: [{ removedAt: 'desc' }, { id: 'desc' }],
       }),
+      currentSectionsOf({ vendorId: vendor.id }),
     ]);
     res.json({
       ...vendor,
-      links: vendor.links.map((link) => ({ ...link, assignment_status: statusOf(vendor.id, link.project_id) })),
+      // Feature 005 FR-018: the sections the vendor works on in each project.
+      links: vendor.links.map((link) => ({ ...link, assignment_status: statusOf(vendor.id, link.project_id), sections: sectionsOf(vendor.id, link.project_id) })),
       past_links: past.map((link) => ({
         id: link.id,
         project_id: link.project.id,

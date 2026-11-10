@@ -1,6 +1,9 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { HealthBadge, ProgressMeter } from '../badges';
+import { formatDate, formatDateTime } from '../time';
+import { Skeleton } from '../ui/skeleton';
+import { ACTIONS } from './history-panel';
 
 interface Ref { id: string; name: string }
 interface Entry { project: Ref; item: Ref | null; responsible_label: string }
@@ -289,7 +292,7 @@ function DeadlineGroups({ items }: { items: DashboardItem[] }) {
                 </span>
               </div>
               <div className="dash-item-side">
-                <span>Deadline {item.deadline}</span>
+                <span>Deadline {formatDate(item.deadline)}</span>
                 <span>{STATUS_LABEL[item.status] ?? item.status}</span>
                 {item.days_overdue !== null ? <strong className="flag flag-overdue">{days(item.days_overdue)} overdue</strong> : null}
               </div>
@@ -298,6 +301,121 @@ function DeadlineGroups({ items }: { items: DashboardItem[] }) {
         </ul>
       )}
     </section>
+  );
+}
+
+
+// Feature 005 US3: counts, progress, recent changes and recent activity (FR-020 to FR-023). The Feature 003 tiles and
+// the Feature 004 sections below stay as they were; no count already on a tile is repeated here (FR-025).
+interface Overview {
+  counts: { vendors_all: number; vendors_archived: number; projects_not_archived: number; projects_in_progress: number; projects_archived: number };
+  progress: { id: string; name: string; status: string; health: string; done: number; total: number; percent: number }[];
+  recently_updated: { id: string; name: string; status: string; updated_at: string }[];
+  recent_activity: { id: string; action: string; target: { kind: string; id: string; name: string }; created_at: string; created_by: { id: string; name: string } }[];
+}
+
+const COUNTS: { key: keyof Overview['counts']; label: string; href: string }[] = [
+  { key: 'vendors_all', label: 'Vendors, all', href: '#/vendors?view=active' },
+  { key: 'vendors_archived', label: 'Vendors, archived', href: '#/vendors?view=archived' },
+  { key: 'projects_not_archived', label: 'Projects, not archived', href: '#/projects?view=active' },
+  { key: 'projects_in_progress', label: 'Projects in progress', href: '#/projects?view=active&progress=in_progress' },
+  { key: 'projects_archived', label: 'Projects, archived', href: '#/projects?view=archived' },
+];
+
+function activityTarget(target: Overview['recent_activity'][number]['target']) {
+  if (target.kind === 'vendor') return <a href={`#/vendors/${target.id}`}>{target.name}</a>;
+  const link = <a href={`#/projects/${target.id}`}>{target.name}</a>;
+  return target.kind === 'client_advance' ? <>Client advance on {link}</> : link;
+}
+
+function BusinessOverview() {
+  const [overview, setOverview] = useState<Overview | null>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    api<Overview>('/api/dashboard/overview').then(setOverview).catch((caught: Error) => setError(caught.message));
+  }, []);
+
+  if (error) return <p className="error form-error" role="alert">{error}</p>;
+  // Answers without counts (older servers, other tests' mocks) show nothing rather than a broken section.
+  if (!overview) return <Skeleton label="Loading overview" rows={3} />;
+  if (!overview.counts) return null;
+  return (
+    <>
+      <section className="dashboard-counts" aria-label="Business overview">
+        {COUNTS.map((count) => (
+          <a key={count.key} className="card tile" href={count.href}>
+            <strong>{overview.counts[count.key]}</strong>
+            <span>{count.label}</span>
+          </a>
+        ))}
+      </section>
+      <div className="dashboard-grid">
+        <section className="card grid dashboard-panel" aria-labelledby="dashboard-progress">
+          <div className="section-heading">
+            <h2 id="dashboard-progress">Project progress</h2>
+            <a href="#/projects">All projects</a>
+          </div>
+          {overview.progress.length > 0 ? (
+            <ul className="dashboard-list">
+              {overview.progress.map((row) => (
+                <li key={row.id} className="dash-item">
+                  <div className="dash-item-main">
+                    <a href={`#/projects/${row.id}`}>{row.name}</a>
+                    <ProgressMeter progress={{ done: row.done, total: row.total }} />
+                  </div>
+                  <div className="dash-item-side">
+                    <strong>{row.percent}%</strong>
+                    <HealthBadge health={row.health} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="empty-box">
+              <p className="empty">No projects are in progress yet. A project shows here once its timeline has items.</p>
+              <a className="button secondary" href="#/projects?add=1">Add a project</a>
+            </div>
+          )}
+        </section>
+        <section className="card grid dashboard-panel" aria-labelledby="dashboard-recent-projects">
+          <h2 id="dashboard-recent-projects">Recently updated projects</h2>
+          {overview.recently_updated.length > 0 ? (
+            <ul className="dashboard-list">
+              {overview.recently_updated.map((row) => (
+                <li key={row.id} className="dash-item">
+                  <div className="dash-item-main"><a href={`#/projects/${row.id}`}>{row.name}</a></div>
+                  <div className="dash-item-side"><span>{formatDateTime(row.updated_at)}</span></div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="empty-box">
+              <p className="empty">No project has been changed yet. Projects appear here as they are worked on.</p>
+              <a className="button secondary" href="#/projects?add=1">Add a project</a>
+            </div>
+          )}
+        </section>
+        <section className="card grid dashboard-panel" aria-labelledby="dashboard-activity">
+          <h2 id="dashboard-activity">Recent activity</h2>
+          {overview.recent_activity.length > 0 ? (
+            <ul className="dashboard-list">
+              {overview.recent_activity.map((row) => (
+                <li key={row.id} className="dash-item">
+                  <div className="dash-item-main">
+                    <span>{ACTIONS[row.action] ?? row.action}: {activityTarget(row.target)}</span>
+                    <span className="dash-item-meta">{row.created_by.name}</span>
+                  </div>
+                  <div className="dash-item-side"><span>{formatDateTime(row.created_at)}</span></div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="empty">Nothing has been recorded yet. Changes to vendors and projects appear here.</p>
+          )}
+        </section>
+      </div>
+    </>
   );
 }
 
@@ -317,13 +435,18 @@ export function Dashboard() {
           <h1>Dashboard</h1>
           <p className="page-subtitle">Client advances, the directory, and project deadlines in one place.</p>
         </div>
-        {data ? <span className="today-pill">Today · {data.today} IST</span> : null}
+        <div className="page-actions">
+          {data ? <span className="today-pill">Today · {formatDate(data.today)}</span> : null}
+          <a className="button" href="#/vendors?add=1">Add vendor</a>
+          <a className="button" href="#/projects?add=1">Add project</a>
+        </div>
       </header>
       <SummaryTiles />
+      <BusinessOverview />
       {data ? (
         <p className="section-note">Archived projects and archived items are not shown.</p>
       ) : (
-        <p className="section-note">{error || 'Loading dashboard'}</p>
+        error ? <p className="section-note error">{error}</p> : <Skeleton label="Loading dashboard" rows={4} />
       )}
       {data ? <AttentionProjects projects={data.attention_projects ?? []} /> : null}
       {data ? <DeadlineGroups items={data.items ?? []} /> : null}
@@ -339,7 +462,7 @@ export function Dashboard() {
                 <span className="dash-item-meta">{row.project.name} · {row.responsible_label}</span>
               </div>
               <div className="dash-item-side">
-                <span>last update {row.last_update_on}</span>
+                <span>last update {formatDate(row.last_update_on)}</span>
               </div>
             </li>
           )}
@@ -357,7 +480,7 @@ export function Dashboard() {
                 </span>
                 <span className="dash-item-text">{row.text}</span>
                 <span className="dash-item-meta">
-                  {row.responsible_label} · {row.created_by.name}, {new Date(row.created_at).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })}
+                  {row.responsible_label} · {row.created_by.name}, {formatDate(row.created_at)}
                 </span>
               </div>
             </li>

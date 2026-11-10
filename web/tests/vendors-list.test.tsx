@@ -68,12 +68,13 @@ describe('vendor directory list', () => {
     await userEvent.type(filters.getByLabelText('Location'), 'Pune');
     await userEvent.selectOptions(filters.getByLabelText('Availability'), 'LIMITED');
     await userEvent.selectOptions(filters.getByLabelText('Linked project'), 'p1');
-    await userEvent.click(filters.getByLabelText('Include archived'));
+    // Superseded (Feature 005 spec, Backward Compatibility): "Include archived" became the Archived view, and the list asks for 50 at a time (FR-006, FR-026).
+    await userEvent.click(screen.getByRole('radio', { name: /^Archived/ }));
     await userEvent.click(filters.getByRole('button', { name: 'Apply filters' }));
     const searched = fetchMock.mock.calls.map(([url]) => String(url)).filter((url) => url.startsWith('/api/vendors?')).at(-1)!;
     const params = new URLSearchParams(searched.split('?')[1]);
     expect(Object.fromEntries(params)).toEqual({
-      q: 'Ravi', category_id: 'c1', location: 'Pune', availability: 'LIMITED', project_id: 'p1', include_archived: 'true',
+      q: 'Ravi', category_id: 'c1', location: 'Pune', availability: 'LIMITED', project_id: 'p1', view: 'archived', limit: '50',
     });
   });
 
@@ -94,7 +95,8 @@ describe('vendor directory list', () => {
     expect(await screen.findByText('No vendors have been added yet')).toBeInTheDocument();
     const empty = screen.getByText('No vendors have been added yet').closest('div')!;
     expect(within(empty).getByRole('link', { name: 'Import spreadsheet' })).toHaveAttribute('href', '#/vendors/import');
-    await userEvent.click(within(empty).getByRole('button', { name: 'Add vendor' }));
+    // Superseded (Feature 005 spec, Backward Compatibility): the empty list's button opens the closed add form (FR-002); the page header keeps Add vendor.
+    await userEvent.click(within(empty).getByRole('button', { name: 'Add a vendor' }));
     expect(screen.getByLabelText('Name')).toHaveFocus();
   });
 
@@ -106,7 +108,8 @@ describe('vendor directory list', () => {
       return Promise.resolve(json(200, []));
     }));
     render(<Vendors openVendor={() => undefined} />);
-    expect(await screen.findByText('Loading vendors')).toBeInTheDocument();
+    // Superseded (Feature 005 spec, Backward Compatibility): placeholder rows replace the loading text (FR-039).
+    expect(await screen.findByLabelText('Loading vendors')).toHaveAttribute('aria-busy', 'true');
     expect(screen.queryByText('No vendors have been added yet')).not.toBeInTheDocument();
     release(json(200, [sharma]));
     expect(await screen.findByRole('table', { name: 'Vendors' })).toBeInTheDocument();

@@ -2,7 +2,8 @@ import { FormEvent, useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { ArchivedBadge } from '../badges';
 import { notify } from '../notify';
-import { istDateTime } from '../time';
+import { formatDate, formatDateTime } from '../time';
+import { Skeleton } from '../ui/skeleton';
 
 type ResponsibleKind = 'NONE' | 'VENDOR' | 'FIRM_TEAM';
 type Status = 'NOT_STARTED' | 'IN_PROGRESS' | 'DONE';
@@ -58,8 +59,8 @@ interface TimelineData {
 const typeLabel = { MILESTONE: 'Milestone', ACTIVITY: 'Activity' } as const;
 const statusLabel: Record<Status, string> = { NOT_STARTED: 'Not started', IN_PROGRESS: 'In progress', DONE: 'Done' };
 
-// Recorded times in India Standard Time, in the same "YYYY-MM-DD HH:mm IST" form as the rest of the app.
-const when = istDateTime;
+// Recorded times in India Standard Time, in the one display format (Feature 005 FR-042).
+const when = formatDateTime;
 const statusClass: Record<Status, string> = { NOT_STARTED: 'status-not-started', IN_PROGRESS: 'status-in-progress', DONE: 'status-done' };
 
 function responsibleText(responsible: Responsible): string {
@@ -69,7 +70,7 @@ function responsibleText(responsible: Responsible): string {
 export function flagText(flag: Flag): string {
   if (flag.type === 'OVERDUE') return `Overdue by ${flag.days_overdue} ${flag.days_overdue === 1 ? 'day' : 'days'}`;
   if (flag.type === 'DUE_SOON') return 'Due soon';
-  return `Missing update since ${flag.last_update_on}`;
+  return `Missing update since ${formatDate(flag.last_update_on)}`;
 }
 
 export function FlagBadges({ flags }: { flags: Flag[] }) {
@@ -417,7 +418,7 @@ function ItemHistory({ id, itemId, version }: { id: string; itemId: string; vers
     api<ItemDetail>(`/api/timeline-items/${itemId}`).then(setDetail).catch((caught: Error) => setError(caught.message));
   }, [itemId, version]);
 
-  if (!detail) return <p id={id} className={error ? 'error' : 'meta'}>{error || 'Loading history'}</p>;
+  if (!detail) return error ? <p id={id} className="error">{error}</p> : <div id={id}><Skeleton label="Loading history" rows={2} /></div>;
   return (
     <div id={id} className="grid history item-history">
       <div className="item-history-group">
@@ -537,11 +538,11 @@ function ItemCard({
       <FlagBadges flags={item.flags} />
       {item.after_project_completion ? <p className="notice notice-warning after-completion">After project completion date</p> : null}
       <dl className="facts timeline-facts">
-        <div className="fact-deadline"><dt>Deadline</dt><dd>{item.deadline}</dd></div>
-        <div><dt>Planned date</dt><dd>{item.planned_date ?? 'None'}</dd></div>
+        <div className="fact-deadline"><dt>Deadline</dt><dd>{formatDate(item.deadline)}</dd></div>
+        <div><dt>Planned date</dt><dd>{item.planned_date ? formatDate(item.planned_date) : 'None'}</dd></div>
         <div><dt>Responsible</dt><dd>{item.responsible.vendor ? <a href={`#/vendors/${item.responsible.vendor.id}`}>{responsibleText(item.responsible)}</a> : responsibleText(item.responsible)}</dd></div>
-        <div><dt>Status</dt><dd>{statusLabel[item.status]}{item.done_on ? `, done on ${item.done_on}` : ''}</dd></div>
-        <div><dt>Last update</dt><dd>{item.last_update_on ?? 'None yet'}</dd></div>
+        <div><dt>Status</dt><dd>{statusLabel[item.status]}{item.done_on ? `, done on ${formatDate(item.done_on)}` : ''}</dd></div>
+        <div><dt>Last update</dt><dd>{item.last_update_on ? formatDate(item.last_update_on) : 'None yet'}</dd></div>
       </dl>
       {item.description ? <p className="item-description">{item.description}</p> : null}
       {delays.length + issues.length > 0 ? <RecordList delays={delays} issues={issues} showItem={false} /> : null}
@@ -623,7 +624,7 @@ export function ProjectTimeline({
     load();
   }, [projectId, outerVersion]);
 
-  if (!timeline) return <p className={error ? 'error' : 'meta'}>{error || 'Loading timeline'}</p>;
+  if (!timeline) return error ? <p className="error">{error}</p> : <Skeleton label="Loading timeline" />;
   const readOnly = timeline.project.archived;
   const activeVendors = linkedVendors.filter((vendor) => !vendor.archived);
   const card = (item: ItemSummary) => (

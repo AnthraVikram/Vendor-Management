@@ -3,11 +3,15 @@ import { api } from '../api/client';
 import { AdvancesSection } from './advances-section';
 import { DocumentsSection } from './documents-section';
 import { HistoryPanel } from './history-panel';
+import { ProjectSections, RemovedSection, Section } from './project-sections';
 import { ProjectTimeline } from './project-timeline';
 import { ApiError } from '../api/client';
 import { ArchivedBadge, AssignmentStatusBadge, HealthBadge, ProgressMeter, ProjectStatusBadge } from '../badges';
-import { istDateTime } from '../time';
+import { formatDate, formatDateTime } from '../time';
+import { Skeleton } from '../ui/skeleton';
 import { notify } from '../notify';
+import { ConfirmDialog } from '../ui/confirm-dialog';
+import { useUnsavedGuard } from '../ui/unsaved-guard';
 
 interface LinkRow {
   id: string;
@@ -65,6 +69,10 @@ interface ProjectDetailData {
   links: LinkRow[];
   past_links?: PastVendorRow[];
   schedules: ScheduleRow[];
+  // Feature 005: absent on responses from before the sections API, so the page still renders.
+  sections?: Section[];
+  removed_sections?: RemovedSection[];
+  sections_version?: string;
 }
 interface VendorOption { id: string; name: string }
 interface Person { id: string; name: string }
@@ -86,10 +94,6 @@ interface SchedulePricingData {
   file_history: FileEntry[];
 }
 
-function day(value: string): string {
-  return value.slice(0, 10);
-}
-
 function SchedulePricing({ scheduleId, version, onChanged }: { scheduleId: string; version: number; onChanged: () => void }) {
   const [pricing, setPricing] = useState<SchedulePricingData | null>(null);
   const [error, setError] = useState('');
@@ -108,7 +112,7 @@ function SchedulePricing({ scheduleId, version, onChanged }: { scheduleId: strin
     }
   }
 
-  if (!pricing) return <p className={error ? 'error' : 'meta'}>{error || 'Loading pricing'}</p>;
+  if (!pricing) return error ? <p className="error">{error}</p> : <Skeleton label="Loading pricing" rows={2} />;
   return (
     <div className="grid schedule-pricing">
       <div className="pricing-current">
@@ -126,7 +130,7 @@ function SchedulePricing({ scheduleId, version, onChanged }: { scheduleId: strin
       {pricing.price_history.length > 0 ? (
         <ul className="records meta pricing-history" aria-label="Price history">
           {pricing.price_history.map((entry) => (
-            <li key={entry.id}>{entry.amount} · {entry.kind.toLowerCase()} · {entry.author.name} · {day(entry.created_at)}</li>
+            <li key={entry.id}>{entry.amount} · {entry.kind.toLowerCase()} · {entry.author.name} · {formatDate(entry.created_at)}</li>
           ))}
         </ul>
       ) : null}
@@ -134,8 +138,8 @@ function SchedulePricing({ scheduleId, version, onChanged }: { scheduleId: strin
         <ul className="records meta pricing-history" aria-label="Costing sheet history">
           {pricing.file_history.map((file) => (
             <li key={file.id}>
-              <a href={`/api/schedules/${scheduleId}/costing-sheets/${file.id}`}>{file.original_filename}</a> · {file.author.name} · {day(file.created_at)}
-              {file.archived && file.archived_by && file.archived_at ? ` · cleared or replaced by ${file.archived_by.name} · ${day(file.archived_at)}` : ''}
+              <a href={`/api/schedules/${scheduleId}/costing-sheets/${file.id}`}>{file.original_filename}</a> · {file.author.name} · {formatDate(file.created_at)}
+              {file.archived && file.archived_by && file.archived_at ? ` · cleared or replaced by ${file.archived_by.name} · ${formatDate(file.archived_at)}` : ''}
             </li>
           ))}
         </ul>
@@ -212,11 +216,11 @@ function ProjectOverview({ project }: { project: ProjectDetailData }) {
           <div className="fact"><dt>Status</dt><dd><ProjectStatusBadge status={project.status} /></dd></div>
           <div className="fact"><dt>Client</dt><dd>{project.client_name || <NotSet />}</dd></div>
           <div className="fact"><dt>Site</dt><dd>{project.site_location || <NotSet />}</dd></div>
-          <div className="fact"><dt>Start date</dt><dd>{project.start_date ?? <NotSet />}</dd></div>
-          <div className="fact"><dt>Project expected completion</dt><dd>{project.expected_completion_date ?? <NotSet />}</dd></div>
+          <div className="fact"><dt>Start date</dt><dd>{project.start_date ? formatDate(project.start_date) : <NotSet />}</dd></div>
+          <div className="fact"><dt>Project expected completion</dt><dd>{project.expected_completion_date ? formatDate(project.expected_completion_date) : <NotSet />}</dd></div>
           {project.health ? <div className="fact"><dt>Health</dt><dd><HealthBadge health={project.health} /></dd></div> : null}
           {project.status === 'COMPLETED' ? (
-            <div className="fact"><dt>Completion</dt><dd>{project.completed_on ? `Completed on ${project.completed_on}` : 'Completed'}</dd></div>
+            <div className="fact"><dt>Completion</dt><dd>{project.completed_on ? `Completed on ${formatDate(project.completed_on)}` : 'Completed'}</dd></div>
           ) : null}
           {project.progress ? <div className="fact"><dt>Progress</dt><dd><ProgressMeter progress={project.progress} /></dd></div> : null}
           <div className="fact"><dt>Overdue</dt><dd>{overdue > 0 ? `${overdue} overdue ${overdue === 1 ? 'item' : 'items'}` : 'No overdue items'}</dd></div>
@@ -233,7 +237,7 @@ function ProjectOverview({ project }: { project: ProjectDetailData }) {
               {upcoming.map((item) => (
                 <li key={item.id}>
                   <a href={`#/projects/${project.id}?item=${item.id}`}>{item.name}</a>{' '}
-                  <span className="muted">Deadline</span> {item.deadline}
+                  <span className="muted">Deadline</span> {formatDate(item.deadline)}
                 </li>
               ))}
             </ul>
@@ -255,6 +259,16 @@ function EditProjectForm({ project, onSaved }: { project: ProjectDetailData; onS
   const [expectedCompletionDate, setExpectedCompletionDate] = useState(project.expected_completion_date ?? '');
   const [fields, setFields] = useState<Record<string, string>>({});
   const [message, setMessage] = useState('');
+  // Feature 005 FR-007: typed changes not yet saved keep the person from leaving without a warning.
+  const dirty =
+    name !== project.name ||
+    clientName !== (project.client_name ?? '') ||
+    siteLocation !== (project.site_location ?? '') ||
+    description !== (project.description ?? '') ||
+    status !== project.status ||
+    startDate !== (project.start_date ?? '') ||
+    expectedCompletionDate !== (project.expected_completion_date ?? '');
+  useUnsavedGuard(dirty);
 
   async function save(event: FormEvent) {
     event.preventDefault();
@@ -284,31 +298,40 @@ function EditProjectForm({ project, onSaved }: { project: ProjectDetailData; onS
   return (
     <form className="card form-2col" onSubmit={save} aria-label="Edit project">
       <h3 className="span-2">Edit project</h3>
-      <label>Name<input value={name} onChange={(event) => setName(event.target.value)} aria-invalid={Boolean(fields.name)} /></label>
-      <label>
-        Status
-        <select value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="PLANNED">Planned</option>
-          <option value="ACTIVE">Active</option>
-          <option value="ON_HOLD">On hold</option>
-          <option value="COMPLETED">Completed</option>
-        </select>
-      </label>
-      {fields.name ? <span className="error field-error">{fields.name}</span> : null}
-      <label>Client name<input value={clientName} onChange={(event) => setClientName(event.target.value)} /></label>
-      <label>Site location<input value={siteLocation} onChange={(event) => setSiteLocation(event.target.value)} /></label>
-      <label className="span-2">Description<input value={description} onChange={(event) => setDescription(event.target.value)} /></label>
-      <div className="field">
-        <label>Start date<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} aria-invalid={Boolean(fields.start_date)} /></label>
-        {fields.start_date ? <span className="error field-error">{fields.start_date}</span> : null}
-      </div>
-      <div className="field">
+      <fieldset className="form-section span-2">
+        <legend>Basics</legend>
+        <label>Name<input value={name} onChange={(event) => setName(event.target.value)} aria-invalid={Boolean(fields.name)} /></label>
         <label>
-          Expected completion date
-          <input type="date" value={expectedCompletionDate} onChange={(event) => setExpectedCompletionDate(event.target.value)} aria-invalid={Boolean(fields.expected_completion_date)} />
+          Status
+          <select value={status} onChange={(event) => setStatus(event.target.value)}>
+            <option value="PLANNED">Planned</option>
+            <option value="ACTIVE">Active</option>
+            <option value="ON_HOLD">On hold</option>
+            <option value="COMPLETED">Completed</option>
+          </select>
         </label>
-        {fields.expected_completion_date ? <span className="error field-error">{fields.expected_completion_date}</span> : null}
-      </div>
+        {fields.name ? <span className="error field-error">{fields.name}</span> : null}
+        <label className="span-2">Description<input value={description} onChange={(event) => setDescription(event.target.value)} /></label>
+      </fieldset>
+      <fieldset className="form-section span-2">
+        <legend>Client</legend>
+        <label>Client name<input value={clientName} onChange={(event) => setClientName(event.target.value)} /></label>
+        <label>Site location<input value={siteLocation} onChange={(event) => setSiteLocation(event.target.value)} /></label>
+      </fieldset>
+      <fieldset className="form-section span-2">
+        <legend>Dates</legend>
+        <div className="field">
+          <label>Start date<input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} aria-invalid={Boolean(fields.start_date)} /></label>
+          {fields.start_date ? <span className="error field-error">{fields.start_date}</span> : null}
+        </div>
+        <div className="field">
+          <label>
+            Expected completion date
+            <input type="date" value={expectedCompletionDate} onChange={(event) => setExpectedCompletionDate(event.target.value)} aria-invalid={Boolean(fields.expected_completion_date)} />
+          </label>
+          {fields.expected_completion_date ? <span className="error field-error">{fields.expected_completion_date}</span> : null}
+        </div>
+      </fieldset>
       <div className="form-actions">
         <button type="submit">Save changes</button>
       </div>
@@ -317,7 +340,8 @@ function EditProjectForm({ project, onSaved }: { project: ProjectDetailData; onS
   );
 }
 
-export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
+// onTitle passes the project's name to the breadcrumbs (Feature 005 FR-038).
+export function ProjectDetail({ id, itemId, onTitle }: { id: string; itemId?: string; onTitle?: (name: string) => void }) {
   const [project, setProject] = useState<ProjectDetailData | null>(null);
   const [vendors, setVendors] = useState<VendorOption[]>([]);
   const [vendorId, setVendorId] = useState('');
@@ -332,6 +356,7 @@ export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
   function load() {
     api<ProjectDetailData>(`/api/projects/${id}`).then((row) => {
       setProject(row);
+      onTitle?.(row.name);
       setVersion((current) => current + 1);
       setScheduleId((current) => current || row.schedules[0]?.id || '');
     }).catch((caught: Error) => setError(caught.message));
@@ -351,6 +376,9 @@ export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
     notify('Vendor assigned to project');
     load();
   }
+
+  // Feature 005 FR-043: removing a vendor from the project asks first.
+  const [removingLink, setRemovingLink] = useState<LinkRow | null>(null);
 
   async function removeLink(linkId: string) {
     await api(`/api/links/${linkId}`, { method: 'DELETE' });
@@ -372,7 +400,16 @@ export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
     load();
   }
 
-  if (!project) return <p className={error ? 'error' : 'meta'}>{error || 'Loading project'}</p>;
+  // Feature 005 FR-028: archiving asks first and explains nothing is deleted; restoring does not ask.
+  const [confirmArchive, setConfirmArchive] = useState(false);
+
+  async function setArchived(archived: boolean) {
+    await api(`/api/projects/${id}/${archived ? 'archive' : 'restore'}`, { method: 'POST' });
+    notify(archived ? 'Project archived' : 'Project restored');
+    load();
+  }
+
+  if (!project) return error ? <p className="error">{error}</p> : <Skeleton label="Loading project" rows={6} />;
   const vendorName = (vendorIdOfSchedule: string) => project.links.find((link) => link.vendor_id === vendorIdOfSchedule)?.vendor_name;
   return (
     <section className="grid">
@@ -386,17 +423,34 @@ export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
           </div>
         </div>
         <div className="page-actions">
-          <button type="button" className={project.archived ? 'secondary' : 'danger'} onClick={async () => {
-            await api(`/api/projects/${id}/${project.archived ? 'restore' : 'archive'}`, { method: 'POST' });
-            notify(project.archived ? 'Project restored' : 'Project archived');
-            load();
-          }}>{project.archived ? 'Restore project' : 'Archive project'}</button>
+          <button type="button" className={project.archived ? 'secondary' : 'danger'} onClick={() => (project.archived ? setArchived(false) : setConfirmArchive(true))}>
+            {project.archived ? 'Restore project' : 'Archive project'}
+          </button>
         </div>
       </header>
+      {project.archived ? <p className="notice archived-note">Archived records are kept and can be restored.</p> : null}
+      <ConfirmDialog
+        open={confirmArchive}
+        title={`Archive ${project.name}?`}
+        message="It will be hidden from active lists. Nothing is deleted: its sections, vendors, timeline, documents and history stay, and it can be restored at any time."
+        confirmLabel="Archive project"
+        danger
+        onCancel={() => setConfirmArchive(false)}
+        onConfirm={() => {
+          setConfirmArchive(false);
+          setArchived(true);
+        }}
+      />
 
       <ProjectOverview project={project} />
       {/* Keyed by the load count, so the form shows the saved values after every reload. */}
       <EditProjectForm key={version} project={project} onSaved={load} />
+
+      <ProjectSections
+        project={{ ...project, sections: project.sections ?? [], removed_sections: project.removed_sections ?? [], sections_version: project.sections_version ?? '' }}
+        vendors={vendors}
+        onChanged={load}
+      />
 
       <section className="section" aria-labelledby="project-vendors-heading">
         <div className="section-heading">
@@ -409,7 +463,7 @@ export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
         {project.links.length > 0 ? (
           <div className="card-list">
             {project.links.map((link) => (
-              <article className="card grid vendor-card" key={link.id}>
+              <article className={`card grid vendor-card${link.vendor_archived ? ' is-archived' : ''}`} key={link.id}>
                 <div className="card-heading">
                   <p><strong><a href={`#/vendors/${link.vendor_id}`}>{link.vendor_name}</a></strong></p>
                   {link.vendor_archived ? <ArchivedBadge /> : null}
@@ -423,11 +477,24 @@ export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
                 {link.role_on_project || link.scope_of_work || link.note ? (
                   <p className="meta">{[link.role_on_project, link.scope_of_work, link.note].filter(Boolean).join(' · ')}</p>
                 ) : null}
-                <button type="button" className="danger small" onClick={() => removeLink(link.id)}>Remove from project</button>
+                <button type="button" className="danger small" onClick={() => setRemovingLink(link)}>Remove from project</button>
               </article>
             ))}
           </div>
         ) : <p className="empty">No vendors are assigned to this project yet</p>}
+        <ConfirmDialog
+          open={removingLink !== null}
+          title={`Remove ${removingLink?.vendor_name ?? ''} from ${project.name}?`}
+          message={`${removingLink?.vendor_name ?? ''} will be taken off this project and off every section of it. The assignment is kept under Past vendors with its history.`}
+          confirmLabel="Remove from project"
+          danger
+          onCancel={() => setRemovingLink(null)}
+          onConfirm={() => {
+            const link = removingLink!;
+            setRemovingLink(null);
+            removeLink(link.id);
+          }}
+        />
         <form className="card form-2col" onSubmit={addLink} aria-label="Assign a vendor">
           <h3 className="span-2">Assign a vendor</h3>
           <label>
@@ -462,7 +529,7 @@ export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
                 {link.role_on_project || link.scope_of_work || link.note ? (
                   <p className="meta">{[link.role_on_project, link.scope_of_work, link.note].filter(Boolean).join(' · ')}</p>
                 ) : null}
-                <p className="meta">Removed by {link.removed_by.name} on {istDateTime(link.removed_at)}</p>
+                <p className="meta">Removed by {link.removed_by.name} on {formatDateTime(link.removed_at)}</p>
               </li>
             ))}
           </ul>
@@ -486,7 +553,7 @@ export function ProjectDetail({ id, itemId }: { id: string; itemId?: string }) {
                   {vendorName(schedule.vendor_id) ? <p className="meta">{vendorName(schedule.vendor_id)}</p> : null}
                 </div>
                 <ul className="schedule-facts" aria-label="When">
-                  <li>{schedule.work_date}</li>
+                  <li>{formatDate(schedule.work_date)}</li>
                   <li>{schedule.start_time}-{schedule.end_time}</li>
                   <li>team {schedule.required_team_size}</li>
                 </ul>

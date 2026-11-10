@@ -1,4 +1,4 @@
-import { FormEvent, KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { api } from './api/client';
 import { SignIn } from './pages/sign-in';
@@ -11,15 +11,16 @@ import { Dashboard } from './pages/dashboard';
 import { VendorImport } from './pages/vendor-import';
 import { VendorImports } from './pages/vendor-imports';
 import { ClientAdvances } from './pages/client-advances';
+import { Breadcrumbs } from './ui/breadcrumbs';
+import { GlobalSearch } from './ui/global-search';
+import { Me, ProfileMenu } from './ui/profile-menu';
+import { Skeleton } from './ui/skeleton';
+import { canLeave } from './ui/unsaved-guard';
 import './styles.css';
-
-interface Me { id: string; name: string; email: string; role: string }
 
 function pathOf(): string {
   return window.location.hash.replace(/^#/, '') || '/vendors';
 }
-
-const ROLE_NAMES: Record<string, string> = { ADMINISTRATOR: 'Administrator', OFFICE_TEAM: 'Office Team', ACCOUNTANT: 'Accountant' };
 
 // The main navigation; each link is marked current for the paths that belong to its section.
 // Staff is offered only to administrators. The server enforces this; hiding the link only stops
@@ -35,12 +36,11 @@ function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [ready, setReady] = useState(false);
   const [path, setPath] = useState(pathOf());
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [passwordMessage, setPasswordMessage] = useState('');
-  const [accountOpen, setAccountOpen] = useState(false);
   const [notice, setNotice] = useState('');
-  const profileButton = useRef<HTMLButtonElement>(null);
+  // Feature 005 FR-032: who was just signed out by Switch user, held in memory only for the sign-in page.
+  const [switchedFrom, setSwitchedFrom] = useState('');
+  // Feature 005 FR-038: the record name a detail page reports, kept with the path it belongs to.
+  const [title, setTitle] = useState({ path: '', name: '' });
 
   // FR-026: the latest confirmation from any page, shown for 5 seconds.
   useEffect(() => {
@@ -59,34 +59,29 @@ function App() {
 
   useEffect(() => {
     api<Me>('/api/auth/me').then(setMe).catch(() => setMe(null)).finally(() => setReady(true));
-    const onHash = () => setPath(pathOf());
+    // Feature 005 FR-007: a form with unsaved changes can keep the person on the page; the address is put back.
+    const onHash = (event: HashChangeEvent) => {
+      if (!canLeave()) {
+        if (event.oldURL) window.history.replaceState(null, '', event.oldURL);
+        return;
+      }
+      setPath(pathOf());
+    };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
 
-  if (!ready) return <p className="shell">Loading</p>;
-  if (!me) return <SignIn onSignedIn={() => api<Me>('/api/auth/me').then(setMe)} />;
-
-  async function changePassword(event: FormEvent) {
-    event.preventDefault();
-    setPasswordMessage('');
-    try {
-      await api('/api/auth/password', {
-        method: 'POST',
-        body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
-      });
-      setCurrentPassword('');
-      setNewPassword('');
-      setPasswordMessage('Password changed.');
-    } catch (caught) {
-      setPasswordMessage(caught instanceof Error ? caught.message : 'Could not change the password');
-    }
-  }
-
-  function closeOnEscape(event: KeyboardEvent) {
-    if (event.key !== 'Escape' || !accountOpen) return;
-    setAccountOpen(false);
-    profileButton.current?.focus();
+  if (!ready) return <div className="shell"><Skeleton label="Loading" rows={3} /></div>;
+  if (!me) {
+    return (
+      <SignIn
+        notice={switchedFrom ? `Signed out ${switchedFrom}. Sign in as another staff member.` : undefined}
+        onSignedIn={() => api<Me>('/api/auth/me').then((next) => {
+          setSwitchedFrom('');
+          setMe(next);
+        })}
+      />
+    );
   }
 
   // '/vendors/import' is the import page, not a vendor id.
@@ -96,7 +91,19 @@ function App() {
   const focusItemId = new URLSearchParams(projectQuery).get('item') ?? undefined;
   const importRunId = new URLSearchParams(projectQuery).get('run') ?? undefined;
   const projectStatus = new URLSearchParams(projectQuery).get('status') ?? undefined;
+  const projectProgress = new URLSearchParams(projectQuery).get('progress') ?? undefined;
   const advanceScope = new URLSearchParams(projectQuery).get('scope') === 'month' ? 'month' : 'all';
+  // Feature 005 FR-021, FR-024: dashboard links open a list in a given view, or with its add form open.
+  const listView = (['active', 'archived'] as const).find((view) => view === new URLSearchParams(projectQuery).get('view'));
+  const addOpen = new URLSearchParams(projectQuery).get('add') === '1';
+  const reportTitle = (name: string) => setTitle({ path, name });
+  const recordName = title.path === path ? title.name : '';
+  const vendorsCrumb = { label: 'Vendors', href: '#/vendors' };
+  const trail = vendorId && recordName ? [vendorsCrumb, { label: recordName }]
+    : projectId && recordName ? [{ label: 'Projects', href: '#/projects' }, { label: recordName }]
+      : path === '/vendors/import' ? [vendorsCrumb, { label: 'Import vendors' }]
+        : projectPath === '/vendor-imports' ? [vendorsCrumb, { label: 'Import history' }]
+          : null;
 
   return (
     <div className="app">
@@ -119,41 +126,20 @@ function App() {
       </aside>
       <div className="workspace">
       <header className="topbar">
-        <div className="profile-menu" onKeyDown={closeOnEscape}>
-          <button type="button" ref={profileButton} className="secondary profile-button" aria-expanded={accountOpen} aria-controls="profile-panel" onClick={() => setAccountOpen(!accountOpen)}>
-            {me.name}
-          </button>
-          {accountOpen ? (
-            <div id="profile-panel" className="profile-panel">
-              <div className="account-who">
-                <strong>{me.name}</strong>
-                <span>{ROLE_NAMES[me.role] ?? me.role}</span>
-                <span>{me.email}</span>
-              </div>
-              <form className="account-panel" onSubmit={changePassword}>
-                <label>Current password<input type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} /></label>
-                <label>New password<input type="password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} /></label>
-                <button type="submit">Change password</button>
-                {passwordMessage ? <p role="status">{passwordMessage}</p> : null}
-              </form>
-              <button type="button" className="secondary" onClick={async () => {
-                await api('/api/auth/logout', { method: 'POST' });
-                setAccountOpen(false);
-                setMe(null);
-              }}>Sign out</button>
-            </div>
-          ) : null}
-        </div>
+        {trail ? <Breadcrumbs trail={trail} /> : null}
+        <GlobalSearch />
+        {/* Signing out unmounts every page, so the next person's pages load their own data (US5-4). */}
+        <ProfileMenu me={me} onSignedOut={(from) => { setSwitchedFrom(from ?? ''); setMe(null); }} />
       </header>
       <div className="notice-region" role="status" aria-live="polite">{notice ? <p className="success-message">{notice}</p> : null}</div>
       <main className="content">
-      {path.startsWith('/vendors/') && vendorId ? <VendorDetail id={vendorId} /> : null}
-      {path === '/vendors' ? <Vendors openVendor={(id) => { window.location.hash = `/vendors/${id}`; }} /> : null}
+      {path.startsWith('/vendors/') && vendorId ? <VendorDetail id={vendorId} onTitle={reportTitle} /> : null}
+      {projectPath === '/vendors' ? <Vendors key={projectQuery} add={addOpen} view={listView} openVendor={(id) => { window.location.hash = `/vendors/${id}`; }} /> : null}
       {path === '/vendors/import' ? <VendorImport /> : null}
       {projectPath === '/vendor-imports' ? <VendorImports key={importRunId ?? ''} runId={importRunId} /> : null}
       {path === '/dashboard' ? <Dashboard /> : null}
-      {projectPath.startsWith('/projects/') && projectId ? <ProjectDetail key={`${projectId}:${focusItemId ?? ''}`} id={projectId} itemId={focusItemId} /> : null}
-      {projectPath === '/projects' ? <Projects key={projectStatus ?? ''} status={projectStatus} openProject={(id) => { window.location.hash = `/projects/${id}`; }} /> : null}
+      {projectPath.startsWith('/projects/') && projectId ? <ProjectDetail key={`${projectId}:${focusItemId ?? ''}`} id={projectId} itemId={focusItemId} onTitle={reportTitle} /> : null}
+      {projectPath === '/projects' ? <Projects key={projectQuery} status={projectStatus} progress={projectProgress} add={addOpen} view={listView} openProject={(id) => { window.location.hash = `/projects/${id}`; }} /> : null}
       {projectPath === '/client-advances' ? <ClientAdvances scope={advanceScope} /> : null}
       {path === '/staff' ? <StaffPage currentUserId={me.id} /> : null}
       </main>

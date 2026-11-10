@@ -53,7 +53,8 @@ describe('documents section', () => {
     expect(item).toHaveTextContent('agreement.pdf');
     expect(item).toHaveTextContent('178.1 KB');
     expect(item).toHaveTextContent('Asha Admin');
-    expect(item).toHaveTextContent('2026-10-29');
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(item).toHaveTextContent('29 Oct 2026');
     expect(item).toHaveTextContent('Signed copy');
     expect(within(item).getByRole('link', { name: 'Download agreement.pdf' })).toHaveAttribute('href', '/api/documents/d1/file');
   });

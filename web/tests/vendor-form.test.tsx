@@ -30,7 +30,9 @@ function vendorPosts(fetchMock: ReturnType<typeof mockFetch>) {
     .map((call) => JSON.parse(String((call[1] as RequestInit).body)));
 }
 
+// Superseded (Feature 005 spec, Backward Compatibility): the add form is closed below the list until Add vendor is pressed (FR-001, FR-002).
 async function createForm() {
+  await userEvent.click(await screen.findByRole('button', { name: 'Add vendor' }));
   return screen.findByRole('form', { name: 'Add vendor' });
 }
 
@@ -84,7 +86,8 @@ describe('vendor create form', () => {
       },
     ]);
     expect(notices).toEqual(['Vendor added']);
-  });
+    // Types about 20 fields one key at a time; it ran close to the 5 s default (Feature 004 T001 note).
+  }, 15000);
 
   it('warns about a duplicate phone and saves only after confirmation', async () => {
     let attempts = 0;

@@ -18,8 +18,9 @@ const appendOnlyModels = [
 ];
 const writeMethods = ['update', 'updateMany', 'upsert', 'delete', 'deleteMany'];
 // Documents may be archived and restored (an update), but never deleted (FR-015, FR-016). A removed vendor-project
-// assignment is kept as a past assignment (Feature 004 FR-013), so links are never deleted either.
-const neverDeletedModels = ['document', 'vendorProjectLink'];
+// assignment is kept as a past assignment (Feature 004 FR-013), so links are never deleted either. Project sections and
+// section assignments are removed by flag and kept (Feature 005 FR-010, FR-017).
+const neverDeletedModels = ['document', 'vendorProjectLink', 'projectSection', 'sectionAssignment'];
 const deleteMethods = ['delete', 'deleteMany'];
 
 const appendOnlyPattern = new RegExp(`\\.(${appendOnlyModels.join('|')})\\s*\\.\\s*(${writeMethods.join('|')})\\s*\\(`);
@@ -49,7 +50,7 @@ describe('append-only history and financial records', () => {
     expect(offenders(appendOnlyPattern)).toEqual([]);
   });
 
-  it('never deletes a document or a vendor-project assignment', () => {
+  it('never deletes a document, a vendor-project assignment, a project section or a section assignment', () => {
     expect(offenders(neverDeletedPattern)).toEqual([]);
   });
 
@@ -64,5 +65,8 @@ describe('append-only history and financial records', () => {
     expect(neverDeletedPattern.test('await prisma.document.delete({ where })')).toBe(true);
     expect(neverDeletedPattern.test('await tx.document.deleteMany({})')).toBe(true);
     expect(neverDeletedPattern.test('await tx.document.update({ data: { archived: true } })')).toBe(false);
+    expect(neverDeletedPattern.test('await tx.projectSection.delete({ where })')).toBe(true);
+    expect(neverDeletedPattern.test('await tx.sectionAssignment.deleteMany({})')).toBe(true);
+    expect(neverDeletedPattern.test('await tx.projectSection.update({ data: { removedAt } })')).toBe(false);
   });
 });

@@ -8,6 +8,7 @@ import { staffRouter } from './modules/staff/routes';
 import { categoryRouter, vendorRouter } from './modules/vendors/routes';
 import { projectRouter } from './modules/projects/routes';
 import { linkRouter } from './modules/links/routes';
+import { sectionRouter } from './modules/sections/routes';
 import { scheduleRouter } from './modules/schedules/routes';
 import { fileRouter } from './modules/files/routes';
 import { timelineRouter } from './modules/timeline/routes';
@@ -16,6 +17,7 @@ import { clientAdvanceRouter } from './modules/client-advances/routes';
 import { vendorImportRouter } from './modules/vendor-imports/routes';
 import { documentRouter } from './modules/documents/routes';
 import { historyRouter } from './modules/history/routes';
+import { searchRouter } from './modules/search/routes';
 
 export function createApp() {
   const config = loadConfig();
@@ -33,6 +35,7 @@ export function createApp() {
   app.use('/api/vendors', vendorRouter);
   app.use('/api/projects', projectRouter);
   app.use('/api', linkRouter);
+  app.use('/api', sectionRouter);
   app.use('/api', scheduleRouter);
   app.use('/api', fileRouter);
   app.use('/api', timelineRouter);
@@ -41,6 +44,7 @@ export function createApp() {
   app.use('/api', vendorImportRouter);
   app.use('/api', documentRouter);
   app.use('/api', historyRouter);
+  app.use('/api', searchRouter);
   app.use('/api', (_req, res) => {
     res.status(404).json({ message: 'Not found.' });
   });

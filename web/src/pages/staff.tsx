@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { ApiError, api } from '../api/client';
+import { Skeleton } from '../ui/skeleton';
 
 interface Staff {
   id: string;
@@ -22,7 +23,8 @@ function initials(name: string): string {
 type Update = (id: string, body: Record<string, unknown>, failure: string, success: string) => Promise<boolean>;
 
 export function StaffPage({ currentUserId }: { currentUserId: string }) {
-  const [staff, setStaff] = useState<Staff[]>([]);
+  // null until the accounts arrive, so the page never shows "0 active" while loading (Feature 005 FR-039).
+  const [staff, setStaff] = useState<Staff[] | null>(null);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('OFFICE_TEAM');
@@ -68,7 +70,7 @@ export function StaffPage({ currentUserId }: { currentUserId: string }) {
     }
   };
 
-  const active = staff.filter((person) => !person.revoked).length;
+  const active = (staff ?? []).filter((person) => !person.revoked).length;
   return (
     <section className="grid staff-page">
       <header className="page-header">
@@ -102,7 +104,8 @@ export function StaffPage({ currentUserId }: { currentUserId: string }) {
       {error ? <p className="error form-error" role="alert">{error}</p> : null}
 
       {/* When the list itself was refused, an empty "0 accounts" section would read as if the firm had none. */}
-      {staff.length > 0 || !error ? <div className="section">
+      {!staff && !error ? <Skeleton label="Loading staff" rows={3} /> : null}
+      {staff ? <div className="section">
         <div className="section-heading">
           <div>
             <h2>Accounts</h2>

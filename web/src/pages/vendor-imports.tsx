@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { HistoryPanel } from './history-panel';
 import { ImportCounts } from '../badges';
-import { istDateTime } from '../time';
+import { formatDateTime } from '../time';
+import { Skeleton } from '../ui/skeleton';
 
 interface Run {
   id: string;
@@ -65,6 +66,7 @@ export function VendorImports({ runId }: { runId?: string }) {
         </div>
       </header>
       {error ? <p className="error form-error" role="alert">{error}</p> : null}
+      {!runs && !error ? <Skeleton label="Loading import history" /> : null}
       {runs && runs.length === 0 ? <p className="empty">No imports yet.</p> : null}
       {runs && runs.length > 0 ? (
         <div className="table-wrap list-table">
@@ -81,7 +83,7 @@ export function VendorImports({ runId }: { runId?: string }) {
             <tbody>
               {runs.map((run) => (
                 <tr key={run.id} className={run.id === openRunId ? 'is-selected' : undefined} aria-current={run.id === openRunId ? 'true' : undefined}>
-                  <td data-label="When" className="numeric">{istDateTime(run.created_at)}</td>
+                  <td data-label="When" className="numeric">{formatDateTime(run.created_at)}</td>
                   <td data-label="By">{run.created_by.name}</td>
                   <td data-label="File"><strong>{run.file_name}</strong></td>
                   <td data-label="Counts"><ImportCounts compact imported={run.imported_count} skipped={run.skipped_count} rejected={run.rejected_count} /></td>
@@ -95,12 +97,13 @@ export function VendorImports({ runId }: { runId?: string }) {
         </div>
       ) : null}
 
+      {openRunId && !detail && !error ? <Skeleton label="Loading import run" rows={3} /> : null}
       {detail ? (
         <section className="card grid import-run" aria-label="Import run">
           <div className="card-heading">
             <div className="grid">
               <h2>{detail.run.file_name}</h2>
-              <p className="meta">Imported by {detail.run.created_by.name} on {istDateTime(detail.run.created_at)}</p>
+              <p className="meta">Imported by {detail.run.created_by.name} on {formatDateTime(detail.run.created_at)}</p>
             </div>
           </div>
           <ImportCounts imported={detail.run.imported_count} skipped={detail.run.skipped_count} rejected={detail.run.rejected_count} />

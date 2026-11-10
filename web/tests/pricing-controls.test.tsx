@@ -67,14 +67,16 @@ describe('task pricing on the project screen', () => {
 
     const fixed = await screen.findByRole('article', { name: 'Schedule Tiling' });
     expect(await within(fixed).findByText('Fixed price: 1200.00')).toBeInTheDocument();
-    expect(within(fixed).getByText(/1000\.00 · charge · Asha Admin · 2026-10-20/)).toBeInTheDocument();
-    expect(within(fixed).getByText(/-1000\.00 · reversal · Omar Office · 2026-10-21/)).toBeInTheDocument();
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(within(fixed).getByText(/1000\.00 · charge · Asha Admin · 20 Oct 2026/)).toBeInTheDocument();
+    expect(within(fixed).getByText(/-1000\.00 · reversal · Omar Office · 21 Oct 2026/)).toBeInTheDocument();
 
     const file = screen.getByRole('article', { name: 'Schedule Joinery' });
     expect(await within(file).findByText('Costing sheet: sheet.pdf')).toBeInTheDocument();
     expect(within(file).getByRole('link', { name: 'Open costing sheet' })).toHaveAttribute('href', '/api/schedules/s2/costing-sheets/f2');
     const fileHistory = within(file).getByRole('list', { name: 'Costing sheet history' });
-    expect(fileHistory.textContent).toContain('old.pdf · Asha Admin · 2026-10-19 · cleared or replaced by Omar Office · 2026-10-22');
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(fileHistory.textContent).toContain('old.pdf · Asha Admin · 19 Oct 2026 · cleared or replaced by Omar Office · 22 Oct 2026');
     expect(within(fileHistory).getByRole('link', { name: 'old.pdf' })).toHaveAttribute('href', '/api/schedules/s2/costing-sheets/f1');
 
     const none = screen.getByRole('article', { name: 'Schedule Painting' });

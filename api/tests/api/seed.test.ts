@@ -1,7 +1,8 @@
 import { Prisma } from '@prisma/client';
 import { describe, expect, it, vi } from 'vitest';
 import { prisma } from '../../src/db';
-import { resetDatabase, signIn } from '../helpers';
+import { DEFAULT_SECTIONS } from '../../src/lib/blueprint';
+import { createProject, createUser, resetDatabase, signIn } from '../helpers';
 
 // Feature 004 US8 (T058): the seed is a function run through the client it is given, and is safe to run again.
 // Test-only passwords; the seed refuses to run without them.
@@ -109,5 +110,84 @@ describe('seed (US8)', () => {
     await seed(prisma);
     expect(await everyCount()).toEqual(counts);
     expect((await prisma.vendor.findUniqueOrThrow({ where: { id: edited.id } })).name).toBe('Renamed By Staff');
+  });
+});
+
+// Feature 005 T043 (FR-013, owner decision I1): the seed gives the 15 blueprint sections only to projects it creates in
+// that run, and sample section assignments only on those projects. A project that already exists never gets sections.
+describe('seed sections (Feature 005)', () => {
+  async function sectionsOf(name: string) {
+    const project = await prisma.project.findFirstOrThrow({ where: { name } });
+    return prisma.projectSection.findMany({
+      where: { projectId: project.id },
+      orderBy: { position: 'asc' },
+      include: { assignments: { where: { removedAt: null }, include: { vendor: true } } },
+    });
+  }
+
+  it('gives each project it creates the 15 blueprint sections in order, with sample assignments on Lake House', async () => {
+    await resetDatabase();
+    await (await loadSeed())(prisma);
+
+    for (const name of ['Lake House', 'Studio Fit-out', 'Hill Villa', 'Riverside Clinic']) {
+      const sections = await sectionsOf(name);
+      // Every blueprint section exists once, current or removed.
+      expect(sections.map((section) => section.name).sort()).toEqual([...DEFAULT_SECTIONS].sort());
+      const current = sections.filter((section) => section.removedAt === null);
+      // Current sections keep the blueprint order with positions 0 to n-1.
+      expect(current.map((section) => section.name)).toEqual(DEFAULT_SECTIONS.filter((section) => current.some((row) => row.name === section)));
+      expect(current.map((section) => section.position)).toEqual(current.map((_section, index) => index));
+    }
+
+    const lake = await sectionsOf('Lake House');
+    const removed = lake.filter((section) => section.removedAt !== null);
+    expect(removed).toHaveLength(1);
+    expect(removed[0].removedById).not.toBeNull();
+    expect(removed[0].assignments).toEqual([]);
+
+    // One vendor in two sections, and one section with two vendors.
+    const sectionsByVendor = new Map<string, string[]>();
+    for (const section of lake) {
+      for (const row of section.assignments) sectionsByVendor.set(row.vendor.name, [...(sectionsByVendor.get(row.vendor.name) ?? []), section.name]);
+    }
+    expect([...sectionsByVendor.values()].some((names) => names.length === 2)).toBe(true);
+    expect(lake.some((section) => section.assignments.length === 2)).toBe(true);
+
+    // Every vendor assigned to a section is currently assigned to the project (FR-015a).
+    const lakeId = lake[0].projectId;
+    for (const vendorName of sectionsByVendor.keys()) {
+      const vendor = await prisma.vendor.findFirstOrThrow({ where: { name: vendorName } });
+      expect(await prisma.vendorProjectLink.count({ where: { vendorId: vendor.id, projectId: lakeId, removedAt: null } })).toBe(1);
+    }
+
+    // The other seeded projects get sections but no sample assignments.
+    for (const name of ['Studio Fit-out', 'Hill Villa', 'Riverside Clinic']) {
+      expect((await sectionsOf(name)).every((section) => section.assignments.length === 0 && section.removedAt === null)).toBe(true);
+    }
+
+    // A second run changes nothing in any table.
+    const counts = await everyCount();
+    await (await loadSeed())(prisma);
+    expect(await everyCount()).toEqual(counts);
+  });
+
+  it('never adds sections to projects that already exist, such as section-less development projects', async () => {
+    await resetDatabase();
+    const admin = await createUser({ email: 'admin@example.com', name: 'Asha Admin' });
+    await createProject(admin.id, 'Lake House');
+    await createProject(admin.id, 'Studio Fit-out', 'PLANNED');
+
+    await (await loadSeed())(prisma);
+    expect(await sectionsOf('Lake House')).toEqual([]);
+    expect(await sectionsOf('Studio Fit-out')).toEqual([]);
+    expect(await prisma.sectionAssignment.count()).toBe(0);
+    // The projects the seed did create still get the blueprint.
+    expect(await sectionsOf('Hill Villa')).toHaveLength(15);
+    expect(await sectionsOf('Riverside Clinic')).toHaveLength(15);
+
+    const counts = await everyCount();
+    await (await loadSeed())(prisma);
+    expect(await everyCount()).toEqual(counts);
+    expect(await sectionsOf('Lake House')).toEqual([]);
   });
 });

@@ -228,3 +228,24 @@ describe('auth and staff', () => {
     expect((await signIn('office@example.com', 'password1')).response.status).toBe(200);
   });
 });
+
+// Feature 005 US5 (T035, FR-031): the profile menu shows when the account was created; nothing else in /me changes.
+describe('GET /api/auth/me account information', () => {
+  beforeEach(async () => {
+    await resetDatabase();
+  });
+
+  it('adds created_at and keeps the other fields as they were', async () => {
+    const admin = await createUser({ email: 'admin@example.com', name: 'Asha Admin' });
+    const created = new Date('2026-11-09T05:00:00.000Z');
+    await prisma.staffUser.update({ where: { id: admin.id }, data: { createdAt: created } });
+    const { client } = await signIn('admin@example.com');
+    const me = (await client.get('/api/auth/me')).body;
+    expect(Object.keys(me).sort()).toEqual(['created_at', 'email', 'id', 'name', 'role']);
+    expect(me).toMatchObject({ id: admin.id, name: 'Asha Admin', email: 'admin@example.com', role: 'ADMINISTRATOR', created_at: created.toISOString() });
+  });
+
+  it('still refuses a signed-out request', async () => {
+    expect((await request(app).get('/api/auth/me')).status).toBe(401);
+  });
+});

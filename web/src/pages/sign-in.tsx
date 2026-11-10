@@ -1,7 +1,8 @@
 import { FormEvent, useState } from 'react';
 import { api } from '../api/client';
 
-export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
+// `notice` says who Switch user just signed out (Feature 005 FR-032); it is held in memory, never stored.
+export function SignIn({ onSignedIn, notice }: { onSignedIn: () => void; notice?: string }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -28,6 +29,7 @@ export function SignIn({ onSignedIn }: { onSignedIn: () => void }) {
           <h1>Sign in</h1>
           <p>Use your staff account to continue.</p>
         </div>
+        {notice ? <p className="notice" role="status">{notice}</p> : null}
         <form className="grid auth-form" onSubmit={submit}>
           <label>
             Email

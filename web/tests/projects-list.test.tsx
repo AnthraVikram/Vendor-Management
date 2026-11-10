@@ -51,13 +51,15 @@ describe('project directory', () => {
     const table = await screen.findByRole('table', { name: 'Projects' });
     const lakeRow = within(table).getByRole('button', { name: 'Lake House' }).closest('tr')!;
     expect(within(lakeRow).getByText('Active')).toBeInTheDocument();
-    expect(within(lakeRow).getByText('2026-11-01')).toBeInTheDocument();
-    expect(within(lakeRow).getByText('2026-12-20')).toBeInTheDocument();
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(within(lakeRow).getByText('1 Nov 2026')).toBeInTheDocument();
+    expect(within(lakeRow).getByText('20 Dec 2026')).toBeInTheDocument();
     expect(within(lakeRow).getByText('3 vendors')).toBeInTheDocument();
     expect(within(lakeRow).getByText('12 of 20 items done')).toBeInTheDocument();
     expect(within(lakeRow).getByText(badgeText('Health: Delayed'))).toBeInTheDocument();
     expect(within(lakeRow).getByText('2 overdue')).toBeInTheDocument();
-    expect(within(lakeRow).getByText('2026-11-05')).toBeInTheDocument();
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(within(lakeRow).getByText('5 Nov 2026')).toBeInTheDocument();
 
     const studioRow = within(table).getByRole('button', { name: 'Studio Fit-out' }).closest('tr')!;
     expect(within(studioRow).getAllByText('Not set')).toHaveLength(4);
@@ -67,7 +69,8 @@ describe('project directory', () => {
     expect(within(studioRow).getByText(badgeText('Health: Ongoing'))).toBeInTheDocument();
   });
 
-  it('sends the search and the two attention filters, keeping the status filter and include archived (US5-2 to US5-5)', async () => {
+  // Superseded (Feature 005 spec, Backward Compatibility): "Include archived" became the Archived view, and the list asks for 50 at a time (FR-006, FR-026).
+  it('sends the search and the two attention filters, keeping the status filter and the Archived view (US5-2 to US5-5)', async () => {
     const fetchMock = mockFetch([[lake]]);
     render(<Projects openProject={() => undefined} status="ACTIVE" />);
     await screen.findByRole('table', { name: 'Projects' });
@@ -75,9 +78,9 @@ describe('project directory', () => {
     await userEvent.type(filters.getByLabelText('Search projects'), 'mehta');
     await userEvent.click(filters.getByLabelText('Has overdue items'));
     await userEvent.click(filters.getByLabelText('Has items due in the next 7 days'));
-    await userEvent.click(filters.getByLabelText('Include archived'));
+    await userEvent.click(screen.getByRole('radio', { name: /^Archived/ }));
     await userEvent.click(filters.getByRole('button', { name: 'Apply filters' }));
-    expect(lastListQuery(fetchMock)).toEqual({ status: 'ACTIVE', q: 'mehta', has_overdue: 'true', due_within_7: 'true', include_archived: 'true' });
+    expect(lastListQuery(fetchMock)).toEqual({ status: 'ACTIVE', q: 'mehta', has_overdue: 'true', due_within_7: 'true', view: 'archived', limit: '50' });
   });
 
   it('offers the full project form, sending every field, and shows field messages under both dates (US5-9, US5-10)', async () => {
@@ -89,6 +92,8 @@ describe('project directory', () => {
     });
     render(<Projects openProject={() => undefined} />);
     await screen.findByRole('table', { name: 'Projects' });
+    // Superseded (Feature 005 spec, Backward Compatibility): the add form is closed until Add project is pressed (FR-002).
+    await userEvent.click(screen.getByRole('button', { name: 'Add project' }));
     const form = within(screen.getByRole('form', { name: 'Add project' }));
     await userEvent.type(form.getByLabelText('Name'), 'Hill Villa');
     await userEvent.type(form.getByLabelText('Client name'), 'Iyer');
@@ -110,6 +115,8 @@ describe('project directory', () => {
     mockFetch([[lake]], () => ({ status: 201, body: { ...studio } }));
     render(<Projects openProject={() => undefined} />);
     await screen.findByRole('table', { name: 'Projects' });
+    // Superseded (Feature 005 spec, Backward Compatibility): the add form is closed until Add project is pressed (FR-002).
+    await userEvent.click(screen.getByRole('button', { name: 'Add project' }));
     const form = within(screen.getByRole('form', { name: 'Add project' }));
     await userEvent.type(form.getByLabelText('Name'), 'Studio Fit-out');
     await userEvent.click(form.getByRole('button', { name: 'Save project' }));
@@ -134,19 +141,21 @@ describe('project directory', () => {
     let release: (value: unknown) => void = () => undefined;
     vi.stubGlobal('fetch', vi.fn(() => new Promise((resolve) => { release = resolve; })));
     render(<Projects openProject={() => undefined} />);
-    expect(screen.getByText('Loading projects')).toBeInTheDocument();
+    // Superseded (Feature 005 spec, Backward Compatibility): placeholder rows replace the loading text (FR-039).
+    expect(screen.getByLabelText('Loading projects')).toHaveAttribute('aria-busy', 'true');
     expect(screen.queryByText('No projects have been created yet')).toBeNull();
     release(json(200, [lake]));
     expect(await screen.findByRole('table', { name: 'Projects' })).toBeInTheDocument();
   });
 });
 
-describe('project directory include archived', () => {
-  it('reloads as soon as Include archived is ticked, as before Feature 004', async () => {
+// Superseded (Feature 005 spec, Backward Compatibility): "Include archived" became the Archived view, which still reloads at once (FR-026).
+describe('project directory Archived view', () => {
+  it('reloads as soon as the Archived view is chosen', async () => {
     const fetchMock = mockFetch([[lake]]);
     render(<Projects openProject={() => undefined} />);
     await screen.findByRole('table', { name: 'Projects' });
-    await userEvent.click(within(screen.getByRole('form', { name: 'Project filters' })).getByLabelText('Include archived'));
-    expect(lastListQuery(fetchMock)).toEqual({ include_archived: 'true' });
+    await userEvent.click(screen.getByRole('radio', { name: /^Archived/ }));
+    expect(lastListQuery(fetchMock)).toEqual({ view: 'archived', limit: '50' });
   });
 });

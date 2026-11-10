@@ -1,7 +1,8 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { HistoryPanel } from './history-panel';
-import { istDateTime } from '../time';
+import { formatDate, formatDateTime } from '../time';
+import { Skeleton } from '../ui/skeleton';
 
 interface Person {
   id: string;
@@ -185,6 +186,7 @@ export function AdvancesSection({ projectId, version = 0 }: { projectId: string;
         <p>Recorded against this project, never against a vendor</p>
       </div>
       {error ? <p className="error form-error" role="alert">{error}</p> : null}
+      {!data && !error ? <Skeleton label="Loading client advances" rows={3} /> : null}
       {data ? (
         <>
           <div className="card advance-summary">
@@ -207,7 +209,7 @@ export function AdvancesSection({ projectId, version = 0 }: { projectId: string;
               <li className={`card advance${advance.reversal ? ' advance-reversed' : ''}`} key={advance.id}>
                 <div className="advance-main">
                   <div className="advance-what">
-                    <p className="advance-date">{advance.received_on}</p>
+                    <p className="advance-date">{formatDate(advance.received_on)}</p>
                     <p className="meta">
                       {advance.payment_method ? (METHODS[advance.payment_method] ?? advance.payment_method) : 'Method not given'}
                       {advance.reference ? ` · ${advance.reference}` : ''}
@@ -219,18 +221,18 @@ export function AdvancesSection({ projectId, version = 0 }: { projectId: string;
                     {advance.reversal ? <span className="status-badge status-reversed">Reversed</span> : <span className="status-badge status-active">Standing</span>}
                   </div>
                 </div>
-                <p className="meta">Recorded by {advance.created_by.name} · {istDateTime(advance.created_at)}</p>
+                <p className="meta">Recorded by {advance.created_by.name} · {formatDateTime(advance.created_at)}</p>
                 {advance.reversal ? (
                   <div className="reversal-detail">
                     <p>
                       <strong>Reversed</strong> {rupees(advance.reversal.amount)} by {advance.reversal.created_by.name} ·{' '}
-                      {istDateTime(advance.reversal.created_at)} · Reason: {advance.reversal.reason}
+                      {formatDateTime(advance.reversal.created_at)} · Reason: {advance.reversal.reason}
                     </p>
                   </div>
                 ) : canRecord ? (
                   <ReverseForm advanceId={advance.id} onSaved={load} />
                 ) : null}
-                <HistoryPanel target="client_advance_id" id={advance.id} label={`History of the advance received ${advance.received_on}`} />
+                <HistoryPanel target="client_advance_id" id={advance.id} label={`History of the advance received ${formatDate(advance.received_on)}`} />
               </li>
             ))}
           </ul>

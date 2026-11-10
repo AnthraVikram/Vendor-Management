@@ -61,10 +61,12 @@ describe('project overview', () => {
     const overview = await screen.findByRole('region', { name: 'Overview' });
     expect(within(overview).getByText('Mehta Family')).toBeInTheDocument();
     expect(within(overview).getByText('Pune')).toBeInTheDocument();
-    expect(within(overview).getByText('2026-11-01')).toBeInTheDocument();
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(within(overview).getByText('1 Nov 2026')).toBeInTheDocument();
     // FR-015: the project date and item dates carry different labels.
     expect(within(overview).getByText('Project expected completion')).toBeInTheDocument();
-    expect(within(overview).getByText('2026-12-20')).toBeInTheDocument();
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(within(overview).getByText('20 Dec 2026')).toBeInTheDocument();
     expect(within(overview).getByText(badgeText('Health: Delayed'))).toBeInTheDocument();
     expect(within(overview).getByText('12 of 20 items done')).toBeInTheDocument();
     expect(within(overview).getByText('2 overdue items')).toBeInTheDocument();
@@ -91,7 +93,8 @@ describe('project overview', () => {
     mockFetch(project({ status: 'COMPLETED', health: 'COMPLETED', completed_on: '2026-12-03' }));
     const { unmount } = render(<ProjectDetail id="p1" />);
     const overview = await screen.findByRole('region', { name: 'Overview' });
-    expect(within(overview).getByText('Completed on 2026-12-03')).toBeInTheDocument();
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(within(overview).getByText('Completed on 3 Dec 2026')).toBeInTheDocument();
     unmount();
 
     mockFetch(project({ status: 'COMPLETED', health: 'COMPLETED', completed_on: null }));

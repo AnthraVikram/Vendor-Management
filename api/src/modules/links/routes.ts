@@ -26,9 +26,9 @@ const patchSchema = z
 const EDITED_FIELDS = ['role_on_project', 'scope_of_work', 'note'];
 
 type LinkRow = { id: string; vendorId: string; projectId: string; roleOnProject: string | null; scopeOfWork: string | null; note: string | null };
-type Named = { id: string; name: string };
+export type Named = { id: string; name: string };
 
-function linkExists(): HttpError {
+export function linkExists(): HttpError {
   return new HttpError(409, 'That vendor is already linked to this project.', { code: 'LINK_EXISTS' });
 }
 
@@ -40,7 +40,7 @@ function presentLink(link: LinkRow) {
   return { id: link.id, vendor_id: link.vendorId, project_id: link.projectId, ...snapshot(link) };
 }
 
-async function activePair(vendorId: string, projectId: string) {
+export async function activePair(vendorId: string, projectId: string) {
   const vendor = await prisma.vendor.findUnique({ where: { id: vendorId } });
   const project = await prisma.project.findUnique({ where: { id: projectId } });
   if (!vendor || !project) throw new HttpError(404, 'Vendor or project not found.');
@@ -62,14 +62,89 @@ async function lockLink(tx: Prisma.TransactionClient, id: string) {
 }
 
 // One entry on the vendor and one on the project, since a history entry has exactly one target (FR-013d).
-async function recordOnBoth(
+// Feature 005 section-assignment events pass the section too.
+export async function recordOnBoth(
   tx: Prisma.TransactionClient,
-  entry: { action: HistoryAction; actorId: string; vendor: Named; project: Named; assignmentId: string; changes?: Record<string, unknown>; extra?: Record<string, unknown> },
+  entry: {
+    action: HistoryAction;
+    actorId: string;
+    vendor: Named;
+    project: Named;
+    assignmentId: string;
+    section?: Named;
+    changes?: Record<string, unknown>;
+    extra?: Record<string, unknown>;
+  },
 ) {
-  const details = { assignment_id: entry.assignmentId, vendor: entry.vendor, project: entry.project, ...entry.extra };
+  const details = {
+    assignment_id: entry.assignmentId,
+    vendor: entry.vendor,
+    project: entry.project,
+    ...(entry.section ? { section: entry.section } : {}),
+    ...entry.extra,
+  };
   for (const target of [{ vendorId: entry.vendor.id }, { projectId: entry.project.id }]) {
     await recordHistory(tx, { target, action: entry.action, actorId: entry.actorId, changes: entry.changes, details });
   }
+}
+
+// Creates a current vendor-project assignment inside the caller's transaction, with the Feature 004 rules: a past
+// assignment does not block a new one, a current one does (FR-013b), and ASSIGNED is recorded on both targets.
+// Shared by the link route and by Feature 005 section assignments (FR-015a).
+export async function assignVendorToProject(
+  tx: Prisma.TransactionClient,
+  input: { vendor: Named; project: Named; actorId: string; role?: string; scope?: string; note?: string },
+) {
+  const existing = await tx.vendorProjectLink.findFirst({ where: { vendorId: input.vendor.id, projectId: input.project.id, removedAt: null } });
+  if (existing) throw linkExists();
+  const created = await tx.vendorProjectLink.create({
+    data: {
+      vendorId: input.vendor.id,
+      projectId: input.project.id,
+      roleOnProject: input.role,
+      scopeOfWork: input.scope,
+      note: input.note,
+      ...stampCreate(input.actorId),
+    },
+  });
+  await recordOnBoth(tx, {
+    action: 'ASSIGNED',
+    actorId: input.actorId,
+    vendor: { id: input.vendor.id, name: input.vendor.name },
+    project: { id: input.project.id, name: input.project.name },
+    assignmentId: created.id,
+    extra: snapshot(created),
+  });
+  return created;
+}
+
+// Ends the current section assignments matching `where` (Feature 005 FR-015b, FR-017): kept as past assignments,
+// never deleted, each recorded on the vendor and the project. Used when a section or a project assignment is removed.
+export async function endSectionAssignments(tx: Prisma.TransactionClient, where: Prisma.SectionAssignmentWhereInput, actorId: string): Promise<number> {
+  const rows = await tx.sectionAssignment.findMany({
+    where: { ...where, removedAt: null },
+    include: {
+      vendor: { select: { id: true, name: true } },
+      section: { select: { id: true, name: true, project: { select: { id: true, name: true } } } },
+    },
+  });
+  if (rows.length === 0) return 0;
+  await tx.sectionAssignment.updateMany({
+    where: { id: { in: rows.map((row) => row.id) } },
+    data: { removedAt: new Date(), removedById: actorId, updatedById: actorId },
+  });
+  for (const row of rows) {
+    await recordOnBoth(tx, {
+      action: 'SECTION_UNASSIGNED',
+      actorId,
+      vendor: row.vendor,
+      project: row.section.project,
+      assignmentId: row.id,
+      section: { id: row.section.id, name: row.section.name },
+      extra: { role_in_section: row.roleInSection },
+    });
+  }
+  return rows.length;
 }
 
 export const linkRouter = Router();
@@ -81,30 +156,16 @@ linkRouter.post(
     const { vendor, project } = await activePair(body.vendor_id, req.params.projectId);
     const actor = req.staff!.id;
     const link = await prisma
-      .$transaction(async (tx) => {
-        // A past assignment does not block a new one; only a current assignment for the pair does (FR-013b).
-        const existing = await tx.vendorProjectLink.findFirst({ where: { vendorId: vendor.id, projectId: project.id, removedAt: null } });
-        if (existing) throw linkExists();
-        const created = await tx.vendorProjectLink.create({
-          data: {
-            vendorId: vendor.id,
-            projectId: project.id,
-            roleOnProject: body.role_on_project,
-            scopeOfWork: body.scope_of_work,
-            note: body.note,
-            ...stampCreate(actor),
-          },
-        });
-        await recordOnBoth(tx, {
-          action: 'ASSIGNED',
+      .$transaction((tx) =>
+        assignVendorToProject(tx, {
+          vendor,
+          project,
           actorId: actor,
-          vendor: { id: vendor.id, name: vendor.name },
-          project: { id: project.id, name: project.name },
-          assignmentId: created.id,
-          extra: snapshot(created),
-        });
-        return created;
-      })
+          role: body.role_on_project,
+          scope: body.scope_of_work,
+          note: body.note,
+        }),
+      )
       .catch((error: unknown) => {
         // A parallel request won the race for vendor_project_links_current_key.
         if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw linkExists();
@@ -198,7 +259,9 @@ linkRouter.delete(
         assignmentId: existing.id,
         extra: snapshot(existing),
       });
-      return { removed, archivedIds: schedules.map((row) => row.id), clearedItemIds: items.map((row) => row.id) };
+      // Feature 005 FR-015b: leaving the project ends the vendor's sections on it, and only on it.
+      const endedSections = await endSectionAssignments(tx, { vendorId: existing.vendorId, section: { projectId: existing.projectId } }, actor);
+      return { removed, archivedIds: schedules.map((row) => row.id), clearedItemIds: items.map((row) => row.id), endedSections };
     });
     res.json({
       id: result.removed.id,
@@ -208,6 +271,7 @@ linkRouter.delete(
       cleared_timeline_item_ids: result.clearedItemIds,
       removed_at: result.removed.removedAt!.toISOString(),
       removed_by: result.removed.removedBy,
+      ended_section_assignments: result.endedSections,
     });
   }),
 );

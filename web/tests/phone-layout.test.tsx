@@ -87,3 +87,39 @@ describe('profile menu and dashboard group control at phone width (Feature 004 T
     expect(rule(phone, '.group-option')).toContain('min-height: 2.75rem');
   });
 });
+
+// Feature 005 T037 (FR-030, FR-045): the layouts Feature 005 added stay inside a 375 px screen. As above, these check
+// the CSS rules; the pages themselves are looked at in a browser in T048.
+describe('Feature 005 layouts at phone width (T037)', () => {
+  const css = readFileSync('src/styles.css', 'utf8');
+  const phone = css.slice(css.indexOf('@media (max-width: 700px)'));
+
+  function rule(source: string, selector: string): string {
+    const start = source.indexOf(`${selector} {`);
+    expect(start, `${selector} has a rule`).toBeGreaterThanOrEqual(0);
+    return source.slice(start, source.indexOf('}', start));
+  }
+
+  it('keeps the profile icon round and at least 44 px on phones, with its tooltip inside the screen', () => {
+    const icon = rule(phone, '.profile-menu .profile-button');
+    expect(icon).toContain('width: 2.75rem');
+    expect(icon).toContain('height: 2.75rem');
+    expect(rule(css, '.profile-menu .tooltip')).toContain('right: 0');
+  });
+
+  it('stacks sectioned forms into one column and lets the Active/Archived switch use the full width', () => {
+    expect(rule(phone, '.form-section')).toContain('grid-template-columns: 1fr');
+    expect(rule(phone, '.view-switch')).toContain('width: 100%');
+  });
+
+  it('wraps the dashboard counts, section cards and inline forms instead of overflowing', () => {
+    expect(rule(css, '.dashboard-counts')).toMatch(/repeat\(auto-fit, minmax\(/);
+    expect(rule(css, '.section-card-head')).toContain('flex-wrap: wrap');
+    expect(rule(css, '.section-vendors li')).toContain('flex-wrap: wrap');
+    expect(rule(css, '.inline-form')).toContain('flex-wrap: wrap');
+  });
+
+  it('keeps dialogs inside the screen', () => {
+    expect(rule(css, '.confirm-dialog')).toMatch(/width: min\([^;]*100vw/);
+  });
+});

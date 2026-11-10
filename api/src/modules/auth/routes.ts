@@ -69,7 +69,9 @@ authRouter.post(
 authRouter.get(
   '/me',
   asyncRoute(async (req, res) => {
-    res.json(req.staff);
+    // Feature 005 FR-031: the profile menu shows when the account was created.
+    const account = await prisma.staffUser.findUniqueOrThrow({ where: { id: req.staff!.id }, select: { createdAt: true } });
+    res.json({ ...req.staff, created_at: account.createdAt.toISOString() });
   }),
 );
 

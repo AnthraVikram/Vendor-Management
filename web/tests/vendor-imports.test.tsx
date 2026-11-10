@@ -47,7 +47,8 @@ describe('import history page', () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]).toHaveTextContent('second.xlsx');
     expect(rows[0]).toHaveTextContent('Omar Office');
-    expect(rows[0]).toHaveTextContent('2026-10-29');
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(rows[0]).toHaveTextContent('29 Oct 2026');
     expect(rows[0]).toHaveTextContent('Imported 2');
     expect(rows[0]).toHaveTextContent('Skipped 1');
     expect(rows[0]).toHaveTextContent('Rejected 2');
@@ -84,7 +85,8 @@ describe('vendor page import line', () => {
   it('says which import created the vendor', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => json(200, { ...vendor, import_run: { id: 'run2', file_name: 'second.xlsx', created_at: '2026-10-29T06:10:00.000Z' } })));
     render(<VendorDetail id="v1" />);
-    expect(await screen.findByText('Imported in second.xlsx on 2026-10-29')).toBeInTheDocument();
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(await screen.findByText('Imported in second.xlsx on 29 Oct 2026')).toBeInTheDocument();
   });
 
   it('shows no import line for a vendor added by hand', async () => {

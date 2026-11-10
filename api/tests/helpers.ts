@@ -31,6 +31,9 @@ export async function resetDatabase(): Promise<void> {
   await prisma.costingSheetFile.deleteMany();
   await prisma.taskPriceEntry.deleteMany();
   await prisma.workSchedule.deleteMany();
+  // Feature 005: sections reference projects and vendors with RESTRICT, so they go first.
+  await prisma.sectionAssignment.deleteMany();
+  await prisma.projectSection.deleteMany();
   await prisma.vendorProjectLink.deleteMany();
   await prisma.vendorRating.deleteMany();
   await prisma.vendorNote.deleteMany();

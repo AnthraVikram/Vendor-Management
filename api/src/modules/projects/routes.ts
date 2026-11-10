@@ -6,9 +6,13 @@ import { stampCreate, stampUpdate } from '../../lib/audit';
 import { diffFields, recordHistory } from '../../lib/history';
 import { HttpError } from '../../lib/http';
 import { fromDateColumn, indiaDateOf, toDateColumn, todayInIndia } from '../../lib/india-date';
+import { listViewSchema, sortBy, viewAndPage } from '../../lib/list-query';
 import { conflictingBookings } from '../../lib/overlap';
 import { asyncRoute } from '../async-route';
 import { assignmentStatuses } from '../links/statuses';
+import { createBlueprint } from '../sections/routes';
+import { currentSectionsOf, sectionsPayload } from '../sections/present';
+import { DEFAULT_SECTIONS } from '../../lib/blueprint';
 import { itemInclude } from '../timeline/present';
 import { hasItemDueWithinWeek, projectFigures, upcomingItems } from './figures';
 
@@ -123,7 +127,17 @@ const listQuerySchema = z.object({
   q: z.string().trim().optional(),
   has_overdue: z.enum(['true'], { message: 'Use has_overdue=true or leave it out.' }).optional(),
   due_within_7: z.enum(['true'], { message: 'Use due_within_7=true or leave it out.' }).optional(),
-});
+  // Feature 005 FR-020, FR-021: the dashboard's "Projects in progress" count opens this list.
+  progress: z.enum(['in_progress'], { message: 'Use progress=in_progress or leave it out.' }).optional(),
+  sort: z.enum(['name', 'status', 'expected_completion', 'progress'], { message: 'Sort by name, status, expected completion or progress.' }).optional(),
+}).merge(listViewSchema);
+
+const STATUS_ORDER: Record<string, number> = { PLANNED: 0, ACTIVE: 1, ON_HOLD: 2, COMPLETED: 3 };
+
+// In progress (FR-020): not archived, not Completed, with items, and above 0% and below 100%.
+export function isInProgress(project: { archived: boolean; status: string }, progress: { done: number; total: number }): boolean {
+  return !project.archived && project.status !== 'COMPLETED' && progress.total > 0 && progress.done > 0 && progress.done < progress.total;
+}
 
 export const projectRouter = Router();
 
@@ -132,10 +146,10 @@ projectRouter.get(
   asyncRoute(async (req, res) => {
     const includeArchived = req.query.include_archived === 'true';
     // An optional status narrows the list for the dashboard project tiles (US4-6).
-    const { status, q, has_overdue: hasOverdue, due_within_7: dueWithinWeek } = listQuerySchema.parse(req.query);
+    const { status, q, has_overdue: hasOverdue, due_within_7: dueWithinWeek, progress, sort, ...view } = listQuerySchema.parse(req.query);
+    // Both views are read, so the Active and Archived counts can be given for the same search and filters (FR-026).
     const projects = await prisma.project.findMany({
       where: {
-        ...(includeArchived ? {} : { archived: false }),
         ...(status ? { status } : {}),
         // Search name, client and site, ignoring letter case (FR-009).
         ...(q
@@ -158,9 +172,23 @@ projectRouter.get(
     const rows = projects
       .map((project) => ({ project, figures: projectFigures(project, project.timelineItems, today) }))
       .filter(({ figures }) => !hasOverdue || figures.overdue_count > 0)
-      .filter(({ project }) => !dueWithinWeek || hasItemDueWithinWeek(project.timelineItems, today));
+      .filter(({ project }) => !dueWithinWeek || hasItemDueWithinWeek(project.timelineItems, today))
+      .filter(({ project, figures }) => !progress || isInProgress(project, figures.progress));
+    const sorted =
+      sort === 'status'
+        ? sortBy(rows, ({ project }) => STATUS_ORDER[project.status])
+        : sort === 'expected_completion'
+          ? sortBy(rows, ({ project }) => project.expectedCompletionDate?.toISOString() ?? null)
+          : sort === 'progress'
+            ? sortBy(rows, ({ figures }) => (figures.progress.total > 0 ? figures.progress.done / figures.progress.total : null))
+            : rows;
+    const shown = viewAndPage(
+      res,
+      sorted.map((row) => ({ ...row, archived: row.project.archived })),
+      { ...view, includeArchived },
+    );
     res.json(
-      rows.map(({ project, figures }) => ({
+      shown.map(({ project, figures }) => ({
         ...presentProject(project),
         vendor_count: project._count.links,
         progress: figures.progress,
@@ -191,7 +219,9 @@ projectRouter.post(
           ...stampCreate(actor),
         },
       });
-      await recordHistory(tx, { target: { projectId: created.id }, action: 'CREATED', actorId: actor });
+      // Feature 005 FR-013: a new project gets its own copy of the blueprint, noted in the CREATED entry (no extra entry).
+      await createBlueprint(tx, created.id, actor);
+      await recordHistory(tx, { target: { projectId: created.id }, action: 'CREATED', actorId: actor, details: { blueprint_applied: [...DEFAULT_SECTIONS] } });
       return created;
     });
     res.status(201).json(presentProject(project));
@@ -236,7 +266,7 @@ projectRouter.get(
       : [];
     const today = todayInIndia();
     const figures = projectFigures(project, project.timelineItems, today);
-    const [statusOf, past, completion] = await Promise.all([
+    const [statusOf, past, completion, sections, sectionsOf] = await Promise.all([
       assignmentStatuses({ projectId: project.id }),
       // Removed assignments, kept as read-only past assignments (FR-013a). They have no status and are not counted.
       prisma.vendorProjectLink.findMany({
@@ -252,6 +282,8 @@ projectRouter.get(
             select: { createdAt: true },
           })
         : null,
+      sectionsPayload(prisma, project.id),
+      currentSectionsOf({ projectId: project.id }),
     ]);
     res.json({
       ...presentProject(project),
@@ -261,8 +293,10 @@ projectRouter.get(
       after_completion_count: figures.after_completion_count,
       upcoming: upcomingItems(project.timelineItems, today),
       completed_on: completion ? indiaDateOf(completion.createdAt) : null,
+      ...sections,
       links: project.links.map((link) => ({
         assignment_status: statusOf(link.vendor.id, project.id),
+        sections: sectionsOf(link.vendor.id, project.id).map(({ id, name }) => ({ id, name })),
         id: link.id,
         vendor_id: link.vendor.id,
         vendor_name: link.vendor.name,

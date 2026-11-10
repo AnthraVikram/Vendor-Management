@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
-import { istDateTime } from '../time';
+import { formatDate, formatDateTime } from '../time';
 
 interface Person {
   id: string;
@@ -23,7 +23,8 @@ interface History {
 
 export type HistoryTarget = 'vendor_id' | 'project_id' | 'document_id' | 'import_run_id' | 'client_advance_id';
 
-const ACTIONS: Record<string, string> = {
+// Shared with the dashboard's recent activity, so both use the same words (Feature 005 FR-023).
+export const ACTIONS: Record<string, string> = {
   CREATED: 'Created',
   EDITED: 'Edited',
   ARCHIVED: 'Archived',
@@ -32,6 +33,17 @@ const ACTIONS: Record<string, string> = {
   ASSIGNED: 'Assigned to project',
   ASSIGNMENT_EDITED: 'Assignment changed',
   UNASSIGNED: 'Removed from project',
+  // Feature 005 sections (FR-019).
+  SECTION_ADDED: 'Section added',
+  SECTION_RENAMED: 'Section renamed',
+  SECTION_EDITED: 'Section text changed',
+  SECTIONS_REORDERED: 'Sections reordered',
+  SECTION_REMOVED: 'Section removed',
+  SECTION_RESTORED: 'Section restored',
+  BLUEPRINT_APPLIED: 'Standard blueprint added',
+  SECTION_ASSIGNED: 'Assigned to section',
+  SECTION_ASSIGNMENT_EDITED: 'Section role changed',
+  SECTION_UNASSIGNED: 'Removed from section',
 };
 
 // Field and detail names that do not read well when simply un-snake-cased.
@@ -44,6 +56,8 @@ const NAMES: Record<string, string> = {
   imported_count: 'Imported',
   skipped_count: 'Skipped',
   rejected_count: 'Rejected',
+  blueprint_applied: 'Standard sections',
+  ended_assignments: 'Vendors taken off the section',
 };
 
 function fieldName(key: string): string {
@@ -58,15 +72,17 @@ function value(raw: unknown): string {
   if (Array.isArray(raw)) return raw.length > 0 ? raw.join(', ') : '(none)';
   // Assignment entries name the vendor and the project as { id, name } (Feature 004).
   if (typeof raw === 'object' && 'name' in raw) return String((raw as { name: unknown }).name);
+  // Stored calendar dates (for example a date received) read like every other date (Feature 005 FR-042).
+  if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)) return formatDate(raw);
   return String(raw);
 }
 
-const when = istDateTime;
+const when = formatDateTime;
 
 // Stored details come back in the database's key order; known ones are shown in a fixed, readable order.
 const DETAIL_ORDER = [
   'imported_count', 'skipped_count', 'rejected_count', 'amount', 'received_on', 'reason', 'title', 'original_filename', 'import_run_id',
-  'vendor', 'project', 'role_on_project', 'scope_of_work', 'note',
+  'vendor', 'project', 'section', 'role_on_project', 'scope_of_work', 'note', 'role_in_section',
 ];
 const detailRank = (key: string) => (DETAIL_ORDER.includes(key) ? DETAIL_ORDER.indexOf(key) : DETAIL_ORDER.length);
 // Internal ids that mean nothing to staff.

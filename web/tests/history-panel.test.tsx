@@ -56,17 +56,20 @@ describe('history panel (US5)', () => {
 
     await userEvent.click(screen.getByRole('button', { name: 'Show history' }));
     expect(historyCalls(fetchMock)).toEqual(['/api/history?vendor_id=v1']);
-    expect(await screen.findByText('Created by Asha Admin on 2026-10-24 10:30 IST')).toBeInTheDocument();
-    expect(screen.getByText('Last updated by Omar Office on 2026-10-27 13:30 IST')).toBeInTheDocument();
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(await screen.findByText('Created by Asha Admin on 24 Oct 2026, 10:30')).toBeInTheDocument();
+    expect(screen.getByText('Last updated by Omar Office on 27 Oct 2026, 13:30')).toBeInTheDocument();
 
     const items = within(screen.getByRole('list', { name: 'History entries' })).getAllByRole('listitem');
     expect(items).toHaveLength(2);
-    expect(items[0]).toHaveTextContent('Edited · Omar Office · 2026-10-29 11:30 IST');
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(items[0]).toHaveTextContent('Edited · Omar Office · 29 Oct 2026, 11:30');
     expect(items[0]).toHaveTextContent('Phone: 98765 43210 → 98765-43211');
     expect(items[0]).toHaveTextContent('Categories: Tiles → Marble, Tiles');
     expect(items[0]).toHaveTextContent('Email: (blank) → sharma@example.com');
     expect(items[0]).toHaveTextContent('GST registered: No → Yes');
-    expect(items[1]).toHaveTextContent('Created · Asha Admin · 2026-10-24 10:30 IST');
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(items[1]).toHaveTextContent('Created · Asha Admin · 24 Oct 2026, 10:30');
     expect(within(items[1]).getByRole('link', { name: 'From an import' })).toHaveAttribute('href', '#/vendor-imports?run=r1');
 
     await userEvent.click(screen.getByRole('button', { name: 'Hide history' }));
@@ -87,7 +90,8 @@ describe('history panel (US5)', () => {
     expect(items[0]).toHaveTextContent('Reversed · Omar Office');
     expect(items[0]).toHaveTextContent('Amount: ₹50000.00');
     expect(items[0]).toHaveTextContent('Reason: Keyed twice.');
-    expect(items[1]).toHaveTextContent('Date received: 2026-10-19');
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(items[1]).toHaveTextContent('Date received: 19 Oct 2026');
   });
 
   it('closes and forgets the loaded entries when it is reused for a different record', async () => {
@@ -187,10 +191,12 @@ describe('assignment history entries (US4, FR-013d)', () => {
     render(<HistoryPanel target="vendor_id" id="v1" />);
     await userEvent.click(screen.getByRole('button', { name: 'Show history' }));
     const items = within(await screen.findByRole('list', { name: 'History entries' })).getAllByRole('listitem');
-    expect(items[0]).toHaveTextContent('Removed from project · Omar Office · 2026-11-03 10:30 IST');
-    expect(items[1]).toHaveTextContent('Assignment changed · Asha Admin · 2026-11-02 10:30 IST');
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(items[0]).toHaveTextContent('Removed from project · Omar Office · 3 Nov 2026, 10:30');
+    expect(items[1]).toHaveTextContent('Assignment changed · Asha Admin · 2 Nov 2026, 10:30');
     expect(items[1]).toHaveTextContent('Role on project: Carpentry → Lead carpenter');
-    expect(items[2]).toHaveTextContent('Assigned to project · Asha Admin · 2026-11-01 10:30 IST');
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(items[2]).toHaveTextContent('Assigned to project · Asha Admin · 1 Nov 2026, 10:30');
     for (const item of items) {
       expect(item).toHaveTextContent('Vendor: Sharma Interiors');
       expect(item).toHaveTextContent('Project: Lake House');

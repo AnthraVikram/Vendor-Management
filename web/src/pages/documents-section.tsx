@@ -3,7 +3,8 @@ import { api, ApiError } from '../api/client';
 import { ArchivedBadge } from '../badges';
 import { notify } from '../notify';
 import { HistoryPanel } from './history-panel';
-import { istDateTime } from '../time';
+import { formatDateTime } from '../time';
+import { Skeleton } from '../ui/skeleton';
 
 interface DocumentItem {
   id: string;
@@ -176,6 +177,7 @@ export function DocumentsSection({ parent, parentId, parentArchived }: { parent:
         <p className="notice">This {parent === 'vendors' ? 'vendor' : 'project'} is archived, so its documents are read-only. They can still be downloaded.</p>
       ) : null}
       {error ? <p className="error form-error" role="alert">{error}</p> : null}
+      {!documents && !error ? <Skeleton label="Loading documents" rows={3} /> : null}
       {documents && documents.length > 0 ? (
         <ul className="grid" aria-label="Documents">
           {documents.map((document) => (
@@ -189,7 +191,7 @@ export function DocumentsSection({ parent, parentId, parentArchived }: { parent:
                     {document.archived ? <ArchivedBadge /> : null}
                   </p>
                   <p className="meta">
-                    {document.original_filename} · {fileSize(document.byte_size)} · <span>Uploaded by {document.created_by.name} · {istDateTime(document.created_at)}</span>
+                    {document.original_filename} · {fileSize(document.byte_size)} · <span>Uploaded by {document.created_by.name} · {formatDateTime(document.created_at)}</span>
                   </p>
                   {document.note ? <p className="document-note">{document.note}</p> : null}
                 </div>

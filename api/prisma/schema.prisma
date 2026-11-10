@@ -108,6 +108,16 @@ enum HistoryAction {
   ASSIGNED
   ASSIGNMENT_EDITED
   UNASSIGNED
+  SECTION_ADDED
+  SECTION_RENAMED
+  SECTION_EDITED
+  SECTIONS_REORDERED
+  SECTION_REMOVED
+  SECTION_RESTORED
+  BLUEPRINT_APPLIED
+  SECTION_ASSIGNED
+  SECTION_ASSIGNMENT_EDITED
+  SECTION_UNASSIGNED
 }
 
 model StaffUser {
@@ -154,6 +164,12 @@ model StaffUser {
   linksCreated VendorProjectLink[] @relation("LinkCreatedBy")
   linksUpdated VendorProjectLink[] @relation("LinkUpdatedBy")
   linksRemoved VendorProjectLink[] @relation("LinkRemovedBy")
+  sectionsCreated           ProjectSection[]    @relation("SectionCreatedBy")
+  sectionsUpdated           ProjectSection[]    @relation("SectionUpdatedBy")
+  sectionsRemoved           ProjectSection[]    @relation("SectionRemovedBy")
+  sectionAssignmentsCreated SectionAssignment[] @relation("SectionAssignmentCreatedBy")
+  sectionAssignmentsUpdated SectionAssignment[] @relation("SectionAssignmentUpdatedBy")
+  sectionAssignmentsRemoved SectionAssignment[] @relation("SectionAssignmentRemovedBy")
   schedulesCreated WorkSchedule[] @relation("ScheduleCreatedBy")
   schedulesUpdated WorkSchedule[] @relation("ScheduleUpdatedBy")
   pricesCreated TaskPriceEntry[] @relation("PriceCreatedBy")
@@ -256,6 +272,7 @@ model Vendor {
   notes      VendorNote[]
   ratings    VendorRating[]
   links      VendorProjectLink[]
+  sectionAssignments SectionAssignment[]
   schedules  WorkSchedule[]
   responsibleItems      TimelineItem[]
   responsibleChangesOld TimelineResponsibleChange[] @relation("ResponsibleChangeOldVendor")
@@ -408,6 +425,7 @@ model Project {
   createdBy StaffUser @relation("ProjectCreatedBy", fields: [createdById], references: [id])
   updatedBy StaffUser @relation("ProjectUpdatedBy", fields: [updatedById], references: [id])
   links     VendorProjectLink[]
+  sections  ProjectSection[]
   schedules WorkSchedule[]
   timelineItems      TimelineItem[]
   delays             Delay[]
@@ -444,6 +462,57 @@ model VendorProjectLink {
   // vendor_project_links_current_key (WHERE removed_at IS NULL), written by hand in the migration.
   @@index([vendorId, projectId])
   @@map("vendor_project_links")
+}
+
+// Feature 005: a project's own sections, copied from the fixed blueprint (FR-008 to FR-014). Removed, never deleted.
+// One current name per project (case-insensitive) is enforced by project_sections_current_name_key, written by hand.
+model ProjectSection {
+  id          String    @id @default(uuid()) @db.Uuid
+  projectId   String    @map("project_id") @db.Uuid
+  name        String
+  position    Int
+  description String?
+  notes       String?
+  removedAt   DateTime? @map("removed_at")
+  removedById String?   @map("removed_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  createdById String    @map("created_by") @db.Uuid
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  updatedById String    @map("updated_by") @db.Uuid
+
+  project     Project             @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  createdBy   StaffUser           @relation("SectionCreatedBy", fields: [createdById], references: [id])
+  updatedBy   StaffUser           @relation("SectionUpdatedBy", fields: [updatedById], references: [id])
+  removedBy   StaffUser?          @relation("SectionRemovedBy", fields: [removedById], references: [id], onDelete: Restrict)
+  assignments SectionAssignment[]
+
+  @@index([projectId, position])
+  @@map("project_sections")
+}
+
+// Feature 005: a vendor responsible for a project section (FR-015 to FR-019). One current row per vendor and section
+// is enforced by section_assignments_current_key, written by hand. Ended, never deleted.
+model SectionAssignment {
+  id            String    @id @default(uuid()) @db.Uuid
+  sectionId     String    @map("section_id") @db.Uuid
+  vendorId      String    @map("vendor_id") @db.Uuid
+  roleInSection String?   @map("role_in_section")
+  removedAt     DateTime? @map("removed_at")
+  removedById   String?   @map("removed_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at")
+  createdById   String    @map("created_by") @db.Uuid
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  updatedById   String    @map("updated_by") @db.Uuid
+
+  section   ProjectSection @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  vendor    Vendor         @relation(fields: [vendorId], references: [id], onDelete: Restrict)
+  createdBy StaffUser      @relation("SectionAssignmentCreatedBy", fields: [createdById], references: [id])
+  updatedBy StaffUser      @relation("SectionAssignmentUpdatedBy", fields: [updatedById], references: [id])
+  removedBy StaffUser?     @relation("SectionAssignmentRemovedBy", fields: [removedById], references: [id], onDelete: Restrict)
+
+  @@index([sectionId])
+  @@index([vendorId])
+  @@map("section_assignments")
 }
 
 model WorkSchedule {

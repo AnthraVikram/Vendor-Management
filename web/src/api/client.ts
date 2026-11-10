@@ -10,6 +10,11 @@ export class ApiError extends Error {
 }
 
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return (await apiWithHeaders<T>(path, init)).data;
+}
+
+// The same request, also returning the response headers, for lists that send their counts there (Feature 005 FR-006).
+export async function apiWithHeaders<T>(path: string, init: RequestInit = {}): Promise<{ data: T; headers: { get: (name: string) => string | null } }> {
   const headers = new Headers(init.headers);
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
@@ -23,8 +28,8 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (response.status === 403 && (!body.code || body.code === 'ROLE_NOT_ALLOWED')) body.message = 'You are not allowed to do this.';
     throw new ApiError(response.status, body);
   }
-  if (response.status === 204) return undefined as T;
+  if (response.status === 204) return { data: undefined as T, headers: response.headers };
   const type = response.headers.get('content-type') ?? '';
-  if (!type.includes('application/json')) return (await response.blob()) as T;
-  return (await response.json()) as T;
+  if (!type.includes('application/json')) return { data: (await response.blob()) as T, headers: response.headers };
+  return { data: (await response.json()) as T, headers: response.headers };
 }

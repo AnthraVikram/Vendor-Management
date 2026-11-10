@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { ImportCounts } from '../badges';
-import { istDateTime } from '../time';
+import { formatDateTime } from '../time';
 
 type Match = { kind: 'VENDOR'; vendor_id: string; vendor_name: string } | { kind: 'ROW'; row_number: number };
 
@@ -170,7 +170,7 @@ export function VendorImport() {
             <div>
               <h2>Review {preview.file_name}</h2>
             </div>
-            <p className="expiry-pill">Confirm before {istDateTime(preview.expires_at)} or upload again.</p>
+            <p className="expiry-pill">Confirm before {formatDateTime(preview.expires_at)} or upload again.</p>
           </div>
           <ul className="preview-counts">
             <li className="count-ready"><strong>{preview.counts.ready}</strong> ready</li>

@@ -79,7 +79,8 @@ describe('dashboard deadline groups (Feature 004 US6)', () => {
     expect(within(joinery).getByRole('link', { name: 'Lake House' })).toHaveAttribute('href', '#/projects/p1');
     expect(within(joinery).getByRole('link', { name: 'Sharma Interiors' })).toHaveAttribute('href', '#/vendors/v1');
     expect(joinery).toHaveTextContent('Activity');
-    expect(joinery).toHaveTextContent('Deadline 2026-11-06');
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(joinery).toHaveTextContent('Deadline 6 Nov 2026');
     expect(joinery).toHaveTextContent('In progress');
     expect(joinery).toHaveTextContent('2 days overdue');
     const wiring = within(list).getByRole('link', { name: 'Wiring' }).closest('li')!;
@@ -251,7 +252,8 @@ describe('dashboard lists kept from Feature 002', () => {
     );
     render(<Dashboard />);
     const missing = within(await screen.findByRole('region', { name: 'Missing update' }));
-    expect(missing.getByText(/2026-10-19/)).toBeInTheDocument();
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(missing.getByText(/19 Oct 2026/)).toBeInTheDocument();
     expect(missing.getByRole('link', { name: /Wiring/ })).toHaveAttribute('href', '#/projects/p1?item=i3');
 
     const recent = within(screen.getByRole('region', { name: 'Recent delays and coordination issues' }));
@@ -266,9 +268,10 @@ describe('dashboard lists kept from Feature 002', () => {
     expect(screen.getByText('No delays or coordination issues.')).toBeInTheDocument();
   });
 
-  it('shows a loading message until the dashboard arrives', () => {
+  // Superseded (Feature 005 FR-039, T042): the loading text became placeholder rows with the same name.
+  it('shows a loading placeholder until the dashboard arrives', () => {
     vi.stubGlobal('fetch', vi.fn(() => new Promise(() => undefined)));
     render(<Dashboard />);
-    expect(screen.getByText('Loading dashboard')).toBeInTheDocument();
+    expect(screen.getByLabelText('Loading dashboard')).toHaveAttribute('aria-busy', 'true');
   });
 });

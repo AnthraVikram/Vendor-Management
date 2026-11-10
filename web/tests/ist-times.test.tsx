@@ -7,7 +7,8 @@ import { VendorDetail } from '../src/pages/vendor-detail';
 // T070–T072: times recorded are shown in India Standard Time. 19:00 UTC on 29 October is 00:30 IST on
 // 30 October, so a UTC calendar date would show the wrong day.
 const NEAR_MIDNIGHT = '2026-10-29T19:00:00.000Z';
-const IST = '2026-10-30 00:30 IST';
+// Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+const IST = '30 Oct 2026, 00:30';
 
 function json(status: number, body: unknown) {
   return { ok: status >= 200 && status < 300, status, statusText: '', headers: { get: () => 'application/json' }, json: async () => body };
@@ -34,9 +35,11 @@ describe('recorded times in India Standard Time', () => {
     render(<AdvancesSection projectId="p1" />);
     const item = within(await screen.findByRole('list', { name: 'Advances' })).getByRole('listitem');
     expect(item).toHaveTextContent(`Recorded by Anil Accountant · ${IST}`);
-    expect(item).toHaveTextContent('by Anil Accountant · 2026-10-31 01:45 IST · Reason: Wrong project.');
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(item).toHaveTextContent('by Anil Accountant · 31 Oct 2026, 01:45 · Reason: Wrong project.');
     // 2026-10-29 is the date received; the recorded line must not fall back to the UTC day.
-    expect(item).not.toHaveTextContent('Recorded by Anil Accountant · 2026-10-29');
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(item).not.toHaveTextContent('Recorded by Anil Accountant · 29 Oct 2026');
   });
 
   it("shows a document's upload time (US3-1)", async () => {
@@ -68,6 +71,7 @@ describe('recorded times in India Standard Time', () => {
       },
     });
     render(<VendorDetail id="v1" />);
-    expect(await screen.findByRole('link', { name: 'Imported in late.csv on 2026-10-30' })).toHaveAttribute('href', '#/vendor-imports?run=r1');
+    // Superseded (Feature 005 FR-042, T042): dates read "9 Nov 2026" and recorded times "9 Nov 2026, 14:05".
+    expect(await screen.findByRole('link', { name: 'Imported in late.csv on 30 Oct 2026' })).toHaveAttribute('href', '#/vendor-imports?run=r1');
   });
 });

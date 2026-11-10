@@ -3,7 +3,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { PrismaClient, type StaffRole } from '@prisma/client';
 import { hashPassword } from '../src/lib/passwords';
-import { stampCreate } from '../src/lib/audit';
+import { stampCreate, stampUpdate } from '../src/lib/audit';
+import { DEFAULT_SECTIONS } from '../src/lib/blueprint';
 import { recordHistory } from '../src/lib/history';
 import { addDays, currentMonthInIndia, toDateColumn, todayInIndia } from '../src/lib/india-date';
 
@@ -115,19 +116,31 @@ export async function seed(prisma: PrismaClient): Promise<void> {
   const today = todayInIndia();
   const indiaNoon = (offset: number) => new Date(`${addDays(today, offset)}T06:30:00Z`);
   // Dates are relative to the first run; a project found again keeps the dates it was created with.
+  // Feature 005 (T043, FR-013, owner decision I1): a project created in this run gets its own copy of the 15 blueprint
+  // sections, in the same transaction; a project found again never gets sections, so existing development projects
+  // stay as staff left them.
+  const createdNow = new Set<string>();
   async function project(name: string, status: 'PLANNED' | 'ACTIVE' | 'ON_HOLD' | 'COMPLETED', start: number, expected: number) {
     const existing = await prisma.project.findFirst({ where: { name } });
     if (existing) return existing;
-    return prisma.project.create({
-      data: {
-        name,
-        status,
-        clientName: 'Sample client',
-        startDate: toDateColumn(addDays(today, start)),
-        expectedCompletionDate: toDateColumn(addDays(today, expected)),
-        ...stampCreate(admin.id),
-      },
+    const created = await prisma.$transaction(async (tx) => {
+      const row = await tx.project.create({
+        data: {
+          name,
+          status,
+          clientName: 'Sample client',
+          startDate: toDateColumn(addDays(today, start)),
+          expectedCompletionDate: toDateColumn(addDays(today, expected)),
+          ...stampCreate(admin.id),
+        },
+      });
+      await tx.projectSection.createMany({
+        data: DEFAULT_SECTIONS.map((sectionName, position) => ({ projectId: row.id, name: sectionName, position, ...stampCreate(admin.id) })),
+      });
+      return row;
     });
+    createdNow.add(created.id);
+    return created;
   }
   const lake = await project('Lake House', 'ACTIVE', -60, 15);
   const studio = await project('Studio Fit-out', 'PLANNED', 10, 90);
@@ -152,6 +165,31 @@ export async function seed(prisma: PrismaClient): Promise<void> {
   await link(khan.id, riverside.id, 'Ceiling contractor', 'Gypsum false ceiling');
   await link(nair.id, riverside.id, 'Tiler', 'Clinic floor tiling');
   await link(joseph.id, studio.id, 'Second carpenter', 'Loose furniture');
+
+  // Feature 005 sample section states, only on a Lake House created in this run: one vendor in two sections, one section
+  // with two vendors, and one removed section. Both vendors are already assigned to Lake House above (FR-015a).
+  if (createdNow.has(lake.id)) {
+    await prisma.$transaction(async (tx) => {
+      const sections = await tx.projectSection.findMany({ where: { projectId: lake.id } });
+      const section = (name: string) => sections.find((row) => row.name === name)!.id;
+      await tx.sectionAssignment.createMany({
+        data: [
+          { sectionId: section('Materials'), vendorId: mehta.id, roleInSection: 'Boards and laminates', ...stampCreate(office.id) },
+          { sectionId: section('Execution'), vendorId: mehta.id, roleInSection: 'Kitchen joinery', ...stampCreate(office.id) },
+          { sectionId: section('Execution'), vendorId: rao.id, roleInSection: 'Wiring and lighting', ...stampCreate(office.id) },
+        ],
+      });
+      // Removed as the remove route does it: the row is kept, the current sections are renumbered 0 to n-1.
+      await tx.projectSection.update({
+        where: { id: section('Milestones') },
+        data: { removedAt: indiaNoon(-5), removedById: office.id, ...stampUpdate(office.id) },
+      });
+      const current = DEFAULT_SECTIONS.filter((name) => name !== 'Milestones');
+      for (const [position, name] of current.entries()) {
+        await tx.projectSection.update({ where: { id: section(name) }, data: { position } });
+      }
+    });
+  }
 
   // A past assignment (FR-013a), created only when the pair has never had an assignment.
   if (!(await prisma.vendorProjectLink.findFirst({ where: { vendorId: nair.id, projectId: lake.id } }))) {

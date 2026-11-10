@@ -1,7 +1,11 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { ApiError, api } from '../api/client';
+import { ApiError, api, apiWithHeaders } from '../api/client';
 import { ArchivedBadge, AvailabilityBadge } from '../badges';
+import { ListView, readListPrefs, writeListPrefs } from '../list-prefs';
 import { notify } from '../notify';
+import { countHeader, ViewSwitch } from '../ui/list-controls';
+import { Skeleton } from '../ui/skeleton';
+import { useUnsavedGuard } from '../ui/unsaved-guard';
 
 interface Category { id: string; name: string }
 interface Project { id: string; name: string }
@@ -18,18 +22,34 @@ interface Vendor {
 }
 interface DuplicatePhone { body: Record<string, unknown>; matches: { id: string; name: string }[] }
 
+// Feature 005 FR-004: list sorts; ties keep name order.
+const SORTS = [
+  { value: 'name', label: 'Name' },
+  { value: 'category', label: 'Category' },
+  { value: 'availability', label: 'Availability' },
+  { value: 'project_count', label: 'Most projects' },
+] as const;
+const PREFS_KEY = 'vm.list.vendors';
+const PAGE_SIZE = 50;
+
 function list(value: string): string[] {
   return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
-export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
+// `add` and `view` come from dashboard links (#/vendors?add=1, #/vendors?view=archived; Feature 005 FR-021, FR-024).
+export function Vendors({ openVendor, add = false, view: linkedView }: { openVendor: (id: string) => void; add?: boolean; view?: ListView }) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [q, setQ] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [location, setLocation] = useState('');
   const [availability, setAvailability] = useState('');
-  const [includeArchived, setIncludeArchived] = useState(false);
+  const [prefs, setPrefs] = useState(() => {
+    const remembered = readListPrefs(PREFS_KEY, SORTS.map((option) => option.value), { sort: 'name', view: 'active' });
+    return linkedView ? { ...remembered, view: linkedView } : remembered;
+  });
+  const [counts, setCounts] = useState({ total: 0, active: 0, archived: 0 });
+  const [formOpen, setFormOpen] = useState(add);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState('');
   const [name, setName] = useState('');
@@ -57,19 +77,64 @@ export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
   // Whether the list on screen came from a search or filter, so an empty list gets the right message (FR-031).
   const [narrowed, setNarrowed] = useState(false);
   const nameInput = useRef<HTMLInputElement>(null);
+  const formFields = [
+    name, phone, newCategory, contactPerson, alternatePhone, email, address, locationsText, servicesText, materialsText, gstin,
+    gstLegalName, teamSize, newAvailability, manpowerNote, rateLabel, rateAmount, rateUnit,
+  ];
+  const dirty = formOpen && (gstRegistered || formFields.some((value) => value.trim() !== ''));
+  useUnsavedGuard(dirty);
 
-  async function load(filters = { q, categoryId, location, availability, projectId, includeArchived }) {
+  // Loads the first page, or the next one with `more`. Search and filters are read from the form; sort and view
+  // from the remembered choice (FR-005).
+  async function load(options: { more?: boolean; view?: ListView; sort?: string } = {}) {
+    const view = options.view ?? prefs.view;
+    const sort = options.sort ?? prefs.sort;
+    const offset = options.more ? vendors.length : 0;
     const params = new URLSearchParams();
-    if (filters.q) params.set('q', filters.q);
-    if (filters.categoryId) params.set('category_id', filters.categoryId);
-    if (filters.location) params.set('location', filters.location);
-    if (filters.availability) params.set('availability', filters.availability);
-    if (filters.projectId) params.set('project_id', filters.projectId);
-    if (filters.includeArchived) params.set('include_archived', 'true');
-    const rows = await api<Vendor[]>(`/api/vendors?${params.toString()}`);
-    setVendors(rows);
-    setNarrowed(Boolean(filters.q || filters.categoryId || filters.location || filters.availability || filters.projectId));
+    if (q) params.set('q', q);
+    if (categoryId) params.set('category_id', categoryId);
+    if (location) params.set('location', location);
+    if (availability) params.set('availability', availability);
+    if (projectId) params.set('project_id', projectId);
+    if (view !== 'active') params.set('view', view);
+    if (sort !== 'name') params.set('sort', sort);
+    params.set('limit', String(PAGE_SIZE));
+    if (offset) params.set('offset', String(offset));
+    const { data: rows, headers } = await apiWithHeaders<Vendor[]>(`/api/vendors?${params.toString()}`);
+    const shown = options.more ? [...vendors, ...rows] : rows;
+    setVendors(shown);
+    setCounts({
+      total: countHeader(headers, 'X-Total-Count', shown.length),
+      active: countHeader(headers, 'X-Active-Count', view === 'active' ? shown.length : 0),
+      archived: countHeader(headers, 'X-Archived-Count', view === 'archived' ? shown.length : 0),
+    });
+    setNarrowed(Boolean(q || categoryId || location || availability || projectId));
     setLoaded(true);
+  }
+
+  function changePrefs(next: { view?: ListView; sort?: string }) {
+    const updated = { ...prefs, ...next };
+    setPrefs(updated);
+    writeListPrefs(PREFS_KEY, updated);
+    load(next).catch((caught: Error) => setError(caught.message));
+  }
+
+  function openForm() {
+    setFormOpen(true);
+  }
+
+  useEffect(() => {
+    if (!formOpen) return;
+    nameInput.current?.focus();
+    nameInput.current?.scrollIntoView?.({ block: 'nearest' });
+  }, [formOpen]);
+
+  function closeForm() {
+    if (dirty && !window.confirm('You have unsaved changes. Discard them?')) return;
+    resetForm();
+    setNewCategory('');
+    setDuplicate(null);
+    setFormOpen(false);
   }
 
   useEffect(() => {
@@ -166,13 +231,14 @@ export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
           <p className="page-subtitle">Find vendors by name, category, location, availability, or project, and add new ones.</p>
         </div>
         <div className="page-actions">
+          <button type="button" onClick={openForm} aria-expanded={formOpen} aria-controls="add-vendor-form">Add vendor</button>
           <a className="button secondary" href="#/vendors/import">Import vendors</a>
         </div>
       </header>
       <form className="card filter-bar" onSubmit={filter} aria-label="Vendor filters">
         <label className="search">
           Search
-          <input aria-label="Search" value={q} onChange={(event) => setQ(event.target.value)} />
+          <input type="search" aria-label="Search" value={q} onChange={(event) => setQ(event.target.value)} />
         </label>
         <label>
           Category
@@ -206,50 +272,7 @@ export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
           </select>
         </label>
         <div className="form-actions">
-          <label className="check">
-            <input type="checkbox" checked={includeArchived} onChange={(event) => setIncludeArchived(event.target.checked)} />
-            <span>Include archived</span>
-          </label>
           <button type="submit">Apply filters</button>
-        </div>
-      </form>
-      <form className="card form-2col" onSubmit={create} aria-label="Add vendor">
-        <h2>Add vendor</h2>
-        <label>Name<input ref={nameInput} value={name} onChange={(event) => setName(event.target.value)} /></label>
-        <label>Phone<input value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
-        <label>Category<input value={newCategory} onChange={(event) => setNewCategory(event.target.value)} /></label>
-        <label>Contact person<input value={contactPerson} onChange={(event) => setContactPerson(event.target.value)} /></label>
-        <label>Alternate phone<input value={alternatePhone} onChange={(event) => setAlternatePhone(event.target.value)} /></label>
-        <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-        <label className="span-2">Address<input value={address} onChange={(event) => setAddress(event.target.value)} /></label>
-        <p className="form-section-title">Coverage</p>
-        <label>Locations<input placeholder="Comma-separated" value={locationsText} onChange={(event) => setLocationsText(event.target.value)} /></label>
-        <label>Services<input placeholder="Comma-separated" value={servicesText} onChange={(event) => setServicesText(event.target.value)} /></label>
-        <label className="span-2">Materials<input placeholder="Comma-separated" value={materialsText} onChange={(event) => setMaterialsText(event.target.value)} /></label>
-        <p className="form-section-title">GST</p>
-        <label className="check span-2">
-          <input type="checkbox" checked={gstRegistered} onChange={(event) => setGstRegistered(event.target.checked)} />
-          <span>GST registered</span>
-        </label>
-        <label>GSTIN<input value={gstin} onChange={(event) => setGstin(event.target.value)} /></label>
-        <label>GST legal name<input value={gstLegalName} onChange={(event) => setGstLegalName(event.target.value)} /></label>
-        <p className="form-section-title">Capacity and rates</p>
-        <label>Team size<input inputMode="numeric" value={teamSize} onChange={(event) => setTeamSize(event.target.value)} /></label>
-        <label>
-          Manpower availability
-          <select aria-label="Manpower availability" value={newAvailability} onChange={(event) => setNewAvailability(event.target.value)}>
-            <option value="">Not set</option>
-            <option value="AVAILABLE">Available</option>
-            <option value="LIMITED">Limited</option>
-            <option value="UNAVAILABLE">Unavailable</option>
-          </select>
-        </label>
-        <label>Manpower note<input value={manpowerNote} onChange={(event) => setManpowerNote(event.target.value)} /></label>
-        <label>Rate label<input value={rateLabel} onChange={(event) => setRateLabel(event.target.value)} /></label>
-        <label>Rate amount<input inputMode="decimal" placeholder="1500.00" value={rateAmount} onChange={(event) => setRateAmount(event.target.value)} /></label>
-        <label>Rate unit<input value={rateUnit} onChange={(event) => setRateUnit(event.target.value)} /></label>
-        <div className="form-actions">
-          <button type="submit">Save vendor</button>
         </div>
       </form>
       {duplicate ? (
@@ -263,11 +286,23 @@ export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
         <div className="section-heading">
           <div>
             <h2>Vendor list</h2>
-            <span className="count-badge">{vendors.length}</span>
+            <span className="count-badge">{counts.total === 1 ? '1 vendor' : `${counts.total} vendors`}</span>
+          </div>
+          <div className="list-controls">
+            <ViewSwitch view={prefs.view} active={counts.active} archived={counts.archived} onChange={(view) => changePrefs({ view })} />
+            <label className="sort-select">
+              Sort by
+              <select value={prefs.sort} onChange={(event) => changePrefs({ sort: event.target.value })}>
+                {SORTS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+            </label>
           </div>
         </div>
+        {prefs.view === 'archived' ? <p className="notice archived-note">Archived records are kept and can be restored.</p> : null}
         {!loaded ? (
-          <p className="meta">Loading vendors</p>
+          <Skeleton label="Loading vendors" />
         ) : vendors.length > 0 ? (
           <div className="table-wrap list-table">
             <table aria-label="Vendors">
@@ -285,7 +320,7 @@ export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
               </thead>
               <tbody>
                 {vendors.map((vendor) => (
-                  <tr key={vendor.id}>
+                  <tr key={vendor.id} className={vendor.archived ? 'is-archived' : undefined}>
                     <td data-label="Vendor"><button type="button" className="link-button" onClick={() => openVendor(vendor.id)}>{vendor.name}</button></td>
                     <td data-label="Contact person">{vendor.contact_person ?? ''}</td>
                     <td data-label="Phone">{vendor.phone}</td>
@@ -298,6 +333,11 @@ export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
                 ))}
               </tbody>
             </table>
+            {vendors.length < counts.total ? (
+              <div className="show-more">
+                <button type="button" className="secondary" onClick={() => load({ more: true }).catch((caught: Error) => setError(caught.message))}>Show more</button>
+              </div>
+            ) : null}
           </div>
         ) : narrowed ? (
           <p className="empty">No vendors match your search and filters</p>
@@ -305,12 +345,66 @@ export function Vendors({ openVendor }: { openVendor: (id: string) => void }) {
           <div className="empty-box">
             <p className="empty">No vendors have been added yet</p>
             <div className="form-actions">
-              <button type="button" onClick={() => nameInput.current?.focus()}>Add vendor</button>
+              <button type="button" onClick={openForm}>Add a vendor</button>
               <a className="button secondary" href="#/vendors/import">Import spreadsheet</a>
             </div>
           </div>
         )}
       </div>
+      {formOpen ? (
+        <form id="add-vendor-form" className="card form-2col" onSubmit={create} aria-label="Add vendor">
+          <h2 className="span-2">Add vendor</h2>
+          <fieldset className="form-section span-2">
+            <legend>Contact</legend>
+            <label>Name<input ref={nameInput} value={name} onChange={(event) => setName(event.target.value)} /></label>
+            <label>Phone<input value={phone} onChange={(event) => setPhone(event.target.value)} /></label>
+            <label>Contact person<input value={contactPerson} onChange={(event) => setContactPerson(event.target.value)} /></label>
+            <label>Alternate phone<input value={alternatePhone} onChange={(event) => setAlternatePhone(event.target.value)} /></label>
+            <label>Email<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+            <label>Address<input value={address} onChange={(event) => setAddress(event.target.value)} /></label>
+          </fieldset>
+          <fieldset className="form-section span-2">
+            <legend>What they do</legend>
+            <label>Category<input value={newCategory} onChange={(event) => setNewCategory(event.target.value)} /></label>
+            <label>Locations<input placeholder="Comma-separated" value={locationsText} onChange={(event) => setLocationsText(event.target.value)} /></label>
+            <label>Services<input placeholder="Comma-separated" value={servicesText} onChange={(event) => setServicesText(event.target.value)} /></label>
+            <label>Materials<input placeholder="Comma-separated" value={materialsText} onChange={(event) => setMaterialsText(event.target.value)} /></label>
+          </fieldset>
+          <fieldset className="form-section span-2">
+            <legend>Manpower</legend>
+            <label>Team size<input inputMode="numeric" value={teamSize} onChange={(event) => setTeamSize(event.target.value)} /></label>
+            <label>
+              Manpower availability
+              <select aria-label="Manpower availability" value={newAvailability} onChange={(event) => setNewAvailability(event.target.value)}>
+                <option value="">Not set</option>
+                <option value="AVAILABLE">Available</option>
+                <option value="LIMITED">Limited</option>
+                <option value="UNAVAILABLE">Unavailable</option>
+              </select>
+            </label>
+            <label>Manpower note<input value={manpowerNote} onChange={(event) => setManpowerNote(event.target.value)} /></label>
+          </fieldset>
+          <fieldset className="form-section span-2">
+            <legend>GST</legend>
+            <label className="check">
+              <input type="checkbox" checked={gstRegistered} onChange={(event) => setGstRegistered(event.target.checked)} />
+              <span>GST registered</span>
+            </label>
+            <label>GSTIN<input value={gstin} onChange={(event) => setGstin(event.target.value)} /></label>
+            <label>GST legal name<input value={gstLegalName} onChange={(event) => setGstLegalName(event.target.value)} /></label>
+          </fieldset>
+          <fieldset className="form-section span-2">
+            <legend>Rates</legend>
+            <label>Rate label<input value={rateLabel} onChange={(event) => setRateLabel(event.target.value)} /></label>
+            <label>Rate amount<input inputMode="decimal" placeholder="1500.00" value={rateAmount} onChange={(event) => setRateAmount(event.target.value)} /></label>
+            <label>Rate unit<input value={rateUnit} onChange={(event) => setRateUnit(event.target.value)} /></label>
+          </fieldset>
+          <div className="form-actions span-2">
+            <button type="submit">Save vendor</button>
+            <button type="button" className="secondary" onClick={closeForm}>Cancel</button>
+          </div>
+        </form>
+      ) : null}
     </section>
   );
 }
