@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { AdvancesSection } from './advances-section';
 import { DocumentsSection } from './documents-section';
@@ -379,10 +379,13 @@ export function ProjectDetail({ id, itemId, onTitle }: { id: string; itemId?: st
 
   // Feature 005 FR-043: removing a vendor from the project asks first.
   const [removingLink, setRemovingLink] = useState<LinkRow | null>(null);
+  const vendorsHeading = useRef<HTMLHeadingElement>(null);
 
   async function removeLink(linkId: string) {
     await api(`/api/links/${linkId}`, { method: 'DELETE' });
     notify('Vendor removed from project');
+    // The removed vendor's button goes with its card, so focus would fall to the page (NFR-003, T048 O1).
+    vendorsHeading.current?.focus();
     load();
   }
 
@@ -455,7 +458,7 @@ export function ProjectDetail({ id, itemId, onTitle }: { id: string; itemId?: st
       <section className="section" aria-labelledby="project-vendors-heading">
         <div className="section-heading">
           <div>
-            <h2 id="project-vendors-heading">Vendors</h2>
+            <h2 id="project-vendors-heading" ref={vendorsHeading} tabIndex={-1}>Vendors</h2>
             <span className="count-badge">{project.links.length}</span>
           </div>
           <p>Vendors working on this project</p>

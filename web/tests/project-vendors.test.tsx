@@ -96,6 +96,52 @@ describe('project vendors', () => {
   });
 });
 
+// T048 observation O1 (NFR-003): the removed vendor's button disappears with its card, so focus moves to the Vendors
+// heading instead of falling to the page. Cancel still returns focus to the button.
+describe('focus after removing a vendor from the project (NFR-003, T048 O1)', () => {
+  function mockRemoval() {
+    let removed = false;
+    const base = vi.fn();
+    mockFetch(project([sharma]));
+    const inner = vi.mocked(fetch);
+    base.mockImplementation(async (input: RequestInfo, init: RequestInit = {}) => {
+      const url = String(input);
+      if (url === '/api/links/l1' && init.method === 'DELETE') {
+        removed = true;
+        return json(200, {});
+      }
+      if (url === '/api/projects/p1' && removed) return json(200, project([]));
+      return inner(input, init);
+    });
+    vi.stubGlobal('fetch', base);
+  }
+
+  async function openRemoval() {
+    render(<ProjectDetail id="p1" />);
+    const section = await screen.findByRole('region', { name: 'Vendors' });
+    const button = within(section).getByRole('button', { name: 'Remove from project' });
+    await userEvent.click(button);
+    return { section, button };
+  }
+
+  it('moves focus to the Vendors heading once the vendor is gone', async () => {
+    mockRemoval();
+    const { section } = await openRemoval();
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Remove from project' }));
+    await waitFor(() => expect(within(section).queryByRole('button', { name: 'Remove from project' })).toBeNull());
+    expect(within(section).getByRole('heading', { name: 'Vendors' })).toHaveFocus();
+  });
+
+  it('returns focus to the Remove button when the dialog is cancelled', async () => {
+    mockRemoval();
+    const { button } = await openRemoval();
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' })).toHaveFocus();
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(button).toHaveFocus();
+  });
+});
+
 describe('project vendors assignment status (US3)', () => {
   it('shows each assignment status as text on the vendor card (T023)', async () => {
     const statuses: [string, string][] = [

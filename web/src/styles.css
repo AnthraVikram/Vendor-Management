@@ -620,7 +620,7 @@ button.small, a.button.small { padding: 0.3rem 0.65rem; font-size: 0.85rem; }
 .tile-group-title { color: var(--text-dim); font-size: 0.75rem; font-weight: 650; text-transform: uppercase; letter-spacing: 0.08em; }
 .tile-row { display: grid; gap: var(--space-3); }
 .tile-row-money { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.tile-row-counts { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.tile-row-counts { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 .dashboard-tiles a.tile {
   position: relative;
   display: grid;
@@ -658,6 +658,7 @@ button.small, a.button.small { padding: 0.3rem 0.65rem; font-size: 0.85rem; }
 .tile-active { --tone: var(--success-fg); }
 .tile-on-hold { --tone: var(--warning-fg); }
 .tile-completed { --tone: var(--completed-fg); }
+.tile-archived { --tone: var(--text-muted); }
 
 .dashboard-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); align-items: start; }
 .dashboard-panel { align-content: start; }
@@ -908,6 +909,8 @@ ul.grid { list-style: none; margin: 0; padding: 0; }
 .profile-menu .profile-button:hover { background: var(--accent-strong); }
 .profile-panel .account-actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 .profile-menu .tooltip { top: calc(100% + 6px); bottom: auto; left: auto; right: 0; transform: none; }
+/* The button keeps focus while its menu is open, so the tooltip would cover the menu (T048 O4). */
+.profile-menu.is-open .tooltip { visibility: hidden; }
 
 @media (max-width: 1023px) {
   /* The top bar keeps its own height; the content row takes the rest, so a short page leaves no gap under the bar. */
@@ -957,7 +960,7 @@ ul.grid { list-style: none; margin: 0; padding: 0; }
   button, .button { width: 100%; }
   .topbar { padding: var(--space-3) var(--space-3) 0; }
   .profile-button { width: auto; }
-  /* The round initials icon keeps the 44 px touch target without turning oval (FR-045). */
+  /* The round initials icon keeps the 2.75rem (about 41 px) touch target without turning oval (FR-045). */
   .profile-menu .profile-button { width: 2.75rem; height: 2.75rem; }
   /* Phones: breadcrumbs take their own line, the search fills the rest beside the profile icon. */
   .breadcrumbs { flex-basis: 100%; }
@@ -968,9 +971,8 @@ ul.grid { list-style: none; margin: 0; padding: 0; }
   /* Money tiles take a full row, so an amount up to ₹9999999999999.99 stays on one line. */
   .tile-row-money { grid-template-columns: minmax(0, 1fr); }
   .dashboard-tiles a.tile-money strong { font-size: 1.6rem; }
-  .dashboard-tiles a.tile-vendors { grid-column: 1 / -1; }
   .page-header { align-items: flex-start; }
-  /* Touch targets are at least 44px tall on phones. Inline text links styled as buttons keep their text height. */
+  /* Touch targets are at least 2.75rem (about 41 px at the 15 px root) tall on phones. Inline text links styled as buttons keep their text height. */
   button:not(.link-button), .button, select, input:not([type="checkbox"]):not([type="radio"]) { min-height: 2.75rem; }
   label.check { min-height: 2.75rem; }
   details > summary { padding-block: 0.7rem; }

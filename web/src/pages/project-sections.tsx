@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { ApiError, api } from '../api/client';
 import { ArchivedBadge } from '../badges';
 import { notify } from '../notify';
@@ -229,6 +229,7 @@ function SectionCard({
   run: (action: () => Promise<unknown>, done: string, fallback: string) => Promise<boolean>;
 }) {
   const [mode, setMode] = useState<'view' | 'rename' | 'text'>('view');
+  const heading = useRef<HTMLHeadingElement>(null);
   const [name, setName] = useState(section.name);
   const [description, setDescription] = useState(section.description ?? '');
   const [notes, setNotes] = useState(section.notes ?? '');
@@ -270,7 +271,7 @@ function SectionCard({
             <button type="button" className="secondary" onClick={cancel}>Cancel</button>
           </form>
         ) : (
-          <h3>{section.name}</h3>
+          <h3 ref={heading} tabIndex={-1}>{section.name}</h3>
         )}
         {editable && mode === 'view' ? (
           <div className="section-card-actions">
@@ -311,7 +312,7 @@ function SectionCard({
       {section.assignments.length > 0 ? (
         <ul className="section-vendors">
           {section.assignments.map((assignment) => (
-            <AssignmentRow key={assignment.id} assignment={assignment} section={section} editable={editable} run={run} />
+            <AssignmentRow key={assignment.id} assignment={assignment} section={section} editable={editable} run={run} onRemoved={() => heading.current?.focus()} />
           ))}
         </ul>
       ) : (
@@ -327,11 +328,13 @@ function AssignmentRow({
   section,
   editable,
   run,
+  onRemoved,
 }: {
   assignment: SectionAssignment;
   section: Section;
   editable: boolean;
   run: (action: () => Promise<unknown>, done: string, fallback: string) => Promise<boolean>;
+  onRemoved: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
@@ -396,7 +399,9 @@ function AssignmentRow({
         onCancel={() => setConfirmRemove(false)}
         onConfirm={() => {
           setConfirmRemove(false);
-          run(() => api(`/api/section-assignments/${assignment.id}`, { method: 'DELETE' }), `Vendor removed from ${section.name}`, 'The vendor was not removed.');
+          // The removed row's button goes with it, so focus moves to the section heading (NFR-003, T048 O1).
+          run(() => api(`/api/section-assignments/${assignment.id}`, { method: 'DELETE' }), `Vendor removed from ${section.name}`, 'The vendor was not removed.')
+            .then((removed) => removed && onRemoved());
         }}
       />
     </li>

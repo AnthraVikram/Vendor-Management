@@ -91,9 +91,11 @@ New query parameters: `view=active|archived` (default `active`), `sort`, `limit`
 
 ## Dashboard
 
-### `GET /api/dashboard/summary` (unchanged)
+### `GET /api/dashboard/summary` (extended 2026-11-11)
 
-Unchanged (implementation note, T031): Feature 003 tests pin this response's exact keys, so the five FR-020 counts are returned by the overview below instead of being added here.
+Implementation note (T031): the five FR-020 counts are returned by the overview below instead of being added here, so the `vendors` and `projects` objects keep their exact keys, which the tests check (`dashboard-overview.test.ts`). The response was unchanged until 2026-11-11; the owner change below adds one top-level key and leaves those two objects as they were.
+
+Owner change (2026-11-11): one top-level key is added, `"projects_archived": 2` (archived projects, any status), for an "Archived projects" tile after the status tiles. The `vendors` and `projects` keys are unchanged. The tile labels lost "not archived": "Vendors", "Planned projects" … "Completed projects", "Archived projects".
 
 ### `GET /api/dashboard/overview` (new)
 
@@ -107,6 +109,8 @@ Unchanged (implementation note, T031): Feature 003 tests pin this response's exa
 ```
 
 `progress`: up to 10 non-archived, non-Completed projects with at least one item, lowest percent first. `recent_activity`: 10 newest history entries on vendors and projects, plus client-advance entries for the roles allowed to view advance amounts (Feature 003 FR-017: Administrator, Accountant and Office Team, through `ADVANCE_VIEWERS`). `target.kind` is `vendor`, `project` or `client_advance` (the advance's project). There is no `summary` field (implementation note, T031): the web words each entry with the history panel's own `ACTIONS` labels, so the two always read the same.
+
+Owner change (2026-11-11): the Business overview on the dashboard page shows only the first four counts. `counts.projects_archived` stays in this response for compatibility, but the page no longer uses it; the archived-project count is shown once, on the "Archived projects" tile fed by `/dashboard/summary`.
 
 `GET /api/dashboard` is unchanged.
 

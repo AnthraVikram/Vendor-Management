@@ -8,6 +8,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 export interface SummaryFigures {
   vendorsActive: number;
   projects: Record<ProjectStatus, number>;
+  projectsArchived: number;
   // Money strings with two decimals; `month` is the IST month as YYYY-MM. Null when not gathered.
   advances: { standingTotal: string; receivedThisMonth: string; month: string } | null;
 }
@@ -15,6 +16,7 @@ export interface SummaryFigures {
 export interface Summary {
   vendors: { active: number };
   projects: Record<ProjectStatus, number>;
+  projects_archived: number;
   client_advances?: {
     standing_total: string;
     received_this_month: string;
@@ -29,7 +31,7 @@ function monthInWords(month: string): string {
 }
 
 export function presentSummary(role: StaffRole, figures: SummaryFigures): Summary {
-  const summary: Summary = { vendors: { active: figures.vendorsActive }, projects: { ...figures.projects } };
+  const summary: Summary = { vendors: { active: figures.vendorsActive }, projects: { ...figures.projects }, projects_archived: figures.projectsArchived };
   if (figures.advances && ADVANCE_VIEWERS.includes(role)) {
     summary.client_advances = {
       standing_total: figures.advances.standingTotal,
