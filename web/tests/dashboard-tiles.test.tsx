@@ -12,6 +12,7 @@ const lists = { today: '2026-10-29', overdue: [], due_soon: [], missing_update: 
 const summary = {
   vendors: { active: 184 },
   projects: { PLANNED: 3, ACTIVE: 12, ON_HOLD: 0, COMPLETED: 9 },
+  projects_archived: 5,
   client_advances: {
     standing_total: '4520000.00',
     received_this_month: '350000.00',
@@ -42,11 +43,12 @@ describe('dashboard tiles (US4)', () => {
     render(<Dashboard />);
     const region = within(await tiles());
     const expectations: [RegExp, string, string][] = [
-      [/Vendors not archived/, '184', '#/vendors'],
-      [/Planned projects, not archived/, '3', '#/projects?status=PLANNED'],
-      [/Active projects, not archived/, '12', '#/projects?status=ACTIVE'],
-      [/On hold projects, not archived/, '0', '#/projects?status=ON_HOLD'],
-      [/Completed projects, not archived/, '9', '#/projects?status=COMPLETED'],
+      [/^184\s*Vendors$/, '184', '#/vendors'],
+      [/^3\s*Planned projects$/, '3', '#/projects?status=PLANNED'],
+      [/^12\s*Active projects$/, '12', '#/projects?status=ACTIVE'],
+      [/^0\s*On hold projects$/, '0', '#/projects?status=ON_HOLD'],
+      [/^9\s*Completed projects$/, '9', '#/projects?status=COMPLETED'],
+      [/^5\s*Archived projects$/, '5', '#/projects?view=archived'],
     ];
     for (const [label, count, href] of expectations) {
       const link = region.getByRole('link', { name: label });
@@ -72,7 +74,7 @@ describe('dashboard tiles (US4)', () => {
     mockFetch({ '/api/dashboard/summary': countsOnly, '/api/dashboard': lists });
     render(<Dashboard />);
     const region = await tiles();
-    expect(within(region).getByRole('link', { name: /Vendors not archived/ })).toBeInTheDocument();
+    expect(within(region).getByRole('link', { name: /\d\s*Vendors$/ })).toBeInTheDocument();
     expect(within(region).queryByRole('link', { name: /Client advances/ })).toBeNull();
     expect(region).not.toHaveTextContent('₹');
   });

@@ -9,7 +9,7 @@ function json(status: number, body: unknown) {
   return { ok: status >= 200 && status < 300, status, statusText: '', headers: { get: (name: string) => (name.toLowerCase() === 'content-type' ? 'application/json' : null) }, json: async () => body };
 }
 
-const summary = { vendors: { active: 2 }, projects: { PLANNED: 1, ACTIVE: 3, ON_HOLD: 1, COMPLETED: 2 } };
+const summary = { vendors: { active: 2 }, projects: { PLANNED: 1, ACTIVE: 3, ON_HOLD: 1, COMPLETED: 2 }, projects_archived: 1 };
 const lists = { today: '2026-11-10', items: [], attention_projects: [], overdue: [], due_soon: [], missing_update: [], recent_delays_and_issues: [] };
 
 const overview = {
@@ -46,7 +46,8 @@ async function overviewRegion() {
 }
 
 describe('dashboard counts (US3-1, FR-020, FR-021, FR-025)', () => {
-  it('shows the five counts with their exact labels, each linked to the matching list and view', async () => {
+  // The archived-projects count moved to the "Archived projects" tile (owner change 2026-11-11), so the overview shows four.
+  it('shows the four counts with their exact labels, each linked to the matching list and view', async () => {
     mockDashboard(overview);
     render(<Dashboard />);
     const region = within(await overviewRegion());
@@ -55,9 +56,9 @@ describe('dashboard counts (US3-1, FR-020, FR-021, FR-025)', () => {
       ['Vendors, archived', '1', '#/vendors?view=archived'],
       ['Projects, not archived', '7', '#/projects?view=active'],
       ['Projects in progress', '2', '#/projects?view=active&progress=in_progress'],
-      ['Projects, archived', '1', '#/projects?view=archived'],
     ];
-    expect(region.getAllByRole('link')).toHaveLength(5);
+    expect(region.getAllByRole('link')).toHaveLength(4);
+    expect(region.queryByText(/Projects, archived/)).toBeNull();
     for (const [label, value, href] of expected) {
       const link = region.getByRole('link', { name: new RegExp(label) });
       expect(link).toHaveTextContent(value);
@@ -71,7 +72,10 @@ describe('dashboard counts (US3-1, FR-020, FR-021, FR-025)', () => {
     await overviewRegion();
     expect(await screen.findByRole('region', { name: 'At a glance' })).toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Projects needing attention' })).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: /Vendors not archived/ })).toHaveLength(1);
+    expect(screen.getAllByRole('link', { name: /\d\s*Vendors$/ })).toHaveLength(1);
+    const archived = [...document.querySelectorAll('a[href="#/projects?view=archived"]')];
+    expect(archived).toHaveLength(1);
+    expect(archived[0]).toHaveAccessibleName(/^1\s*Archived projects$/);
     expect(screen.queryByRole('link', { name: /Active projects/ })).not.toBeNull();
     expect(within(await overviewRegion()).queryByText(/Active projects|Completed projects/)).toBeNull();
   });

@@ -67,6 +67,7 @@ describe('dashboard summary tiles (US4)', () => {
     expect(response.status).toBe(200);
     expect(response.body.vendors).toEqual({ active: 3 });
     expect(response.body.projects).toEqual({ PLANNED: 1, ACTIVE: 2, ON_HOLD: 0, COMPLETED: 1 });
+    expect(response.body.projects_archived).toBe(2);
   });
 
   it('sums unreversed advances on all projects, archived included, and those received in the IST month (US4-3, FR-024)', async () => {
@@ -133,6 +134,7 @@ describe('dashboard summary tiles (US4)', () => {
     const response = await summary(await signIn('admin@example.com'));
     expect(response.body.vendors).toEqual({ active: 0 });
     expect(response.body.projects).toEqual({ PLANNED: 0, ACTIVE: 0, ON_HOLD: 0, COMPLETED: 0 });
+    expect(response.body.projects_archived).toBe(0);
     expect(response.body.client_advances.standing_total).toBe('0.00');
     expect(response.body.client_advances.received_this_month).toBe('0.00');
   });

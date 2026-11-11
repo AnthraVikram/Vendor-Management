@@ -47,6 +47,7 @@ interface DashboardData {
 interface Summary {
   vendors: { active: number };
   projects: Record<string, number>;
+  projects_archived: number;
   client_advances?: {
     standing_total: string;
     received_this_month: string;
@@ -97,10 +98,11 @@ function SummaryTiles() {
           <div className="tile-group">
             <p className="tile-group-title">Directory and projects</p>
             <div className="tile-row tile-row-counts">
-              <Tile tone="vendors" href="#/vendors" value={String(summary.vendors.active)} label="Vendors not archived" />
+              <Tile tone="vendors" href="#/vendors" value={String(summary.vendors.active)} label="Vendors" />
               {STATUSES.map(([status, name]) => (
-                <Tile key={status} tone={status.toLowerCase().replace('_', '-')} href={`#/projects?status=${status}`} value={String(summary.projects[status] ?? 0)} label={`${name} projects, not archived`} />
+                <Tile key={status} tone={status.toLowerCase().replace('_', '-')} href={`#/projects?status=${status}`} value={String(summary.projects[status] ?? 0)} label={`${name} projects`} />
               ))}
+              <Tile tone="archived" href="#/projects?view=archived" value={String(summary.projects_archived)} label="Archived projects" />
             </div>
           </div>
         </>
@@ -319,7 +321,6 @@ const COUNTS: { key: keyof Overview['counts']; label: string; href: string }[] =
   { key: 'vendors_archived', label: 'Vendors, archived', href: '#/vendors?view=archived' },
   { key: 'projects_not_archived', label: 'Projects, not archived', href: '#/projects?view=active' },
   { key: 'projects_in_progress', label: 'Projects in progress', href: '#/projects?view=active&progress=in_progress' },
-  { key: 'projects_archived', label: 'Projects, archived', href: '#/projects?view=archived' },
 ];
 
 function activityTarget(target: Overview['recent_activity'][number]['target']) {

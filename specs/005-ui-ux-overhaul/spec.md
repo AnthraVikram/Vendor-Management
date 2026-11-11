@@ -110,13 +110,13 @@ The dashboard opens with counts of vendors and projects, project progress with p
 
 **Acceptance Scenarios**:
 
-1. **Given** vendors and projects exist, **When** the dashboard opens, **Then** it shows the five FR-020 counts ("Vendors, all", "Vendors, archived", "Projects, not archived", "Projects in progress", "Projects, archived") beside the kept Feature 003 tiles (active vendors and projects per status), each linked to the matching list (FR-021).
+1. **Given** vendors and projects exist, **When** the dashboard opens, **Then** it shows the four FR-020 Business overview counts ("Vendors, all", "Vendors, archived", "Projects, not archived", "Projects in progress") and the six FR-025 tiles ("Vendors", "Planned projects", "Active projects", "On hold projects", "Completed projects", "Archived projects"), each linked to the matching list (FR-021). The archived-project count appears once, on the "Archived projects" tile.
 2. **Given** projects with timeline items, **When** the dashboard shows project progress, **Then** each non-archived, non-completed project shows a bar and a percentage equal to done items over non-archived items, rounded to a whole number, with its health label (Feature 004 FR-016, FR-017).
 3. **Given** a project with no timeline items, **When** the dashboard progress list is shown, **Then** that project is not listed (it is never in progress, FR-020), and the Projects list and project page show "No activities yet" with no bar and no percentage (Feature 004 FR-016a).
 4. **Given** recent changes, **When** the dashboard opens, **Then** "Recently updated projects" lists up to 5 projects by most recent change, and "Recent activity" lists up to 10 recent history entries the person may see, each with who, what and when.
 5. **Given** the dashboard, **When** the staff member presses **Add vendor** or **Add project**, **Then** the matching page opens with its add form open.
 6. **Given** no vendors or projects, **When** the dashboard opens, **Then** each empty section explains what it will show and offers the action that fills it.
-7. **Given** the Feature 004 deadline groups, attention section, Missing update list, recent delays and issues, and the Feature 003 tiles and money permissions, **When** the dashboard opens, **Then** they behave exactly as before.
+7. **Given** the Feature 004 deadline groups, attention section, Missing update list, recent delays and issues, and the Feature 003 tiles and money permissions, **When** the dashboard opens, **Then** they behave exactly as before, apart from the FR-025 tile labels and the added "Archived projects" tile.
 
 ---
 
@@ -242,12 +242,12 @@ A global search in the header finds vendors and projects by name and opens them.
 
 #### Dashboard overview (US3)
 
-- **FR-020**: The dashboard MUST show these counts, each with its label as written: "Vendors, all" (archived included), "Vendors, archived", "Projects, not archived", "Projects in progress" and "Projects, archived". Active vendors and the per-status project counts (Planned, Active, On hold, Completed) stay on the Feature 003 tiles and are not repeated (FR-025). "In progress" means a non-archived project whose status is not Completed and whose progress (Feature 004 FR-016) is above 0% and below 100%. A project with no timeline items is never in progress.
-- **FR-021**: Each count MUST open the list it counts, with the matching view and filters applied: vendors all → Vendors with both views counted (Active view open); vendors archived → Vendors, Archived view; projects not archived → Projects, Active view; projects in progress → Projects, Active view filtered to in progress (the same FR-020 rule); projects archived → Projects, Archived view. The in-progress filter is shown and clearable like any other filter.
+- **FR-020**: The dashboard's Business overview MUST show exactly these four counts, each with its label as written: "Vendors, all" (archived included), "Vendors, archived", "Projects, not archived" and "Projects in progress". Non-archived vendors, the per-status project counts (Planned, Active, On hold, Completed) and archived projects are shown on the FR-025 tiles and are not repeated in the Business overview; the archived-project count appears once on the dashboard, on the "Archived projects" tile. "In progress" means a non-archived project whose status is not Completed and whose progress (Feature 004 FR-016) is above 0% and below 100%. A project with no timeline items is never in progress.
+- **FR-021**: Each count MUST open the list it counts, with the matching view and filters applied: vendors all → Vendors with both views counted (Active view open); vendors archived → Vendors, Archived view; projects not archived → Projects, Active view; projects in progress → Projects, Active view filtered to in progress (the same FR-020 rule). The "Archived projects" tile (FR-025) opens Projects, Archived view. The in-progress filter is shown and clearable like any other filter.
 - **FR-022**: Project progress MUST be done items over non-archived items (Feature 004 FR-016), shown as a bar and a whole-number percentage, for each non-archived project whose status is not Completed, sorted by lowest percentage first, up to 10, with a link to the full Projects list.
 - **FR-023**: "Recently updated projects" MUST list up to 5 non-archived projects by their most recent change (project, section, assignment or timeline change), with the change time. "Recent activity" MUST list the 10 most recent history entries for vendors and projects, with who, what and when. Client-advance entries follow Feature 003 FR-017 and FR-025 and are shown only to roles that may see amounts.
 - **FR-024**: The dashboard MUST offer **Add vendor** and **Add project** quick actions that open the matching page with its add form open.
-- **FR-025**: The Feature 004 dashboard (deadline groups, attention section, Missing update, recent delays and issues) and the Feature 003 tiles and their permissions MUST be kept. The FR-020 counts are additions; no count already on a Feature 003 tile is shown a second time.
+- **FR-025**: The Feature 004 dashboard (deadline groups, attention section, Missing update, recent delays and issues) and the Feature 003 tiles and their permissions MUST be kept. The count tiles MUST be exactly six, labelled as written: "Vendors" (not archived), "Planned projects", "Active projects", "On hold projects", "Completed projects" (each counting non-archived projects in that status) and "Archived projects" (archived projects of any status, opening Projects, Archived view). The FR-020 counts are additions; no count on a tile is shown a second time.
 
 #### Archived records (US4)
 
@@ -358,6 +358,7 @@ A global search in the header finds vendors and projects by name and opens them.
 | Feature 004 FR-028, FR-029 (markers) and the dark navy theme (PR #3) | Dark theme | White, black, yellow and grey system (FR-033 to FR-036); every marker keeps its text |
 | Feature 004 FR-039 (configurable project modules, section assignments, new visual identity were outside Feature 004) | Excluded | Specified here, as Feature 005 |
 | Feature 001 and 004 page layout (add form above list) | Form first | List first, form collapsed below (FR-001, FR-002) |
+| Feature 003 FR-023 (count tiles) | Five tiles labelled "… not archived" | Six tiles without "not archived" in their labels, the sixth being "Archived projects" (FR-025); counts and links of the first five unchanged |
 
 Unchanged: authentication, sessions, passwords and roles; vendor-project assignment rules and statuses (Feature 004); timelines, flags, deadline groups and attention rules; import, documents, client advances and their permissions; history behaviour.
 

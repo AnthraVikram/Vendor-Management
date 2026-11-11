@@ -115,6 +115,19 @@ describe('no sideways page scroll from list controls and tables (FR-045, T048 D2
   });
 });
 
+describe('the profile tooltip stays out of the open menu (FR-040, T048 O4)', () => {
+  it('still shows tooltips on hover and keyboard focus', () => {
+    const [, body] = rules.find(([selectors]) => selectors.includes('.tooltip-host:hover .tooltip') && selectors.includes('.tooltip-host:focus-within .tooltip'))!;
+    expect(declaration(body, 'visibility')).toBe('visible');
+  });
+
+  it('hides the profile tooltip while the menu is open, in a rule after the hover and focus one', () => {
+    const index = rules.findIndex(([selectors]) => selectors.includes('.profile-menu.is-open .tooltip'));
+    expect(index).toBeGreaterThan(rules.findIndex(([selectors]) => selectors.includes('.tooltip-host:focus-within .tooltip')));
+    expect(declaration(rules[index][1], 'visibility')).toBe('hidden');
+  });
+});
+
 describe('sign-in branding is readable (FR-041, T048 D1)', () => {
   it('uses the body text colour on the white card, not the navigation text colour', () => {
     const [, body] = rules.find(([selectors]) => selectors.includes('.auth-card .brand'))!;

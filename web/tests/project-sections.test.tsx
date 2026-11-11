@@ -227,6 +227,43 @@ describe('assigning vendors to sections (US2-4 to US2-6, FR-015a)', () => {
     expect(calls(fetchMock).filter((call) => call.method === 'DELETE')).toHaveLength(1);
   });
 
+  // T048 observation O1 (NFR-003): the removed row's button disappears, so focus moves to the section's heading.
+  it('moves focus to the section heading once the vendor is removed from it', async () => {
+    mockWrites();
+    const project = sectionsProject();
+    const onChanged = vi.fn();
+    const { rerender } = render(<ProjectSections project={project} vendors={vendors} onChanged={onChanged} />);
+    const execution = screen.getByRole('article', { name: 'Execution' });
+    await userEvent.click(within(execution).getByRole('button', { name: 'Remove Mehta Carpentry from Execution' }));
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Remove Mehta Carpentry from Execution?' })).getByRole('button', { name: 'Remove' }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalled());
+    // The page reloads the project without the removed assignment.
+    const reloaded = { ...project, sections: project.sections.map((section) => (section.id === 's2' ? { ...section, assignments: [rao] } : section)) };
+    rerender(<ProjectSections project={reloaded} vendors={vendors} onChanged={onChanged} />);
+    expect(within(execution).queryByRole('button', { name: 'Remove Mehta Carpentry from Execution' })).toBeNull();
+    expect(within(execution).getByRole('heading', { name: 'Execution' })).toHaveFocus();
+  });
+
+  it('returns focus to the Remove button when removing from a section is cancelled', async () => {
+    mockWrites();
+    const { region } = renderSections();
+    const button = within(within(region).getByRole('article', { name: 'Execution' })).getByRole('button', { name: 'Remove Mehta Carpentry from Execution' });
+    await userEvent.click(button);
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+    expect(button).toHaveFocus();
+  });
+
+  it('keeps focus on the Remove button when removing from a section is refused', async () => {
+    mockWrites((url, init) => (init.method === 'DELETE' ? { status: 409, body: { message: 'Refused.' } } : { status: 200, body: {} }));
+    const { region, onChanged } = renderSections();
+    const button = within(within(region).getByRole('article', { name: 'Execution' })).getByRole('button', { name: 'Remove Mehta Carpentry from Execution' });
+    await userEvent.click(button);
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Remove' }));
+    expect(await within(region).findByRole('alert')).toBeInTheDocument();
+    expect(onChanged).not.toHaveBeenCalled();
+    expect(button).toHaveFocus();
+  });
+
   it('edits a role in a section, and asks before leaving unsaved text', async () => {
     const fetchMock = mockWrites();
     vi.spyOn(window, 'confirm').mockReturnValue(false);

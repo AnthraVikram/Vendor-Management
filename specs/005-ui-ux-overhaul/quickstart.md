@@ -17,11 +17,17 @@ npm run build -w web
 
 Expected: all green; Feature 001 to 004 suites pass apart from cases the plan lists as superseded.
 
-## Migration (approval required)
+## Migration and startup
 
-`npm run dev` applies pending migrations and runs the seed. Before the first run on this branch, the product owner reviews `api/prisma/migrations/<timestamp>_project_sections/migration.sql` and approves applying it. Never run `prisma migrate reset` or `db push` against the development database. The migration adds tables and enum values and inserts no rows.
+The Feature 005 migration, `api/prisma/migrations/20261109120000_project_sections/migration.sql`, was reviewed by the product owner and applied to the development database under T047 (2026-11-10). It adds tables and enum values and inserts no rows. Never run `prisma migrate reset` or `db push` against the development database. Do not use `npm run dev`: it runs `docker compose up -d`, `prisma migrate deploy` and the seed against the development database (T046).
 
-Start the existing database container with `docker start vendor-management-db-1` (its data lives in an anonymous volume; do not remove or recreate the container), then `npm run dev`.
+Start the app this way:
+
+1. Start Docker Desktop, then the existing database container: `docker start vendor-management-db-1`. Its data lives in an anonymous volume; never remove or recreate the container.
+2. Start the API from `api/`: `npx tsx --env-file=../.env src/server.ts` (port 4000). The development settings reach only this process.
+3. Start the web app from the repository root: `npm run dev -w web` (port 5173; it forwards `/api` to the API).
+
+Never run the API tests in a shell where the development `DATABASE_URL` is set; without it they use their own embedded test database.
 
 ## Scenarios
 
@@ -56,10 +62,20 @@ A staff member who has never used the system, signed in by the observer as Offic
 
 ### Before the session
 
-1. Start Docker Desktop, then `docker start vendor-management-db-1`. Start the API from `api/` with `npx tsx --env-file=../.env src/server.ts` and the web app with `npm run dev -w web`. Do not use `npm run dev`, which runs `docker compose up` and the seed.
-2. Check the data with a read-only query: Khan Ceiling Systems exists and is not archived, and the new project name is unused:
-   `docker exec vendor-management-db-1 psql -U vendor -d vendor -c "SELECT name, archived FROM vendors WHERE name = 'Khan Ceiling Systems'; SELECT name FROM projects WHERE name ILIKE 'Walkthrough%';"`
-   Expected: `Khan Ceiling Systems | f`, and no project rows. If "Walkthrough 1" exists, choose another unused name and use it on cards 2, 3 and B.
+1. Start the app as in [Migration and startup](#migration-and-startup); do not use `npm run dev`.
+2. Check the data with a read-only query (Windows PowerShell; read-only through the session setting, the read-only transaction and SELECT-only statements):
+
+   ```powershell
+   docker exec -e "PGOPTIONS=-c default_transaction_read_only=on" vendor-management-db-1 psql -X -U vendor -d vendor -v ON_ERROR_STOP=1 `
+     -c "BEGIN TRANSACTION READ ONLY" `
+     -c "SELECT name, archived FROM vendors WHERE name IN ('Bose Colour Works', 'Joseph Woodcraft', 'Khan Ceiling Systems') ORDER BY name" `
+     -c "SELECT name AS walkthrough_project FROM projects WHERE name ILIKE 'Walkthrough%' ORDER BY name" `
+     -c "SELECT count(*) AS lake_house_projects FROM projects WHERE name = 'Lake House'" `
+     -c "SELECT v.name AS execution_vendor, v.archived FROM projects p JOIN project_sections s ON s.project_id = p.id AND s.removed_at IS NULL JOIN section_assignments sa ON sa.section_id = s.id AND sa.removed_at IS NULL JOIN vendors v ON v.id = sa.vendor_id WHERE p.name = 'Lake House' AND s.name = 'Execution' ORDER BY v.name" `
+     -c "COMMIT"
+   ```
+
+   Expected: three vendor rows (Bose Colour Works, Joseph Woodcraft, Khan Ceiling Systems), each `f`; no Walkthrough project; `lake_house_projects` 1; exactly one Execution vendor, `Mehta Carpentry | f`. Current section assignments have `removed_at` empty; there is no `ended_at` column. If a card's vendor is missing or archived, or Lake House's Execution answer is not exactly Mehta Carpentry, stop and resolve it before the session. If "Walkthrough 1" exists, choose another unused name and use it on cards 2, 3 and B.
 3. Leave the demonstration data and the T048 project as they are. The session adds permanent records (a project and its sections, a section assignment and project assignment, an archive and restore, the section changes in B, and history entries).
 4. Use a fresh private browser window at 1280 px, signed in as Office Team, on the Dashboard.
 

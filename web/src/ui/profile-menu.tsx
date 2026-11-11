@@ -56,7 +56,7 @@ export function ProfileMenu({ me, onSignedOut }: { me: Me; onSignedOut: (switche
   }
 
   return (
-    <div className="profile-menu" onKeyDown={closeOnEscape}>
+    <div className={`profile-menu${open ? ' is-open' : ''}`} onKeyDown={closeOnEscape}>
       <Tooltip label={label}>
         <button
           type="button"

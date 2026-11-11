@@ -6,6 +6,7 @@ import { ADVANCE_VIEWERS } from '../../src/lib/permissions';
 const figures = {
   vendorsActive: 184,
   projects: { PLANNED: 3, ACTIVE: 12, ON_HOLD: 2, COMPLETED: 9 },
+  projectsArchived: 4,
   advances: { standingTotal: '4520000.00', receivedThisMonth: '350000.00', month: '2026-10' },
 };
 
@@ -14,6 +15,7 @@ describe('presentSummary', () => {
     expect(presentSummary(role, figures)).toEqual({
       vendors: { active: 184 },
       projects: { PLANNED: 3, ACTIVE: 12, ON_HOLD: 2, COMPLETED: 9 },
+      projects_archived: 4,
       client_advances: {
         standing_total: '4520000.00',
         received_this_month: '350000.00',
@@ -37,7 +39,7 @@ describe('presentSummary', () => {
     const outsider = 'SITE_VISITOR' as StaffRole;
     const result = presentSummary(outsider, figures);
     expect(result).not.toHaveProperty('client_advances');
-    expect(result).toEqual({ vendors: { active: 184 }, projects: { PLANNED: 3, ACTIVE: 12, ON_HOLD: 2, COMPLETED: 9 } });
+    expect(result).toEqual({ vendors: { active: 184 }, projects: { PLANNED: 3, ACTIVE: 12, ON_HOLD: 2, COMPLETED: 9 }, projects_archived: 4 });
     const text = JSON.stringify(result);
     expect(text).not.toContain('4520000');
     expect(text).not.toContain('350000');

@@ -87,6 +87,22 @@ describe('profile menu (US7)', () => {
     expect(button).toHaveFocus();
   });
 
+  // T048 observation O4: the button keeps focus while the menu is open, so its tooltip covered the menu. The open
+  // menu is marked, and the stylesheet hides the tooltip under that mark (pinned in visual-system.test.tsx).
+  it('marks the menu open so the tooltip hides, and unmarks it on Escape with focus kept on the button', async () => {
+    await renderShell('ACCOUNTANT');
+    const button = await profileButton();
+    const menu = button.closest('.profile-menu')!;
+    expect(screen.getByRole('tooltip', { hidden: true })).toHaveTextContent('Asha Admin, Accountant');
+    expect(menu).not.toHaveClass('is-open');
+    await userEvent.click(button);
+    expect(menu).toHaveClass('is-open');
+    await userEvent.keyboard('{Escape}');
+    expect(menu).not.toHaveClass('is-open');
+    expect(button).toHaveFocus();
+    expect(button).toHaveAccessibleDescription('Asha Admin, Accountant');
+  });
+
   it('signs out through the existing logout call', async () => {
     const fetchMock = await renderShell('ADMINISTRATOR');
     await userEvent.click(await profileButton());

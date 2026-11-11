@@ -142,9 +142,10 @@ dashboardRouter.get(
   '/dashboard/summary',
   asyncRoute(async (req, res) => {
     const role = req.staff!.role;
-    const [vendorsActive, byStatus] = await Promise.all([
+    const [vendorsActive, byStatus, projectsArchived] = await Promise.all([
       prisma.vendor.count({ where: { archived: false } }),
       prisma.project.groupBy({ by: ['status'], where: { archived: false }, _count: { _all: true } }),
+      prisma.project.count({ where: { archived: true } }),
     ]);
     const projects: Record<ProjectStatus, number> = { PLANNED: 0, ACTIVE: 0, ON_HOLD: 0, COMPLETED: 0 };
     for (const row of byStatus) projects[row.status] = row._count._all;
@@ -166,7 +167,7 @@ dashboardRouter.get(
         month: month.label,
       };
     }
-    res.json(presentSummary(role, { vendorsActive, projects, advances }));
+    res.json(presentSummary(role, { vendorsActive, projects, projectsArchived, advances }));
   }),
 );
 
