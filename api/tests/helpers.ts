@@ -3,50 +3,53 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import request from 'supertest';
-import type { ResponsibleKind, StaffRole, TimelineItemType, TimelineStatus } from '@prisma/client';
+import type { PrismaClient, ResponsibleKind, StaffRole, TimelineItemType, TimelineStatus } from '@prisma/client';
 import { createApp } from '../src/app';
 import { loadConfig, resetConfigForTests } from '../src/config';
 import { prisma } from '../src/db';
 import { hashPassword } from '../src/lib/passwords';
 import { addDays, todayInIndia } from '../src/lib/india-date';
+import { assertConnectedTestDatabase } from './test-db-guard';
 
 export const app = createApp();
 
-export async function resetDatabase(): Promise<void> {
-  await prisma.historyEntry.deleteMany();
-  await prisma.clientAdvanceReversal.deleteMany();
-  await prisma.clientAdvance.deleteMany();
-  await prisma.document.deleteMany();
-  await prisma.vendorImportRow.deleteMany();
-  await prisma.vendor.updateMany({ data: { importRunId: null } });
-  await prisma.vendorImportRun.deleteMany();
-  await prisma.vendorImportPreview.deleteMany();
-  await prisma.coordinationIssueVendor.deleteMany();
-  await prisma.coordinationIssue.deleteMany();
-  await prisma.delay.deleteMany();
-  await prisma.timelineProgressUpdate.deleteMany();
-  await prisma.timelineResponsibleChange.deleteMany();
-  await prisma.timelineDateChange.deleteMany();
-  await prisma.timelineItem.deleteMany();
-  await prisma.costingSheetFile.deleteMany();
-  await prisma.taskPriceEntry.deleteMany();
-  await prisma.workSchedule.deleteMany();
+export async function resetDatabase(client: PrismaClient = prisma): Promise<void> {
+  // Independent of global setup: refuse unless this live connection is the marked test database.
+  await assertConnectedTestDatabase(client, process.env.DATABASE_URL);
+  await client.historyEntry.deleteMany();
+  await client.clientAdvanceReversal.deleteMany();
+  await client.clientAdvance.deleteMany();
+  await client.document.deleteMany();
+  await client.vendorImportRow.deleteMany();
+  await client.vendor.updateMany({ data: { importRunId: null } });
+  await client.vendorImportRun.deleteMany();
+  await client.vendorImportPreview.deleteMany();
+  await client.coordinationIssueVendor.deleteMany();
+  await client.coordinationIssue.deleteMany();
+  await client.delay.deleteMany();
+  await client.timelineProgressUpdate.deleteMany();
+  await client.timelineResponsibleChange.deleteMany();
+  await client.timelineDateChange.deleteMany();
+  await client.timelineItem.deleteMany();
+  await client.costingSheetFile.deleteMany();
+  await client.taskPriceEntry.deleteMany();
+  await client.workSchedule.deleteMany();
   // Feature 005: sections reference projects and vendors with RESTRICT, so they go first.
-  await prisma.sectionAssignment.deleteMany();
-  await prisma.projectSection.deleteMany();
-  await prisma.vendorProjectLink.deleteMany();
-  await prisma.vendorRating.deleteMany();
-  await prisma.vendorNote.deleteMany();
-  await prisma.vendorRate.deleteMany();
-  await prisma.vendorMaterial.deleteMany();
-  await prisma.vendorService.deleteMany();
-  await prisma.vendorLocation.deleteMany();
-  await prisma.vendorCategory.deleteMany();
-  await prisma.vendor.deleteMany();
-  await prisma.project.deleteMany();
-  await prisma.category.deleteMany();
-  await prisma.session.deleteMany();
-  await prisma.staffUser.deleteMany();
+  await client.sectionAssignment.deleteMany();
+  await client.projectSection.deleteMany();
+  await client.vendorProjectLink.deleteMany();
+  await client.vendorRating.deleteMany();
+  await client.vendorNote.deleteMany();
+  await client.vendorRate.deleteMany();
+  await client.vendorMaterial.deleteMany();
+  await client.vendorService.deleteMany();
+  await client.vendorLocation.deleteMany();
+  await client.vendorCategory.deleteMany();
+  await client.vendor.deleteMany();
+  await client.project.deleteMany();
+  await client.category.deleteMany();
+  await client.session.deleteMany();
+  await client.staffUser.deleteMany();
 }
 
 export async function createUser(input: {

@@ -6,22 +6,24 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    # The job runs in a container so the database is reached as postgres:5432, the only CI server the test
+    # guard allows (api/tests/test-db-guard.ts). localhost:5432 is the development address and is refused.
+    container: node:24
     services:
       postgres:
         image: postgres:17
         env:
           POSTGRES_USER: vendor
           POSTGRES_PASSWORD: vendor
-          POSTGRES_DB: vendor
-        ports:
-          - 5432:5432
+          POSTGRES_DB: vendor_test
         options: >-
-          --health-cmd "pg_isready -U vendor -d vendor"
+          --health-cmd "pg_isready -U vendor -d vendor_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql://vendor:vendor@localhost:5432/vendor
+      DATABASE_URL: postgresql://vendor:vendor@postgres:5432/vendor_test
+      TEST_DATABASE_URL: postgresql://vendor:vendor@postgres:5432/vendor_test
       SESSION_SECRET: ci-session-secret-value
       FILE_STORAGE_DIR: /tmp/vendor-files
       WEB_ORIGIN: http://localhost:5173
