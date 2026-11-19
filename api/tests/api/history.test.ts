@@ -1,7 +1,20 @@
 import request from 'supertest';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '../../src/db';
-import { app, createCategory, createProject, createUser, createVendor, dayOffset, resetDatabase, resetFileStorage, signIn } from '../helpers';
+import {
+  app,
+  approveRevision,
+  createCategory,
+  createProject,
+  createPurchaseOrder,
+  createQuotation,
+  createUser,
+  createVendor,
+  dayOffset,
+  resetDatabase,
+  resetFileStorage,
+  signIn,
+} from '../helpers';
 import { csvBuffer, pdfBuffer, TEMPLATE_HEADINGS, vendorRow } from '../fixtures/files';
 
 type Session = Awaited<ReturnType<typeof signIn>>;
@@ -225,5 +238,24 @@ describe('assignment history (US4, FR-013d)', () => {
       expect(unassigned.details).toEqual({ assignment_id: link.id, ...names, role_on_project: 'Lead carpenter', scope_of_work: 'Wardrobes', note: 'North wing' });
       expect(unassigned.created_by.id).toBe(admin.id);
     }
+  });
+
+  // Feature 006 (T015, research R6): quotations and purchase orders are history targets readable by every role.
+  it('reads client quotation and purchase order history for every role, with 404 and 400 as for other targets', async () => {
+    const { admin, asAdmin, asOffice, asAccountant } = await setup();
+    const project = await createProject(admin.id, 'Lake House');
+    const { quotation, revision } = await createQuotation(admin.id, project.id);
+    const approval = await approveRevision(admin.id, revision.id);
+    const po = await createPurchaseOrder(admin.id, { projectId: project.id, approvalId: approval.id, amount: '1840000.00' });
+    await prisma.historyEntry.create({ data: { clientQuotationId: quotation.id, action: 'CREATED', details: { record_status: 'DRAFT' }, createdById: admin.id, updatedById: admin.id } });
+    await prisma.historyEntry.create({ data: { clientPurchaseOrderId: po.id, action: 'CREATED', details: { record_status: 'VERIFIED' }, createdById: admin.id, updatedById: admin.id } });
+    for (const session of [asAdmin, asOffice, asAccountant]) {
+      expect((await entries(session, { client_quotation_id: quotation.id })).map((e) => e.action)).toEqual(['CREATED']);
+      expect((await entries(session, { client_purchase_order_id: po.id })).map((e) => e.details)).toEqual([{ record_status: 'VERIFIED' }]);
+    }
+    const missing = '00000000-0000-4000-8000-000000000000';
+    expect((await history(asAdmin, { client_quotation_id: missing })).status).toBe(404);
+    expect((await history(asAdmin, { client_purchase_order_id: missing })).status).toBe(404);
+    expect((await history(asAdmin, { client_quotation_id: quotation.id, client_purchase_order_id: po.id })).status).toBe(400);
   });
 });

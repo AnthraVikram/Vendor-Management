@@ -31,7 +31,9 @@ export type HistoryTarget =
   | { projectId: string }
   | { documentId: string }
   | { importRunId: string }
-  | { clientAdvanceId: string };
+  | { clientAdvanceId: string }
+  | { clientQuotationId: string }
+  | { clientPurchaseOrderId: string };
 
 export async function recordHistory(
   tx: Prisma.TransactionClient,

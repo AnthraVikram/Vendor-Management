@@ -89,6 +89,10 @@ enum DocumentType {
   REGISTRATION_CERTIFICATE
   PHOTO
   OTHER
+  // Feature 006: project documents only (FR-041).
+  QUOTATION
+  PURCHASE_ORDER
+  PAYMENT_PROOF
 }
 
 enum PaymentMethod {
@@ -118,6 +122,56 @@ enum HistoryAction {
   SECTION_ASSIGNED
   SECTION_ASSIGNMENT_EDITED
   SECTION_UNASSIGNED
+  // Feature 006 client finance.
+  REVISION_ADDED
+  STATUS_CHANGED
+  APPROVED
+  VERIFIED
+  REJECTED
+  WITHDRAWN
+  CANCELLED
+  ATTACHED
+  ATTACHMENT_REMOVED
+  SUPERSEDED
+  WARNING_CONFIRMED
+}
+
+// Feature 006: client financial management.
+enum RevisionStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+enum ReceiptType {
+  ADVANCE
+  STAGE_PAYMENT
+  FINAL_PAYMENT
+  OTHER
+}
+
+enum EntryStatus {
+  SUBMITTED
+  VERIFIED_ON_ENTRY
+}
+
+enum RecordedUnder {
+  FEATURE_003
+  FEATURE_006
+}
+
+enum RecordDecision {
+  VERIFIED
+  REJECTED
+  WITHDRAWN
+}
+
+enum SubmissionRoute {
+  RECEIPTS
+  CLIENT_ADVANCES
 }
 
 model StaffUser {
@@ -204,6 +258,26 @@ model StaffUser {
   reversalsUpdated ClientAdvanceReversal[] @relation("ReversalUpdatedBy")
   historyCreated HistoryEntry[] @relation("HistoryCreatedBy")
   historyUpdated HistoryEntry[] @relation("HistoryUpdatedBy")
+  quotationsCreated ClientQuotation[] @relation("QuotationCreatedBy")
+  quotationsUpdated ClientQuotation[] @relation("QuotationUpdatedBy")
+  revisionsCreated QuotationRevision[] @relation("RevisionCreatedBy")
+  revisionsUpdated QuotationRevision[] @relation("RevisionUpdatedBy")
+  statusChangesCreated QuotationStatusChange[] @relation("StatusChangeCreatedBy")
+  statusChangesUpdated QuotationStatusChange[] @relation("StatusChangeUpdatedBy")
+  approvalsCreated ClientApproval[] @relation("ApprovalCreatedBy")
+  approvalsUpdated ClientApproval[] @relation("ApprovalUpdatedBy")
+  purchaseOrdersCreated ClientPurchaseOrder[] @relation("PurchaseOrderCreatedBy")
+  purchaseOrdersUpdated ClientPurchaseOrder[] @relation("PurchaseOrderUpdatedBy")
+  poDecisionsCreated PurchaseOrderDecision[] @relation("PoDecisionCreatedBy")
+  poDecisionsUpdated PurchaseOrderDecision[] @relation("PoDecisionUpdatedBy")
+  poCancellationsCreated PurchaseOrderCancellation[] @relation("PoCancellationCreatedBy")
+  poCancellationsUpdated PurchaseOrderCancellation[] @relation("PoCancellationUpdatedBy")
+  receiptDecisionsCreated ClientReceiptDecision[] @relation("ReceiptDecisionCreatedBy")
+  receiptDecisionsUpdated ClientReceiptDecision[] @relation("ReceiptDecisionUpdatedBy")
+  attachmentsCreated FinancialAttachment[] @relation("AttachmentCreatedBy")
+  attachmentsUpdated FinancialAttachment[] @relation("AttachmentUpdatedBy")
+  attachmentRemovalsCreated FinancialAttachmentRemoval[] @relation("AttachmentRemovalCreatedBy")
+  attachmentRemovalsUpdated FinancialAttachmentRemoval[] @relation("AttachmentRemovalUpdatedBy")
 
   @@map("staff_users")
 }
@@ -433,6 +507,8 @@ model Project {
   documents          Document[]
   clientAdvances     ClientAdvance[]
   historyEntries     HistoryEntry[]
+  clientQuotation      ClientQuotation?
+  clientPurchaseOrders ClientPurchaseOrder[]
 
   @@map("projects")
 }
@@ -810,6 +886,7 @@ model Document {
   vendor         Vendor?        @relation(fields: [vendorId], references: [id], onDelete: Restrict)
   project        Project?       @relation(fields: [projectId], references: [id], onDelete: Restrict)
   historyEntries HistoryEntry[]
+  financialAttachments FinancialAttachment[]
   createdBy      StaffUser      @relation("DocumentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   updatedBy      StaffUser      @relation("DocumentUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
 
@@ -830,15 +907,29 @@ model ClientAdvance {
   createdById   String         @map("created_by") @db.Uuid
   updatedAt     DateTime       @updatedAt @map("updated_at")
   updatedById   String         @map("updated_by") @db.Uuid
+  // Feature 006: every client receipt is a row here (research R3). Defaults state the Feature 003 meaning.
+  receiptType           ReceiptType      @default(ADVANCE) @map("receipt_type")
+  entryStatus           EntryStatus      @default(VERIFIED_ON_ENTRY) @map("entry_status")
+  recordedUnder         RecordedUnder    @default(FEATURE_006) @map("recorded_under")
+  clientApprovalId      String?          @map("client_approval_id") @db.Uuid
+  clientPurchaseOrderId String?          @map("client_purchase_order_id") @db.Uuid
+  submissionId          String?          @unique @map("submission_id") @db.Uuid
+  submissionRoute       SubmissionRoute? @map("submission_route")
 
   project        Project                @relation(fields: [projectId], references: [id], onDelete: Restrict)
   reversal       ClientAdvanceReversal?
   historyEntries HistoryEntry[]
+  decision       ClientReceiptDecision?
+  attachments    FinancialAttachment[]
+  clientApproval      ClientApproval?      @relation(fields: [clientApprovalId], references: [id], onDelete: Restrict)
+  clientPurchaseOrder ClientPurchaseOrder? @relation(fields: [clientPurchaseOrderId], references: [id], onDelete: Restrict)
   createdBy      StaffUser              @relation("AdvanceCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   updatedBy      StaffUser              @relation("AdvanceUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
 
   @@index([projectId, receivedOn])
   @@index([receivedOn])
+  @@index([clientApprovalId])
+  @@index([clientPurchaseOrderId])
   @@map("client_advances")
 }
 
@@ -866,6 +957,8 @@ model HistoryEntry {
   documentId        String?       @map("document_id") @db.Uuid
   vendorImportRunId String?       @map("vendor_import_run_id") @db.Uuid
   clientAdvanceId   String?       @map("client_advance_id") @db.Uuid
+  clientQuotationId     String?   @map("client_quotation_id") @db.Uuid
+  clientPurchaseOrderId String?   @map("client_purchase_order_id") @db.Uuid
   action            HistoryAction
   changes           Json          @default("{}")
   details           Json          @default("{}")
@@ -879,6 +972,8 @@ model HistoryEntry {
   document        Document?        @relation(fields: [documentId], references: [id], onDelete: Restrict)
   vendorImportRun VendorImportRun? @relation(fields: [vendorImportRunId], references: [id], onDelete: Restrict)
   clientAdvance   ClientAdvance?   @relation(fields: [clientAdvanceId], references: [id], onDelete: Restrict)
+  clientQuotation     ClientQuotation?     @relation(fields: [clientQuotationId], references: [id], onDelete: Restrict)
+  clientPurchaseOrder ClientPurchaseOrder? @relation(fields: [clientPurchaseOrderId], references: [id], onDelete: Restrict)
   createdBy       StaffUser        @relation("HistoryCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   updatedBy       StaffUser        @relation("HistoryUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
 
@@ -887,5 +982,227 @@ model HistoryEntry {
   @@index([documentId, createdAt])
   @@index([vendorImportRunId, createdAt])
   @@index([clientAdvanceId, createdAt])
+  @@index([clientQuotationId, createdAt])
+  @@index([clientPurchaseOrderId, createdAt])
   @@map("history_entries")
+}
+
+// ---------------------------------------------------------------------------
+// Feature 006: client financial management. Every table is append-only
+// (Constitution III); current state is derived from the decision rows.
+// ---------------------------------------------------------------------------
+
+// One per project (FR-022, OQ-7). The reference comes from client_quotation_reference_seq (research R7).
+model ClientQuotation {
+  id        String @id @default(uuid()) @db.Uuid
+  projectId String @unique @map("project_id") @db.Uuid
+  reference String @unique
+  title     String
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+  createdBy   StaffUser @relation("QuotationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   StaffUser @relation("QuotationUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  project        Project             @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  revisions      QuotationRevision[]
+  historyEntries HistoryEntry[]
+
+  @@map("client_quotations")
+}
+
+model QuotationRevision {
+  id                String    @id @default(uuid()) @db.Uuid
+  clientQuotationId String    @map("client_quotation_id") @db.Uuid
+  number            Int
+  amount            Decimal   @db.Decimal(15, 2)
+  quotationDate     DateTime  @map("quotation_date") @db.Date
+  reason            String?
+  note              String?
+  validityDate      DateTime? @map("validity_date") @db.Date
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+  createdBy   StaffUser @relation("RevisionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   StaffUser @relation("RevisionUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  clientQuotation ClientQuotation         @relation(fields: [clientQuotationId], references: [id], onDelete: Restrict)
+  statusChanges   QuotationStatusChange[]
+  approval        ClientApproval?
+  attachments     FinancialAttachment[]
+
+  @@unique([clientQuotationId, number])
+  @@map("quotation_revisions")
+}
+
+model QuotationStatusChange {
+  id                  String         @id @default(uuid()) @db.Uuid
+  quotationRevisionId String         @map("quotation_revision_id") @db.Uuid
+  fromStatus          RevisionStatus @map("from_status")
+  toStatus            RevisionStatus @map("to_status")
+  reason              String?
+  note                String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+  createdBy   StaffUser @relation("StatusChangeCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   StaffUser @relation("StatusChangeUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  quotationRevision QuotationRevision @relation(fields: [quotationRevisionId], references: [id], onDelete: Restrict)
+
+  @@unique([quotationRevisionId, toStatus])
+  @@map("quotation_status_changes")
+}
+
+model ClientApproval {
+  id                   String    @id @default(uuid()) @db.Uuid
+  quotationRevisionId  String    @unique @map("quotation_revision_id") @db.Uuid
+  amount               Decimal   @db.Decimal(15, 2)
+  clientAcceptanceDate DateTime? @map("client_acceptance_date") @db.Date
+  note                 String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+  createdBy   StaffUser @relation("ApprovalCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   StaffUser @relation("ApprovalUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  quotationRevision QuotationRevision     @relation(fields: [quotationRevisionId], references: [id], onDelete: Restrict)
+  purchaseOrders    ClientPurchaseOrder[]
+  receipts          ClientAdvance[]
+  attachments       FinancialAttachment[]
+
+  @@map("client_approvals")
+}
+
+model ClientPurchaseOrder {
+  id               String      @id @default(uuid()) @db.Uuid
+  projectId        String      @map("project_id") @db.Uuid
+  clientApprovalId String      @map("client_approval_id") @db.Uuid
+  poNumber         String      @map("po_number")
+  poDate           DateTime    @map("po_date") @db.Date
+  amount           Decimal     @db.Decimal(15, 2)
+  entryStatus      EntryStatus @map("entry_status")
+  note             String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+  createdBy   StaffUser @relation("PurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   StaffUser @relation("PurchaseOrderUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  project        Project                    @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  clientApproval ClientApproval             @relation(fields: [clientApprovalId], references: [id], onDelete: Restrict)
+  decision       PurchaseOrderDecision?
+  cancellation   PurchaseOrderCancellation?
+  receipts       ClientAdvance[]
+  attachments    FinancialAttachment[]
+  historyEntries HistoryEntry[]
+
+  @@index([projectId])
+  @@index([clientApprovalId])
+  @@map("client_purchase_orders")
+}
+
+model PurchaseOrderDecision {
+  id                    String         @id @default(uuid()) @db.Uuid
+  clientPurchaseOrderId String         @unique @map("client_purchase_order_id") @db.Uuid
+  decision              RecordDecision
+  reason                String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+  createdBy   StaffUser @relation("PoDecisionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   StaffUser @relation("PoDecisionUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  clientPurchaseOrder ClientPurchaseOrder @relation(fields: [clientPurchaseOrderId], references: [id], onDelete: Restrict)
+
+  @@map("purchase_order_decisions")
+}
+
+model PurchaseOrderCancellation {
+  id                    String @id @default(uuid()) @db.Uuid
+  clientPurchaseOrderId String @unique @map("client_purchase_order_id") @db.Uuid
+  reason                String
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+  createdBy   StaffUser @relation("PoCancellationCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   StaffUser @relation("PoCancellationUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  clientPurchaseOrder ClientPurchaseOrder @relation(fields: [clientPurchaseOrderId], references: [id], onDelete: Restrict)
+
+  @@map("purchase_order_cancellations")
+}
+
+model ClientReceiptDecision {
+  id              String         @id @default(uuid()) @db.Uuid
+  clientAdvanceId String         @unique @map("client_advance_id") @db.Uuid
+  decision        RecordDecision
+  reason          String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+  createdBy   StaffUser @relation("ReceiptDecisionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   StaffUser @relation("ReceiptDecisionUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  clientAdvance ClientAdvance @relation(fields: [clientAdvanceId], references: [id], onDelete: Restrict)
+
+  @@map("client_receipt_decisions")
+}
+
+// One link between a financial record and a project document (FR-041 to FR-042f). Exactly one record column is set.
+model FinancialAttachment {
+  id                     String  @id @default(uuid()) @db.Uuid
+  documentId             String  @map("document_id") @db.Uuid
+  quotationRevisionId    String? @map("quotation_revision_id") @db.Uuid
+  clientApprovalId       String? @map("client_approval_id") @db.Uuid
+  clientPurchaseOrderId  String? @map("client_purchase_order_id") @db.Uuid
+  clientAdvanceId        String? @map("client_advance_id") @db.Uuid
+  supersedesAttachmentId String? @unique @map("supersedes_attachment_id") @db.Uuid
+  supersedeReason        String? @map("supersede_reason")
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+  createdBy   StaffUser @relation("AttachmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   StaffUser @relation("AttachmentUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  document            Document                    @relation(fields: [documentId], references: [id], onDelete: Restrict)
+  quotationRevision   QuotationRevision?          @relation(fields: [quotationRevisionId], references: [id], onDelete: Restrict)
+  clientApproval      ClientApproval?             @relation(fields: [clientApprovalId], references: [id], onDelete: Restrict)
+  clientPurchaseOrder ClientPurchaseOrder?        @relation(fields: [clientPurchaseOrderId], references: [id], onDelete: Restrict)
+  clientAdvance       ClientAdvance?              @relation(fields: [clientAdvanceId], references: [id], onDelete: Restrict)
+  supersedes          FinancialAttachment?        @relation("AttachmentSupersedes", fields: [supersedesAttachmentId], references: [id], onDelete: Restrict)
+  supersededBy        FinancialAttachment?        @relation("AttachmentSupersedes")
+  removal             FinancialAttachmentRemoval?
+
+  @@index([documentId])
+  @@index([quotationRevisionId])
+  @@index([clientApprovalId])
+  @@index([clientPurchaseOrderId])
+  @@index([clientAdvanceId])
+  @@map("financial_attachments")
+}
+
+model FinancialAttachmentRemoval {
+  id                    String @id @default(uuid()) @db.Uuid
+  financialAttachmentId String @unique @map("financial_attachment_id") @db.Uuid
+  reason                String
+  createdAt   DateTime @default(now()) @map("created_at")
+  createdById String   @map("created_by") @db.Uuid
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  updatedById String   @map("updated_by") @db.Uuid
+  createdBy   StaffUser @relation("AttachmentRemovalCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy   StaffUser @relation("AttachmentRemovalUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  financialAttachment FinancialAttachment @relation(fields: [financialAttachmentId], references: [id], onDelete: Restrict)
+
+  @@map("financial_attachment_removals")
 }

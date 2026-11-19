@@ -1,19 +1,20 @@
-import { Prisma } from '@prisma/client';
-import type { StaffRole } from '@prisma/client';
+import type { Prisma, StaffRole } from '@prisma/client';
 import type { Request } from 'express';
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../../db';
-import { stampCreate } from '../../lib/audit';
-import { recordHistory } from '../../lib/history';
+import { listedAdvanceWhere, verifiedAdvanceWhere } from '../../lib/finance-state';
 import { HttpError } from '../../lib/http';
 import { currentMonthInIndia, fromDateColumn, todayInIndia, toDateColumn } from '../../lib/india-date';
 import { moneyString, parsePositiveAmount } from '../../lib/money';
 import { ADVANCE_RECORDERS, ADVANCE_VIEWERS } from '../../lib/permissions';
 import { asyncRoute } from '../async-route';
+import { alreadyReversed, recordReceipt, reverseReceipt } from '../client-finance/receipts';
 
 // Client advances (FR-017 to FR-022). Advances and reversals are only ever inserted: there is no
 // update or delete route, and "reversed" is read from the existence of a reversal row.
+// Feature 006: paths, roles and responses are unchanged; recording and reversing go through the shared receipt
+// service, and the lists and totals count verified Advances only (FR-015, FR-049, research R1).
 
 const idSchema = z.string().uuid('Not a valid id.');
 
@@ -27,10 +28,15 @@ const recordSchema = z.object({
   payment_method: z.enum(['CASH', 'BANK_TRANSFER', 'CHEQUE', 'UPI', 'OTHER']).nullable().optional(),
   reference: z.string().trim().nullable().optional(),
   note: z.string().trim().nullable().optional(),
+  // Feature 006 additions, both optional: the overpayment confirmation (FR-036) and the repeat guard (research R13).
+  confirm_overpayment: z.boolean().optional(),
+  submission_id: z.string().uuid('The submission ID must be a UUID.').optional(),
 });
 
 const reverseSchema = z.object({
   reason: z.string({ required_error: 'A reason is required.' }).trim().min(1, 'A reason is required.'),
+  // Only the full amount can be reversed (FR-020); a different amount is refused rather than ignored.
+  amount: z.string().optional(),
 });
 
 const scopeSchema = z.object({
@@ -76,10 +82,6 @@ function blankToNull(value: string | null | undefined): string | null {
   return value ? value : null;
 }
 
-function alreadyReversed(): HttpError {
-  return new HttpError(409, 'This advance has already been reversed.', { code: 'ALREADY_REVERSED' });
-}
-
 async function loadAdvance(id: string): Promise<AdvanceRecord> {
   const advance = await prisma.clientAdvance.findUnique({ where: { id }, include: advanceInclude });
   if (!advance) throw new HttpError(404, 'Client advance not found.');
@@ -97,7 +99,7 @@ clientAdvanceRouter.get(
     const month = currentMonthInIndia();
     const advances = await prisma.clientAdvance.findMany({
       where: {
-        reversal: { is: null },
+        ...verifiedAdvanceWhere,
         ...(scope === 'month' ? { receivedOn: { gte: toDateColumn(month.start), lt: toDateColumn(month.end) } } : {}),
       },
       include: { ...advanceInclude, project: { select: { id: true, name: true, clientName: true, archived: true } } },
@@ -121,11 +123,11 @@ clientAdvanceRouter.get(
     if (!project) throw new HttpError(404, 'Project not found.');
     const [advances, standing] = await Promise.all([
       prisma.clientAdvance.findMany({
-        where: { projectId },
+        where: { projectId, ...listedAdvanceWhere },
         include: advanceInclude,
         orderBy: [{ receivedOn: 'asc' }, { createdAt: 'asc' }],
       }),
-      prisma.clientAdvance.aggregate({ where: { projectId, reversal: { is: null } }, _sum: { amount: true } }),
+      prisma.clientAdvance.aggregate({ where: { projectId, ...verifiedAdvanceWhere }, _sum: { amount: true } }),
     ]);
     res.json({
       project: { id: project.id, name: project.name, client_name: project.clientName, archived: project.archived },
@@ -147,27 +149,21 @@ clientAdvanceRouter.post(
     if (project.archived) {
       throw new HttpError(409, 'This project is archived. Restore it before recording an advance.', { code: 'PROJECT_ARCHIVED' });
     }
-    const actor = req.staff!.id;
-    const created = await prisma.$transaction(async (tx) => {
-      const advance = await tx.clientAdvance.create({
-        data: {
-          projectId,
-          amount,
-          receivedOn: toDateColumn(body.received_on),
-          paymentMethod: body.payment_method ?? null,
-          reference: blankToNull(body.reference),
-          note: blankToNull(body.note),
-          ...stampCreate(actor),
-        },
-      });
-      await recordHistory(tx, {
-        target: { clientAdvanceId: advance.id },
-        action: 'CREATED',
-        actorId: actor,
-        details: { amount, received_on: body.received_on },
-      });
-      return advance;
-    });
+    const created = await recordReceipt(
+      req.staff!,
+      projectId,
+      {
+        receiptType: 'ADVANCE',
+        amount,
+        receivedOn: body.received_on,
+        paymentMethod: body.payment_method ?? null,
+        reference: blankToNull(body.reference),
+        note: blankToNull(body.note),
+        confirmOverpayment: body.confirm_overpayment,
+        submissionId: body.submission_id ?? null,
+      },
+      'CLIENT_ADVANCES',
+    );
     res.status(201).json(presentAdvance(await loadAdvance(created.id)));
   }),
 );
@@ -180,26 +176,12 @@ clientAdvanceRouter.post(
     const body = reverseSchema.parse(req.body);
     const advance = await loadAdvance(advanceId);
     if (advance.reversal) throw alreadyReversed();
-    const actor = req.staff!.id;
-    const amount = moneyString(advance.amount);
-    try {
-      // Allowed on an archived project, so a wrong entry can still be corrected (FR-020).
-      await prisma.$transaction(async (tx) => {
-        await tx.clientAdvanceReversal.create({
-          data: { clientAdvanceId: advance.id, amount: advance.amount, reason: body.reason, ...stampCreate(actor) },
-        });
-        await recordHistory(tx, {
-          target: { clientAdvanceId: advance.id },
-          action: 'REVERSED',
-          actorId: actor,
-          details: { amount, reason: body.reason },
-        });
-      });
-    } catch (error) {
-      // The unique client_advance_id lets only one of two simultaneous reversals through.
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') throw alreadyReversed();
-      throw error;
+    const offered = body.amount?.trim();
+    if (offered !== undefined && (!/^\d+(\.\d{1,2})?$/.test(offered) || moneyString(offered) !== moneyString(advance.amount))) {
+      throw new HttpError(400, 'Check the highlighted fields.', { fields: { amount: 'Only the full amount can be reversed.' } });
     }
+    // Allowed on an archived project, so a wrong entry can still be corrected (FR-020).
+    await reverseReceipt(req.staff!, advance.id, body.reason);
     res.status(201).json(presentAdvance(await loadAdvance(advance.id)));
   }),
 );

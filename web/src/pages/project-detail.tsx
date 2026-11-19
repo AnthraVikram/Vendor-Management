@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
-import { AdvancesSection } from './advances-section';
+import { ClientFinanceArea } from './client-finance/area';
 import { DocumentsSection } from './documents-section';
 import { HistoryPanel } from './history-panel';
 import { ProjectSections, RemovedSection, Section } from './project-sections';
@@ -590,7 +590,8 @@ export function ProjectDetail({ id, itemId, onTitle }: { id: string; itemId?: st
           </form>
         </div>
       </div>
-      <AdvancesSection projectId={id} version={version} />
+      {/* Feature 006 FR-043: the Client finance area replaces the Client advances section in place. */}
+      <ClientFinanceArea projectId={id} version={version} />
       <DocumentsSection parent="projects" parentId={id} parentArchived={project.archived} />
       <ProjectTimeline
         projectId={id}

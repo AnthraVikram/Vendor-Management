@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import { HealthBadge, ProgressMeter } from '../badges';
 import { formatDate, formatDateTime } from '../time';
 import { Skeleton } from '../ui/skeleton';
+import { STATE_LABELS } from './client-finance/money';
 import { ACTIONS } from './history-panel';
 
 interface Ref { id: string; name: string }
@@ -313,7 +314,7 @@ interface Overview {
   counts: { vendors_all: number; vendors_archived: number; projects_not_archived: number; projects_in_progress: number; projects_archived: number };
   progress: { id: string; name: string; status: string; health: string; done: number; total: number; percent: number }[];
   recently_updated: { id: string; name: string; status: string; updated_at: string }[];
-  recent_activity: { id: string; action: string; target: { kind: string; id: string; name: string }; created_at: string; created_by: { id: string; name: string } }[];
+  recent_activity: { id: string; action: string; target: { kind: string; id: string; name: string }; status?: string | null; created_at: string; created_by: { id: string; name: string } }[];
 }
 
 const COUNTS: { key: keyof Overview['counts']; label: string; href: string }[] = [
@@ -326,8 +327,17 @@ const COUNTS: { key: keyof Overview['counts']; label: string; href: string }[] =
 function activityTarget(target: Overview['recent_activity'][number]['target']) {
   if (target.kind === 'vendor') return <a href={`#/vendors/${target.id}`}>{target.name}</a>;
   const link = <a href={`#/projects/${target.id}`}>{target.name}</a>;
-  return target.kind === 'client_advance' ? <>Client advance on {link}</> : link;
+  // Feature 006: client-finance records are named by kind; a Feature 003 advance line is unchanged.
+  const kind = CLIENT_FINANCE_KINDS[target.kind];
+  return kind ? <>{kind} on {link}</> : link;
 }
+
+const CLIENT_FINANCE_KINDS: Record<string, string> = {
+  client_advance: 'Client advance',
+  client_receipt: 'Client receipt',
+  client_quotation: 'Client quotation',
+  client_purchase_order: 'Client purchase order',
+};
 
 function BusinessOverview() {
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -404,7 +414,7 @@ function BusinessOverview() {
               {overview.recent_activity.map((row) => (
                 <li key={row.id} className="dash-item">
                   <div className="dash-item-main">
-                    <span>{ACTIONS[row.action] ?? row.action}: {activityTarget(row.target)}</span>
+                    <span>{ACTIONS[row.action] ?? row.action}: {activityTarget(row.target)}{row.status ? ` · ${STATE_LABELS[row.status] ?? row.status}` : null}</span>
                     <span className="dash-item-meta">{row.created_by.name}</span>
                   </div>
                   <div className="dash-item-side"><span>{formatDateTime(row.created_at)}</span></div>
