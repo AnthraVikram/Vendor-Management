@@ -331,7 +331,7 @@ US1 → US2 (receipts, Office Team entry) → US3 → US4 (the approved amount) 
 | NFR-001 | T067 |
 | NFR-002, NFR-003 | T058, T068 |
 | NFR-005 | T071 |
-| SC-003, SC-004 | T076 (manual timing) |
+| SC-003, SC-004 | T076 (system timings only; timing with a person pending, see spec Success Criteria) |
 | SC-005 | T064 |
 | SC-006 | T039, T045 |
 | Idempotency (research R13) | T031, T035 |
@@ -627,4 +627,4 @@ All six items raised by task generation are decided (spec Clarifications, Sessio
 - **Why**: on 2026-11-19 an API test run used the development database through an ambient `DATABASE_URL` and `resetDatabase()` emptied it. The fix (`fix/test-database-guard`, `5e40d77`) was merged into this branch before any further test run, so Feature 006 never reaches `main` with the unsafe test setup.
 - **Conflict resolved**: `api/tests/helpers.ts` only. `resetDatabase(client = prisma)` keeps the guard (`assertConnectedTestDatabase`) as its first statement and runs Feature 006's full deletion order, including the financial-attachment supersede loop, through `client.`; no `prisma.` call remains in it. Every other guard file (`global-setup.ts`, `setup-env.ts`, `test-db-guard.ts`, the two guard test files, `ci.yml`, `README.md`) merged unchanged from the fix branch. No application code, schema, migration, requirement or product decision changed.
 - **Checks** (`DATABASE_URL` and `TEST_DATABASE_URL` unset; development database offline): lint and typecheck clean; API 77 files, 539 passed (515 Feature 006 and earlier, 24 guard); web 49 files, 372 passed, 1 skipped; `npm run build -w web` passes; the migration rehearsal ran on the embedded cluster. Removing the guard line from the merged `resetDatabase` makes `reset-guard.test.ts` fail; restored. The development URL given as `TEST_DATABASE_URL` is refused before connecting, and as `DATABASE_URL` it is ignored (workers used `127.0.0.1:54329/vendor_test`).
-- **Convergence**: the merge changes only test infrastructure, CI and the README; the T077 result (Converged) still describes the Feature 006 code. Open items carried to the pull request, unchanged: Conflict C7 (owner to confirm), SC-003 and SC-004 timed by the system only.
+- **Convergence**: the merge changes only test infrastructure, CI and the README; the T077 result (Converged) still describes the Feature 006 code. Open items carried to the pull request: SC-003 and SC-004 timed by the system only; timing with a person remains pending. Conflict C7 was resolved by the owner on 2026-11-23 (spec Clarifications, Session 2026-11-23); no requirement, code or behaviour changed.

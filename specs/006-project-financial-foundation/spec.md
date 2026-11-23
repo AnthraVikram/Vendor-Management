@@ -4,7 +4,7 @@
 
 **Created**: 2026-11-12 · **Redefined**: 2026-11-17
 
-**Status**: Draft for review — scope and permissions redefined by the product owner (2026-11-17). Every open question, OQ-1 to OQ-42, was decided on 2026-11-17, and Conflict C1 was resolved (PRD FR-19 approved, Phase 4). Implemented on this branch (tasks.md T001 to T076; migration applied to the development database on 2026-11-18); final convergence (T077) pending.
+**Status**: Draft for review — scope and permissions redefined by the product owner (2026-11-17). Every open question, OQ-1 to OQ-42, was decided on 2026-11-17, and Conflict C1 was resolved (PRD FR-19 approved, Phase 4); Conflict C7 was resolved on 2026-11-23. Implemented on this branch (tasks.md T001 to T076; migration applied to the development database on 2026-11-18); final convergence (T077) completed on 2026-11-19 and reports Converged; re-confirmed on 2026-11-23.
 
 **Input**: User description: "Redefine Feature 006 — Client Financial Management. Client Purchase Orders (POs); client quotations and revisions; approved client amounts; client advances and subsequent payment receipts; outstanding client balances; financial documents and transaction history; integration with existing Feature 003 client advances; audit trails and controlled corrections. Administrator, Accountant and Office Staff can view financial information. Office Staff can enter and submit financial data. Administrator and Accountant can review, approve and manage verified financial records. Office Staff cannot approve or modify approved financial records. The financial records must support the future Feature 010 firm-wide dashboard and individual project financial dashboards. Preserve all existing Feature 003 client advance functionality, records and history."
 
@@ -108,6 +108,10 @@ Role names: the brief's "Office Staff" is the existing **Office Team** role (Fea
   9. In Recent activity, receipts that are not Advances are shown as client receipts, separately from client advances; client-advance entries keep their existing behaviour.
   10. Every new Feature 006 history entry captures, when it is written, the associated record's status immediately after the event, for every action, including creation, a new revision, a warning confirmation and attachment events; historical entries are never rewritten. New Feature 006 events on Advance receipts show their status too; Feature 003 advance entries keep their exact existing response shape (refines decision 4).
   11. Approval attachments: Administrators and Accountants may attach documents to an approval; Office Team may not; nobody may remove an attachment from an approval (FR-042b, FR-042d).
+
+### Session 2026-11-23
+
+- Q: Does Feature 006's quotation approval conflict with the Feature 004 brief that client-approval practice does not become an in-app approval workflow (Conflict C7)? → A: No (product owner, 2026-11-23). Feature 004 excludes an in-app client approval workflow as a prerequisite for project creation. Feature 006's quotation approval is a separate financial workflow that establishes the authoritative approved client amount (FR-026, FR-028); it does not control project creation. C7 is resolved; no requirement or behaviour changes.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -544,6 +548,8 @@ Any staff member opens a project and sees its approved client amount, verified P
 - **SC-007**: For every seeded project, the outstanding balance equals the approved client amount minus all verified, unreversed receipts, worked out by hand, to the paisa, and excludes every submitted, rejected and reversed receipt.
 - **SC-008**: No client financial record or history entry can be edited or deleted through any action (automated test over every write route, extending the Feature 003 append-only test).
 
+**Validation status of SC-003 and SC-004 (2026-11-23)**: not yet validated. Their targets above are unchanged. T076 recorded system timings only (receipt entry with payment proof 61 ms, verification 22 ms, Client finance view 23 ms); timing with a person against the 1-minute, 30-second and 20-second targets remains pending.
+
 ## Backward Compatibility
 
 | Existing requirement | Today | With this feature | Status |
@@ -655,7 +661,7 @@ All must be answered before `/speckit-plan` (Constitution I). Former ids from 20
 - **C4 — Dashboard money tiles with unverified entries**: Feature 003 tiles sum every non-reversed advance. Resolved (OQ-27): they count only verified, unreversed advances, so Office Team submissions never change them before verification. Existing records are unaffected.
 - **C5 — Document types (Feature 003 FR-012)**: resolved (OQ-25, OQ-42) — three types are added for project documents only, superseding FR-012 additively for them; vendor documents are unchanged (Backward Compatibility).
 - **C6 — Q2 with Q3 and OQ-3 (resolved 2026-11-17 by OQ-8 and OQ-32)**: a changed amount is a new revision, starting in Draft with its own status; the Approved revision never changes. Purchase orders matched to an earlier approval follow FR-032b (OQ-35, decided).
-- **C7 — Feature 004 brief**: "client-approval practice does not become an in-app approval workflow" concerned project creation; quotation approval here gates nothing else. Owner to confirm.
+- **C7 — Feature 004 brief (resolved 2026-11-23)**: "client-approval practice does not become an in-app approval workflow" concerned project creation. Owner decision: Feature 004 excludes an in-app client approval workflow as a prerequisite for project creation; Feature 006's quotation approval is a separate financial workflow that establishes the authoritative approved client amount and does not control project creation (Clarifications, Session 2026-11-23).
 - **C8 — Invoicing excluded, receivables included**: the financial reference (§19) keeps client invoicing out of scope; the outstanding balance rests on the approved client amount, not on invoices (FR-034; OQ-21, decided).
 - **C9 — No general ledger (Constitution Product Boundaries)**: the client financial history is a dated list of records, not accounts, debits and credits.
 - **R1 — Budget wording**: the Feature 005 "Budget & Costing" section stays text-only (FR-050); this feature records no budget figures (OQ-1), so there is no second budget place.
