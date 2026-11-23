@@ -7,14 +7,14 @@ import { asyncRoute } from '../async-route';
 // Read-only change history (FR-027, FR-028). There are no write routes: entries are written only by the
 // routes that make each change, in the same transaction.
 
-const TARGETS = ['vendor_id', 'project_id', 'document_id', 'import_run_id', 'client_advance_id'] as const;
+const TARGETS = ['vendor_id', 'project_id', 'document_id', 'import_run_id', 'client_advance_id', 'client_quotation_id', 'client_purchase_order_id'] as const;
 type Target = (typeof TARGETS)[number];
 
 const querySchema = z
   .object(Object.fromEntries(TARGETS.map((key) => [key, z.string().uuid('Not a valid id.').optional()])) as Record<Target, z.ZodOptional<z.ZodString>>)
-  .strict('Ask for one of vendor_id, project_id, document_id, import_run_id, or client_advance_id.')
+  .strict('Ask for one of vendor_id, project_id, document_id, import_run_id, client_advance_id, client_quotation_id, or client_purchase_order_id.')
   .refine((query) => TARGETS.filter((key) => query[key] !== undefined).length === 1, {
-    message: 'Ask for exactly one of vendor_id, project_id, document_id, import_run_id, or client_advance_id.',
+    message: 'Ask for exactly one of vendor_id, project_id, document_id, import_run_id, client_advance_id, client_quotation_id, or client_purchase_order_id.',
   });
 
 type Stamps = { createdAt: Date; createdById: string; updatedAt: Date; updatedById: string };
@@ -27,6 +27,8 @@ const NOT_FOUND: Record<Target, string> = {
   document_id: 'Document not found.',
   import_run_id: 'Import run not found.',
   client_advance_id: 'Client advance not found.',
+  client_quotation_id: 'Client quotation not found.',
+  client_purchase_order_id: 'Client purchase order not found.',
 };
 
 function loadStamps(target: Target, id: string): Promise<Stamps | null> {
@@ -41,6 +43,10 @@ function loadStamps(target: Target, id: string): Promise<Stamps | null> {
       return prisma.vendorImportRun.findUnique({ where: { id }, select: stampSelect });
     case 'client_advance_id':
       return prisma.clientAdvance.findUnique({ where: { id }, select: stampSelect });
+    case 'client_quotation_id':
+      return prisma.clientQuotation.findUnique({ where: { id }, select: stampSelect });
+    case 'client_purchase_order_id':
+      return prisma.clientPurchaseOrder.findUnique({ where: { id }, select: stampSelect });
   }
 }
 
@@ -50,6 +56,8 @@ const ENTRY_COLUMN = {
   document_id: 'documentId',
   import_run_id: 'vendorImportRunId',
   client_advance_id: 'clientAdvanceId',
+  client_quotation_id: 'clientQuotationId',
+  client_purchase_order_id: 'clientPurchaseOrderId',
 } as const;
 
 export const historyRouter = Router();

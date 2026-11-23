@@ -21,7 +21,7 @@ interface History {
   entries: Entry[];
 }
 
-export type HistoryTarget = 'vendor_id' | 'project_id' | 'document_id' | 'import_run_id' | 'client_advance_id';
+export type HistoryTarget = 'vendor_id' | 'project_id' | 'document_id' | 'import_run_id' | 'client_advance_id' | 'client_quotation_id' | 'client_purchase_order_id';
 
 // Shared with the dashboard's recent activity, so both use the same words (Feature 005 FR-023).
 export const ACTIONS: Record<string, string> = {
@@ -44,6 +44,18 @@ export const ACTIONS: Record<string, string> = {
   SECTION_ASSIGNED: 'Assigned to section',
   SECTION_ASSIGNMENT_EDITED: 'Section role changed',
   SECTION_UNASSIGNED: 'Removed from section',
+  // Feature 006 client finance.
+  REVISION_ADDED: 'Revision added',
+  STATUS_CHANGED: 'Status changed',
+  APPROVED: 'Approved',
+  VERIFIED: 'Verified',
+  REJECTED: 'Rejected',
+  WITHDRAWN: 'Withdrawn',
+  CANCELLED: 'Cancelled',
+  ATTACHED: 'Document attached',
+  ATTACHMENT_REMOVED: 'Attachment removed',
+  SUPERSEDED: 'Attachment superseded',
+  WARNING_CONFIRMED: 'Warning confirmed',
 };
 
 // Field and detail names that do not read well when simply un-snake-cased.
@@ -58,7 +70,19 @@ const NAMES: Record<string, string> = {
   rejected_count: 'Rejected',
   blueprint_applied: 'Standard sections',
   ended_assignments: 'Vendors taken off the section',
+  // Feature 006 client finance.
+  record_status: 'Status',
+  revision_number: 'Revision',
+  document_title: 'Document',
+  po_number: 'PO number',
 };
+
+// Record states in client-finance details read as words (Feature 006).
+const STATES: Record<string, string> = {
+  DRAFT: 'Draft', SUBMITTED: 'Submitted', UNDER_REVIEW: 'Under review', APPROVED: 'Approved', REJECTED: 'Rejected',
+  WITHDRAWN: 'Withdrawn', VERIFIED: 'Verified', REVERSED: 'Reversed', CANCELLED: 'Cancelled',
+};
+const STATE_KEYS = ['record_status', 'from', 'to'];
 
 function fieldName(key: string): string {
   if (NAMES[key]) return NAMES[key];
@@ -86,7 +110,11 @@ const DETAIL_ORDER = [
 ];
 const detailRank = (key: string) => (DETAIL_ORDER.includes(key) ? DETAIL_ORDER.indexOf(key) : DETAIL_ORDER.length);
 // Internal ids that mean nothing to staff.
-const HIDDEN_DETAILS = ['assignment_id'];
+const HIDDEN_DETAILS = [
+  'assignment_id',
+  // Feature 006 internal ids.
+  'revision_id', 'approval_id', 'receipt_id', 'purchase_order_id', 'attachment_id', 'document_id', 'supersedes_attachment_id', 'superseded_document_id',
+];
 
 function Details({ details }: { details: Record<string, unknown> }) {
   return (
@@ -96,7 +124,7 @@ function Details({ details }: { details: Record<string, unknown> }) {
           <p key={key} className="history-detail"><a href={`#/vendor-imports?run=${String(raw)}`}>From an import</a></p>
         ) : (
           <p key={key} className="history-detail">
-            <span className="history-field">{fieldName(key)}</span>: <span className="history-value">{key === 'amount' ? `₹${String(raw)}` : value(raw)}</span>
+            <span className="history-field">{fieldName(key)}</span>: <span className="history-value">{key === 'amount' ? `₹${String(raw)}` : STATE_KEYS.includes(key) && typeof raw === 'string' ? (STATES[raw] ?? raw) : value(raw)}</span>
           </p>
         ),
       )}

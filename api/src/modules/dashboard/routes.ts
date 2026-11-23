@@ -7,12 +7,21 @@ import { deadlineGroup } from '../../lib/deadline-groups';
 import { currentMonthInIndia, fromDateColumn, toDateColumn, todayInIndia } from '../../lib/india-date';
 import { moneyString } from '../../lib/money';
 import { ADVANCE_VIEWERS } from '../../lib/permissions';
+import { verifiedAdvanceWhere } from '../../lib/finance-state';
 import { asyncRoute } from '../async-route';
 import { projectFigures } from '../projects/figures';
 import { isInProgress } from '../projects/routes';
 import { currentState, delayInclude, flagsOf, itemInclude, presentAuthor, presentResponsible } from '../timeline/present';
 
 const RECENT_LIMIT = 10;
+
+// Feature 006 FR-039: Recent activity never exposes an amount for an entry added by client finance.
+const AMOUNT_KEYS = ['verified_receipts', 'excess'];
+function withoutAmounts(value: unknown): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries((value ?? {}) as Record<string, unknown>).filter(([key]) => !key.includes('amount') && !AMOUNT_KEYS.includes(key)),
+  );
+}
 
 export const dashboardRouter = Router();
 
@@ -155,9 +164,10 @@ dashboardRouter.get(
       // Covers every project, archived included. A reversal removes its advance from the month it was received in.
       const month = currentMonthInIndia();
       const [standing, received] = await Promise.all([
-        prisma.clientAdvance.aggregate({ where: { reversal: { is: null } }, _sum: { amount: true } }),
+        // Feature 006 FR-015: verified, unreversed Advances only.
+        prisma.clientAdvance.aggregate({ where: verifiedAdvanceWhere, _sum: { amount: true } }),
         prisma.clientAdvance.aggregate({
-          where: { reversal: { is: null }, receivedOn: { gte: toDateColumn(month.start), lt: toDateColumn(month.end) } },
+          where: { ...verifiedAdvanceWhere, receivedOn: { gte: toDateColumn(month.start), lt: toDateColumn(month.end) } },
           _sum: { amount: true },
         }),
       ]);
@@ -225,11 +235,19 @@ dashboardRouter.get(
     // Vendor and project history; client-advance entries only for roles that may see amounts (Feature 003 FR-017).
     const maySeeAdvances = ADVANCE_VIEWERS.includes(req.staff!.role);
     const entries = await prisma.historyEntry.findMany({
-      where: { OR: [{ vendorId: { not: null } }, { projectId: { not: null } }, ...(maySeeAdvances ? [{ clientAdvanceId: { not: null } }] : [])] },
+      where: {
+        OR: [
+          { vendorId: { not: null } },
+          { projectId: { not: null } },
+          ...(maySeeAdvances ? [{ clientAdvanceId: { not: null } }, { clientQuotationId: { not: null } }, { clientPurchaseOrderId: { not: null } }] : []),
+        ],
+      },
       include: {
         vendor: { select: { id: true, name: true } },
         project: { select: { id: true, name: true } },
-        clientAdvance: { select: { project: { select: { id: true, name: true } } } },
+        clientAdvance: { select: { receiptType: true, project: { select: { id: true, name: true } } } },
+        clientQuotation: { select: { project: { select: { id: true, name: true } } } },
+        clientPurchaseOrder: { select: { project: { select: { id: true, name: true } } } },
         createdBy: { select: { id: true, name: true } },
       },
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -246,19 +264,37 @@ dashboardRouter.get(
       },
       progress,
       recently_updated: recentlyUpdated.map((row) => ({ id: row.id, name: row.name, status: row.status, updated_at: row.updated_at.toISOString() })),
-      recent_activity: entries.map((entry) => ({
-        id: entry.id,
-        action: entry.action,
-        target: entry.vendor
-          ? { kind: 'vendor', id: entry.vendor.id, name: entry.vendor.name }
-          : entry.project
-            ? { kind: 'project', id: entry.project.id, name: entry.project.name }
-            : { kind: 'client_advance', id: entry.clientAdvance!.project.id, name: entry.clientAdvance!.project.name },
-        changes: entry.changes,
-        details: entry.details,
-        created_at: entry.createdAt.toISOString(),
-        created_by: entry.createdBy,
-      })),
+      recent_activity: entries.map((entry) => {
+        const base = { id: entry.id, action: entry.action };
+        const stamp = { created_at: entry.createdAt.toISOString(), created_by: entry.createdBy };
+        if (entry.vendor || entry.project) {
+          const target = entry.vendor ? { kind: 'vendor', id: entry.vendor.id, name: entry.vendor.name } : { kind: 'project', id: entry.project!.id, name: entry.project!.name };
+          return { ...base, target, changes: entry.changes, details: entry.details, ...stamp };
+        }
+        // Feature 006 (FR-039, research R6). Feature 003 advance entries carry no record_status and keep their exact
+        // existing shape; every other client-finance entry shows its captured status and no amount.
+        const details = (entry.details ?? {}) as Record<string, unknown>;
+        if (entry.clientAdvance && !('record_status' in details)) {
+          const target = { kind: 'client_advance', id: entry.clientAdvance.project.id, name: entry.clientAdvance.project.name };
+          return { ...base, target, changes: entry.changes, details: entry.details, ...stamp };
+        }
+        const project = (entry.clientAdvance ?? entry.clientQuotation ?? entry.clientPurchaseOrder)!.project;
+        const kind = entry.clientAdvance
+          ? entry.clientAdvance.receiptType === 'ADVANCE'
+            ? 'client_advance'
+            : 'client_receipt'
+          : entry.clientQuotation
+            ? 'client_quotation'
+            : 'client_purchase_order';
+        return {
+          ...base,
+          target: { kind, id: project.id, name: project.name },
+          status: (details.record_status as string | undefined) ?? null,
+          changes: withoutAmounts(entry.changes),
+          details: withoutAmounts(details),
+          ...stamp,
+        };
+      }),
     });
   }),
 );

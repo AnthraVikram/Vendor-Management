@@ -1,6 +1,19 @@
 # Vendor-Management
 Vendor and project management system for ICON (to learn SDD)
 
+## Running tests
+
+The API tests delete everything in the database they run against, so they only run against a disposable test database:
+
+- By default, an embedded PostgreSQL cluster the tests start themselves at `127.0.0.1:54329`, database `vendor_test`.
+- In CI, the PostgreSQL service at `postgres:5432`, named by `TEST_DATABASE_URL`.
+
+`DATABASE_URL` is ignored by the tests, so the development database in `.env` can never be used. The tests refuse to start unless the server is one of the two above and the database name ends in `_test`, and `resetDatabase()` checks the live connection again before deleting anything.
+
+```powershell
+npm.cmd test
+```
+
 ## Backups
 
 The application does not back itself up. Whoever runs production must set up backups outside the application.

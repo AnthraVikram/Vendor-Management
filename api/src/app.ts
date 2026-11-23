@@ -18,6 +18,8 @@ import { vendorImportRouter } from './modules/vendor-imports/routes';
 import { documentRouter } from './modules/documents/routes';
 import { historyRouter } from './modules/history/routes';
 import { searchRouter } from './modules/search/routes';
+import { clientFinanceRouter } from './modules/client-finance/routes';
+import { attachmentRouter } from './modules/client-finance/attachments';
 
 export function createApp() {
   const config = loadConfig();
@@ -45,6 +47,8 @@ export function createApp() {
   app.use('/api', documentRouter);
   app.use('/api', historyRouter);
   app.use('/api', searchRouter);
+  app.use('/api', clientFinanceRouter);
+  app.use('/api', attachmentRouter);
   app.use('/api', (_req, res) => {
     res.status(404).json({ message: 'Not found.' });
   });

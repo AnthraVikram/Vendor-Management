@@ -129,7 +129,22 @@ Planned features:
 
 **Phase 3 outcome:** The firm can track vendor accounts, project spending, payments, and financial obligations more reliably.
 
-### 5.4 Out of Scope
+### 5.4 Phase 4 — Client Financial Management
+
+Added with Feature 006 (approved 2026-11-17). Phases 1 to 3 are unchanged.
+
+This phase includes:
+
+- One client quotation per project, with numbered revisions that each move through review to approval, rejection or withdrawal.
+- The approved client amount, taken from the exact quotation revision the client approved.
+- Client purchase orders recorded against the approved revision, at exactly the approved amount.
+- Client advances and subsequent payment receipts; entries by Office Team members are verified by an Administrator or Accountant.
+- Each project's outstanding client balance: the approved client amount less verified, unreversed receipts.
+- Supporting documents attached to these records, and a complete history of every record and correction.
+
+**Phase 4 outcome:** For each project, the firm can see what it quoted, what the client approved and ordered, what the client has paid, and what remains outstanding.
+
+### 5.5 Out of Scope
 
 The initial system will not include:
 
@@ -225,6 +240,8 @@ This workflow will be implemented across later phases.
 **FR-17 â€” Work Scheduling:** Users shall be able to schedule work for a vendor already linked to a project, recording the task, date, start and end time, and required team size. The system shall flag overlapping bookings for the same vendor without blocking them.
 
 **FR-18 â€” Task Pricing:** Each scheduled task shall be able to carry its own fixed price or one spreadsheet or PDF costing sheet, kept separate from the vendor's indicative rates, with earlier prices and files kept readable. This is not a quotation, order, invoice, or payment.
+
+**FR-19 — Client Financial Management:** Staff shall be able to record, against a project, the firm's quotation to the client (one per project) with numbered revisions and statuses; the approved client amount, equal to the amount of the exact quotation revision the client approved; the client's purchase orders; and money received from the client, being client advances (FR-09) and subsequent payment receipts; and shall see the project's outstanding client balance. All staff roles may view these records. Office Team members may enter and submit them; Administrators and Accountants review, verify and approve them, and Office Team members may not approve or change approved records. Earlier values are never overwritten; corrections are new entries and every change is traceable (FR-15). These are client-side records, distinct from vendor quotations and orders (FR-10), task pricing (FR-18) and vendor payments (FR-11). Approved on 2026-11-17 with Feature 006; Phase 4 (section 5.4).
 
 ## 8. Non-Functional Requirements
 

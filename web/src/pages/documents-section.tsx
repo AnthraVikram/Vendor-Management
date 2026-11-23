@@ -29,6 +29,13 @@ const TYPES: Record<string, string> = {
   OTHER: 'Other',
 };
 
+// Feature 006 FR-041, OQ-42: offered for project documents only.
+const PROJECT_ONLY_TYPES: Record<string, string> = {
+  QUOTATION: 'Quotation',
+  PURCHASE_ORDER: 'Purchase order',
+  PAYMENT_PROOF: 'Payment proof',
+};
+
 // The server refuses anything larger (FR-013); checking here saves sending the bytes.
 const MAX_BYTES = 25 * 1024 * 1024;
 
@@ -48,7 +55,7 @@ function FieldError({ message }: { message?: string }) {
   return message ? <span className="error" role="alert">{message}</span> : null;
 }
 
-function UploadForm({ action, onSaved }: { action: string; onSaved: () => void }) {
+function UploadForm({ action, onSaved, types }: { action: string; onSaved: () => void; types: Record<string, string> }) {
   const [file, setFile] = useState<File | null>(null);
   const [fileKey, setFileKey] = useState(0);
   const [title, setTitle] = useState('');
@@ -116,7 +123,7 @@ function UploadForm({ action, onSaved }: { action: string; onSaved: () => void }
           Document type
           <select value={type} onChange={(event) => setType(event.target.value)} aria-invalid={Boolean(fields.document_type)}>
             <option value="">Choose</option>
-            {Object.entries(TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            {Object.entries(types).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </label>
         <FieldError message={fields.document_type} />
@@ -187,7 +194,7 @@ export function DocumentsSection({ parent, parentId, parentArchived }: { parent:
                 <div className="document-body">
                   <p className="document-title">
                     <strong>{document.title}</strong>
-                    <span className="status-badge status-planned">{TYPES[document.document_type] ?? document.document_type}</span>
+                    <span className="status-badge status-planned">{TYPES[document.document_type] ?? PROJECT_ONLY_TYPES[document.document_type] ?? document.document_type}</span>
                     {document.archived ? <ArchivedBadge /> : null}
                   </p>
                   <p className="meta">
@@ -215,7 +222,7 @@ export function DocumentsSection({ parent, parentId, parentArchived }: { parent:
           {parentArchived ? null : <p className="meta">Upload agreements, drawings, certificates, or photos below.</p>}
         </div>
       ) : null}
-      {parentArchived ? null : <UploadForm action={base} onSaved={load} />}
+      {parentArchived ? null : <UploadForm action={base} onSaved={load} types={parent === 'projects' ? { ...TYPES, ...PROJECT_ONLY_TYPES } : TYPES} />}
     </section>
   );
 }

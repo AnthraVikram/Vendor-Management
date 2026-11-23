@@ -21,13 +21,19 @@ const MAX_DOCUMENT_BYTES = 25 * 1024 * 1024;
 
 const idSchema = z.string().uuid('Not a valid id.');
 
-const uploadSchema = z.object({
-  title: z.string({ required_error: 'Title is required.' }).trim().min(1, 'Title is required.'),
-  document_type: z.enum(['AGREEMENT', 'DRAWING', 'REGISTRATION_CERTIFICATE', 'PHOTO', 'OTHER'], {
-    errorMap: () => ({ message: 'Choose a document type.' }),
-  }),
-  note: z.string().trim().optional(),
-});
+const FEATURE_003_TYPES = ['AGREEMENT', 'DRAWING', 'REGISTRATION_CERTIFICATE', 'PHOTO', 'OTHER'] as const;
+// Feature 006 FR-041, OQ-42: three types for project documents only; vendor documents keep the five.
+const PROJECT_TYPES = [...FEATURE_003_TYPES, 'QUOTATION', 'PURCHASE_ORDER', 'PAYMENT_PROOF'] as const;
+
+function uploadSchemaFor(parent: 'vendor' | 'project') {
+  return z.object({
+    title: z.string({ required_error: 'Title is required.' }).trim().min(1, 'Title is required.'),
+    document_type: z.enum(parent === 'project' ? PROJECT_TYPES : FEATURE_003_TYPES, {
+      errorMap: () => ({ message: 'Choose a document type.' }),
+    }),
+    note: z.string().trim().optional(),
+  });
+}
 
 type Parent = 'vendor' | 'project';
 
@@ -79,8 +85,8 @@ async function loadDocument(id: string): Promise<DocumentRecord> {
 }
 
 // Checks the fields and the file together, so every problem is reported in one 400.
-function readUpload(req: Request): { body: z.infer<typeof uploadSchema>; file: Express.Multer.File; ext: string; mediaType: string } {
-  const parsed = uploadSchema.safeParse(req.body ?? {});
+function readUpload(req: Request, parent: Parent): { body: z.infer<ReturnType<typeof uploadSchemaFor>>; file: Express.Multer.File; ext: string; mediaType: string } {
+  const parsed = uploadSchemaFor(parent).safeParse(req.body ?? {});
   const fields: Record<string, string> = {};
   if (!parsed.success) {
     for (const issue of parsed.error.issues) {
@@ -106,7 +112,7 @@ function readUpload(req: Request): { body: z.infer<typeof uploadSchema>; file: E
 function uploadRoute(parent: Parent) {
   return asyncRoute(async (req, res) => {
     const parentId = idSchema.parse(req.params.id);
-    const { body, file, ext, mediaType } = readUpload(req);
+    const { body, file, ext, mediaType } = readUpload(req, parent);
     const existing =
       parent === 'vendor'
         ? await prisma.vendor.findUnique({ where: { id: parentId }, select: { archived: true } })

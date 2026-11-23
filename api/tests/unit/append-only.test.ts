@@ -15,6 +15,17 @@ const appendOnlyModels = [
   'clientAdvanceReversal',
   'vendorImportRun',
   'vendorImportRow',
+  // Feature 006 client finance (Constitution III, SC-008).
+  'clientQuotation',
+  'quotationRevision',
+  'quotationStatusChange',
+  'clientApproval',
+  'clientPurchaseOrder',
+  'purchaseOrderDecision',
+  'purchaseOrderCancellation',
+  'clientReceiptDecision',
+  'financialAttachment',
+  'financialAttachmentRemoval',
 ];
 const writeMethods = ['update', 'updateMany', 'upsert', 'delete', 'deleteMany'];
 // Documents may be archived and restored (an update), but never deleted (FR-015, FR-016). A removed vendor-project
@@ -68,5 +79,12 @@ describe('append-only history and financial records', () => {
     expect(neverDeletedPattern.test('await tx.projectSection.delete({ where })')).toBe(true);
     expect(neverDeletedPattern.test('await tx.sectionAssignment.deleteMany({})')).toBe(true);
     expect(neverDeletedPattern.test('await tx.projectSection.update({ data: { removedAt } })')).toBe(false);
+  });
+
+  it('catches a write to a Feature 006 financial record', () => {
+    expect(appendOnlyPattern.test('await tx.clientApproval.update({})')).toBe(true);
+    expect(appendOnlyPattern.test('await tx.financialAttachment.delete({})')).toBe(true);
+    expect(appendOnlyPattern.test('await tx.quotationRevision.upsert({})')).toBe(true);
+    expect(appendOnlyPattern.test('await tx.clientPurchaseOrder.create({})')).toBe(false);
   });
 });

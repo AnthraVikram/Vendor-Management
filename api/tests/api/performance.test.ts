@@ -108,3 +108,64 @@ describe('response times with realistic volume (NFR-001, SC-007)', () => {
     for (const ms of runs) expect(ms, `${name} took ${ms} ms`).toBeLessThan(BUDGET_MS);
   });
 });
+
+// Feature 006 (T067, NFR-001 as corrected 2026-11-18): every project has one client quotation of 200 revisions,
+// 10 purchase orders and 200 receipts. The Client finance request must leave room within the 2-second page budget.
+const CLIENT_FINANCE_BUDGET_MS = 1000;
+const REVISIONS = 200;
+const POS = 10;
+const RECEIPTS = 200;
+
+describe('client finance at NFR-001 volume', () => {
+  beforeAll(async () => {
+    const admin = await prisma.staffUser.findFirstOrThrow();
+    const stamp = { createdById: admin.id, updatedById: admin.id };
+    const day = toDateColumn(addDays(todayInIndia(), -1));
+    const projects = await prisma.project.findMany({ select: { id: true } });
+    for (const [index, project] of projects.entries()) {
+      const quotationId = randomUUID();
+      await prisma.clientQuotation.create({ data: { id: quotationId, projectId: project.id, reference: `Q-P${String(index).padStart(5, '0')}`, title: 'Works', ...stamp } });
+      const revisions = Array.from({ length: REVISIONS }, (_, n) => ({
+        id: randomUUID(), clientQuotationId: quotationId, number: n + 1, amount: `${1000000 + n}.00`, quotationDate: day, reason: n === 0 ? null : 'Revised', ...stamp,
+      }));
+      await prisma.quotationRevision.createMany({ data: revisions });
+      const last = revisions[REVISIONS - 1];
+      await prisma.quotationStatusChange.createMany({
+        data: [
+          ...revisions.slice(0, -1).map((r) => ({ quotationRevisionId: r.id, fromStatus: 'DRAFT' as const, toStatus: 'WITHDRAWN' as const, reason: 'Superseded', ...stamp })),
+          { quotationRevisionId: last.id, fromStatus: 'DRAFT' as const, toStatus: 'SUBMITTED' as const, ...stamp },
+          { quotationRevisionId: last.id, fromStatus: 'SUBMITTED' as const, toStatus: 'UNDER_REVIEW' as const, ...stamp },
+          { quotationRevisionId: last.id, fromStatus: 'UNDER_REVIEW' as const, toStatus: 'APPROVED' as const, ...stamp },
+        ],
+      });
+      const approvalId = randomUUID();
+      await prisma.clientApproval.create({ data: { id: approvalId, quotationRevisionId: last.id, amount: last.amount, ...stamp } });
+      const pos = Array.from({ length: POS }, (_, n) => ({
+        id: randomUUID(), projectId: project.id, clientApprovalId: approvalId, poNumber: `PO/${index}/${n}`, poDate: day, amount: last.amount, entryStatus: 'VERIFIED_ON_ENTRY' as const, ...stamp,
+      }));
+      await prisma.clientPurchaseOrder.createMany({ data: pos });
+      await prisma.purchaseOrderCancellation.createMany({ data: pos.slice(0, -1).map((po) => ({ clientPurchaseOrderId: po.id, reason: 'Replaced', ...stamp })) });
+      await prisma.clientAdvance.createMany({
+        data: Array.from({ length: RECEIPTS }, (_, n) => ({
+          projectId: project.id, amount: '1000.00', receivedOn: day, receiptType: n % 4 === 0 ? ('ADVANCE' as const) : ('STAGE_PAYMENT' as const),
+          entryStatus: n % 5 === 0 ? ('SUBMITTED' as const) : ('VERIFIED_ON_ENTRY' as const), ...stamp,
+        })),
+      });
+    }
+  }, 600_000);
+
+  it('has the volume NFR-001 names', async () => {
+    expect(await prisma.clientQuotation.count()).toBe(PROJECTS);
+    expect(await prisma.quotationRevision.count({ where: { clientQuotation: { projectId: busiestProjectId } } })).toBe(REVISIONS);
+    expect(await prisma.clientPurchaseOrder.count({ where: { projectId: busiestProjectId } })).toBe(POS);
+    expect(await prisma.clientAdvance.count({ where: { projectId: busiestProjectId } })).toBe(RECEIPTS);
+  });
+
+  it('answers the Client finance request in under 1 second, and with the project page request under 2 seconds', async () => {
+    const finance = await timings(`/api/projects/${busiestProjectId}/client-finance`);
+    const page = await timings(`/api/projects/${busiestProjectId}`);
+    console.log(`T067 Client finance: ${finance.join(', ')} ms; project detail: ${page.join(', ')} ms`);
+    for (const ms of finance) expect(ms, `Client finance took ${ms} ms`).toBeLessThan(CLIENT_FINANCE_BUDGET_MS);
+    for (let run = 0; run < RUNS; run += 1) expect(finance[run] + page[run]).toBeLessThan(2000);
+  }, 120_000);
+});
